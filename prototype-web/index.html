@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RRaM Prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="layout">
+        <section class="board-wrap" aria-label="Карта">
+          <div id="board" class="board" role="group" aria-label="Игровая карта"></div>
+        </section>
+
+        <aside class="panel controls-panel" aria-label="Управление ходом">
+          <div class="control-group">
+            <div class="dice-row">
+              <button class="die" id="die1" data-die="0">-</button>
+              <button class="die" id="die2" data-die="1">-</button>
+            </div>
+            <p id="diceHint" class="hint" aria-live="polite">Нажмите на кубики, чтобы бросить.</p>
+          </div>
+
+          <div class="control-group">
+            <div class="mode-grid">
+              <button class="mode active" data-mode="moveSum">Движение суммой</button>
+              <button class="mode" data-mode="moveDie">Движение кубиком</button>
+              <button class="mode" data-mode="transfer">Передать карты</button>
+              <button class="mode" data-mode="draw">Добрать карту</button>
+              <button class="mode" data-mode="teleport">Бусы телепортации</button>
+            </div>
+            <button id="performActionBtn" class="primary-action">Выполнить действие</button>
+          </div>
+
+          <div class="control-group control-group--wide">
+            <div id="characters"></div>
+          </div>
+
+          <div class="control-group">
+            <div class="match-actions">
+              <button id="endTurnBtn">Завершить ход</button>
+              <button id="resetBtn" class="ghost">Новый матч</button>
+            </div>
+          </div>
+        </aside>
+
+        <aside class="panel side-panel" aria-label="Состояние матча">
+          <p id="turnInfo" class="turn-info" aria-live="polite">Загрузка матча...</p>
+
+          <h2>Инвентарь</h2>
+          <div id="inventory" class="inventory empty">Выберите персонажа.</div>
+
+          <h2>Журнал</h2>
+          <div id="log" class="log" aria-live="polite"></div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="./game.js"></script>
+  </body>
+</html>

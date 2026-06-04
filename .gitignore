@@ -1,0 +1,13 @@
+# Зависимости
+node_modules/
+
+# Логи
+*.log
+
+# Окружение
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
