@@ -188,6 +188,26 @@ h2::after {
   font-weight: 600;
 }
 
+.contact-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid rgba(70, 194, 160, 0.46);
+  border-radius: var(--radius-sm);
+  background: rgba(70, 194, 160, 0.12);
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.contact-link:hover {
+  border-color: var(--accent);
+  background: rgba(70, 194, 160, 0.2);
+}
+
 #rollBtn {
   border-color: transparent;
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
