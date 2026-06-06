@@ -3,7 +3,9 @@
 
 // ── Конфигурация ──────────────────────────────────────────────────
 const SERVER_URL = new URLSearchParams(location.search).get('server')
-  ?? 'ws://localhost:8787/ws';
+  ?? (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+      ? 'ws://localhost:8787/ws'
+      : 'wss://rram-server.onrender.com/ws');
 
 const SESSION_KEY = 'rram_session';
 
