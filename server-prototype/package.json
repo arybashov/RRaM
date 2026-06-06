@@ -3,9 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "node --watch src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "smoke": "node scripts/smoke.js",
+    "smoke:bot": "node scripts/smoke-bot.js"
   },
   "dependencies": {
     "@fastify/websocket": "^11.2.0",

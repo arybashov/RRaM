@@ -18,18 +18,31 @@
 ## Текущий состав
 
 - `package.json` - описание Node-пакета и скрипты запуска.
-- `src/index.js` - точка входа Fastify-сервера.
-- `src/game-state.js` - минимальная модель комнат и игроков.
+- `src/index.js` - транспорт: Fastify + WebSocket, роутинг команд, персональная рассылка.
+- `src/game-state.js` - хранилище комнат, игроков и сессий; персональные снимки.
+- `src/rules.js` - авторитетный движок правил (ход, кубики, колода, добор, передача).
+- `src/constants.js` - общие константы правил.
 - `src/protocol.js` - названия клиентских команд и серверных событий.
+- `scripts/smoke.js` - сетевой смоук-тест полного сценария (`npm run smoke`).
+- `render.yaml` - конфиг деплоя на Render (бесплатный тир, WebSocket).
 
-## План MVP сервера
+## Статус MVP сервера
+
+Сделано:
 
 1. Подключение клиента по WebSocket.
-2. Создание комнаты через команду `room:create`.
-3. Вход в комнату через команду `room:join`.
-4. Рассылка снимка состояния комнаты всем участникам.
-5. Черновая команда `turn:roll`, которая фиксирует бросок кубиков на сервере.
-6. Отдельное описание правил перемещения, карт и телепортации перед переносом их в код.
+2. Комнаты: `room:create` (с коротким кодом), `room:join` по коду.
+3. Старт партии при втором игроке: 5+5 персонажей, перемешанная конечная колода.
+4. Авторитетный ход: `turn:roll` (кубики бросает сервер), `turn:setMode`, `turn:end`.
+5. Карты: `action:draw` (1 карта), `action:transfer` (лимит = значение кубика), лимит инвентаря.
+6. Персональные снимки: чужая рука скрыта, виден только счетчик карт.
+7. Переподключение по `sessionToken` через `session:resume`.
+
+Заглушки до прихода карты:
+
+- `action:move` и `action:teleport` отвечают ошибкой «карта еще не подключена».
+- Передача пока не требует одной борды (`TODO(map)` в `rules.js`).
+- Победа по гонке на остров противника появится с картой.
 
 ## Предлагаемый стек
 
@@ -63,28 +76,50 @@ WebSocket endpoint:
 ws://localhost:8787/ws
 ```
 
+## Деплой на Render
+
+`render.yaml` готов. На render.com: New → Blueprint → этот репозиторий.
+Render сам подставит `PORT`; `HOST=0.0.0.0` задан в конфиге.
+Веб-клиент с GitHub Pages подключается к `wss://<имя>.onrender.com/ws`.
+
 ## Формат сообщений
 
-Клиент отправляет JSON:
+Все сообщения — JSON вида `{ "type": "...", "payload": { ... } }`.
+
+Команды клиента:
+
+- `room:create` — `{ playerName }` → `room:created { roomId, code, playerId, sessionToken }`
+- `room:join` — `{ code, playerName }` → `room:joined { ... }`
+- `session:resume` — `{ roomId, sessionToken }` → `session:resumed { ... }`
+- `turn:roll` — `{}` (сервер бросает 2×d6)
+- `turn:setMode` — `{ mode: "moveSum" | "split" }`
+- `action:draw` — `{ characterId, dieIndex }` (только в split)
+- `action:transfer` — `{ fromId, toId, dieIndex }` (только в split)
+- `action:move` — `{ characterId, toCell }` (заглушка до карты)
+- `action:teleport` — `{ characterId, toCell }` (заглушка до карты)
+- `turn:end` — `{}`
+
+После любой успешной команды сервер шлёт всем в комнате персональный
+`state:snapshot { room }`. Ошибки приходят как `server:error { message }`.
+
+Пример снимка (видна только своя рука):
 
 ```json
 {
-  "type": "room:create",
-  "payload": {
-    "playerName": "Игрок 1"
-  }
-}
-```
-
-Сервер отвечает JSON-событиями:
-
-```json
-{
-  "type": "room:snapshot",
+  "type": "state:snapshot",
   "payload": {
     "room": {
-      "id": "abc123",
-      "players": []
+      "id": "…", "code": "AB12", "revision": 7, "status": "active",
+      "you": "<playerId>",
+      "players": [{ "id": "…", "name": "Алиса", "side": "green", "connected": true }],
+      "game": {
+        "deckCount": 22, "over": false, "winnerId": null,
+        "turn": { "activePlayerId": "…", "rollsLeft": {}, "dice": [3, 4], "usedDice": [false, false], "mode": "split" },
+        "characters": [
+          { "id": "<pid>:K", "owner": "<pid>", "role": "K", "position": null, "cardCount": 1, "inventory": ["Железная руда"] },
+          { "id": "<other>:K", "owner": "<other>", "role": "K", "position": null, "cardCount": 2 }
+        ]
+      }
     }
   }
 }
@@ -100,8 +135,7 @@ ws://localhost:8787/ws
 
 ## Открытые вопросы
 
-- Сколько игроков поддерживает одна партия: строго 2 или больше?
-- Какие персонажи принадлежат каждому игроку на старте?
-- Как именно задается карта: координаты бордов, острова, стартовые точки?
-- Должен ли сервер сам бросать кубики или принимать результат из внешнего источника?
-- Какой формат карт действий нужен для первой играбельной версии?
+- Формат карты от заказчика: координаты бордов, острова, стартовые точки, проходимость.
+- Подключение веб-прототипа (`prototype-web/`) к серверу вместо локальной логики.
+- Перенос движения/телепорта из заглушек в правила после прихода карты.
+- Состав колоды и количество копий карт (сейчас черновой: 2 Бус + 7×3).

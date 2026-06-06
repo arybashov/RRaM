@@ -1,100 +1,186 @@
 import { randomUUID } from 'node:crypto';
+import { PLAYER_LIMIT } from './constants.js';
+import * as rules from './rules.js';
 
-const PLAYER_LIMIT = 2;
+// Хранилище комнат, игроков и сессий. Игровую логику не знает —
+// делегирует движку правил (rules.js) и отдает персональные снимки.
 
 export function createStore() {
-  const rooms = new Map();
+  const rooms = new Map(); // roomId -> room
+  const codes = new Map(); // code -> roomId
 
-  function createRoom({ playerName, connectionId }) {
+  function createRoom({ playerName, connectionId, vsBot = false }) {
     const room = {
       id: randomUUID(),
+      code: makeUniqueCode(codes),
       revision: 0,
       status: 'waiting',
       players: [],
-      turn: {
-        activePlayerId: null,
-        rollsLeft: 10,
-        lastRoll: null,
-      },
+      game: null,
+      vsBot: false,
     };
 
-    const player = createPlayer({ playerName, connectionId });
+    const player = makePlayer({ playerName, connectionId, seatIndex: 0 });
     room.players.push(player);
-    room.turn.activePlayerId = player.id;
+
+    if (vsBot) {
+      room.players.push({
+        id: randomUUID(),
+        sessionToken: randomUUID(),
+        connectionId: null,
+        connected: true,
+        isBot: true,
+        seatIndex: 1,
+        side: 'red',
+        name: 'ИИ',
+      });
+      room.vsBot = true;
+      room.status = 'active';
+      room.game = rules.createGame(room.players);
+    }
 
     rooms.set(room.id, room);
-    return { room: snapshotRoom(room), player };
+    codes.set(room.code, room.id);
+    return { room, player };
   }
 
-  function joinRoom({ roomId, playerName, connectionId }) {
-    const room = rooms.get(roomId);
+  function joinRoom({ code, playerName, connectionId }) {
+    const roomId = codes.get(normalizeCode(code));
+    const room = roomId ? rooms.get(roomId) : null;
 
     if (!room) {
       throw new Error('Комната не найдена.');
     }
-
     if (room.players.length >= PLAYER_LIMIT) {
       throw new Error('Комната уже заполнена.');
     }
 
-    const player = createPlayer({ playerName, connectionId });
+    const player = makePlayer({
+      playerName,
+      connectionId,
+      seatIndex: room.players.length,
+    });
     room.players.push(player);
     room.revision += 1;
 
     if (room.players.length === PLAYER_LIMIT) {
-      room.status = 'ready';
+      room.status = 'active';
+      room.game = rules.createGame(room.players);
     }
 
-    return { room: snapshotRoom(room), player };
+    return { room, player };
   }
 
-  function getRoom(roomId) {
+  function resumeSession({ roomId, sessionToken, connectionId }) {
     const room = rooms.get(roomId);
-    return room ? snapshotRoom(room) : null;
-  }
-
-  function rollTurn({ roomId, playerId }) {
-    const room = rooms.get(roomId);
-
     if (!room) {
       throw new Error('Комната не найдена.');
     }
 
-    if (room.turn.activePlayerId !== playerId) {
-      throw new Error('Сейчас ход другого игрока.');
+    const player = room.players.find((p) => p.sessionToken === sessionToken);
+    if (!player) {
+      throw new Error('Сессия не найдена.');
     }
 
-    if (room.turn.rollsLeft <= 0) {
-      throw new Error('Броски на этот ход закончились.');
+    player.connectionId = connectionId;
+    player.connected = true;
+    return { room, player };
+  }
+
+  function markDisconnected(connectionId) {
+    for (const room of rooms.values()) {
+      const player = room.players.find((p) => p.connectionId === connectionId);
+      if (player) {
+        player.connected = false;
+        return room;
+      }
+    }
+    return null;
+  }
+
+  function applyCommand({ roomId, playerId, type, payload }) {
+    const room = rooms.get(roomId);
+    if (!room) {
+      throw new Error('Комната не найдена.');
+    }
+    if (!room.game) {
+      throw new Error('Игра еще не началась — ждем второго игрока.');
     }
 
-    const dice = [rollDie(), rollDie()];
-    room.turn.rollsLeft -= 1;
-    room.turn.lastRoll = dice;
+    const result = rules.apply(room.game, playerId, type, payload);
     room.revision += 1;
+    return { room, result };
+  }
 
+  function getRoom(roomId) {
+    return rooms.get(roomId) ?? null;
+  }
+
+  // Персональный снимок: чужие руки скрыты, видны только счетчики карт.
+  function snapshot(room, forPlayerId) {
     return {
-      room: snapshotRoom(room),
-      roll: {
-        dice,
-        total: dice[0] + dice[1],
-        rollsLeft: room.turn.rollsLeft,
-      },
+      id: room.id,
+      code: room.code,
+      revision: room.revision,
+      status: room.status,
+      you: forPlayerId ?? null,
+      players: room.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        side: p.side,
+        seatIndex: p.seatIndex,
+        connected: p.connected,
+        isBot: p.isBot ?? false,
+      })),
+      game: room.game ? snapshotGame(room.game, forPlayerId) : null,
     };
   }
 
   return {
     createRoom,
     joinRoom,
+    resumeSession,
+    markDisconnected,
+    applyCommand,
     getRoom,
-    rollTurn,
+    snapshot,
   };
 }
 
-function createPlayer({ playerName, connectionId }) {
+function snapshotGame(game, forPlayerId) {
+  return {
+    over: game.over,
+    winnerId: game.winnerId,
+    deckCount: game.deck.length,
+    discardCount: game.discard.length,
+    turn: {
+      activePlayerId: game.turn.activePlayerId,
+      rollsLeft: game.turn.rollsLeft,
+      dice: game.turn.dice,
+      usedDice: game.turn.usedDice,
+      mode: game.turn.mode,
+    },
+    characters: game.characters.map((c) => ({
+      id: c.id,
+      owner: c.owner,
+      role: c.role,
+      position: c.position,
+      hp: c.hp,
+      cardCount: c.inventory.length,
+      // полный инвентарь — только владельцу
+      inventory: c.owner === forPlayerId ? [...c.inventory] : undefined,
+    })),
+  };
+}
+
+function makePlayer({ playerName, connectionId, seatIndex }) {
   return {
     id: randomUUID(),
+    sessionToken: randomUUID(),
     connectionId,
+    connected: true,
+    seatIndex,
+    side: seatIndex === 0 ? 'green' : 'red',
     name: normalizePlayerName(playerName),
   };
 }
@@ -103,27 +189,24 @@ function normalizePlayerName(playerName) {
   if (typeof playerName !== 'string' || playerName.trim().length === 0) {
     return 'Игрок';
   }
-
   return playerName.trim().slice(0, 32);
 }
 
-function rollDie() {
-  return Math.floor(Math.random() * 6) + 1;
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function makeUniqueCode(codes) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    let code = '';
+    for (let i = 0; i < 4; i += 1) {
+      code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    }
+    if (!codes.has(code)) {
+      return code;
+    }
+  }
+  throw new Error('Не удалось сгенерировать код комнаты.');
 }
 
-function snapshotRoom(room) {
-  return {
-    id: room.id,
-    revision: room.revision,
-    status: room.status,
-    players: room.players.map((player) => ({
-      id: player.id,
-      name: player.name,
-    })),
-    turn: {
-      activePlayerId: room.turn.activePlayerId,
-      rollsLeft: room.turn.rollsLeft,
-      lastRoll: room.turn.lastRoll,
-    },
-  };
+function normalizeCode(code) {
+  return typeof code === 'string' ? code.trim().toUpperCase() : '';
 }

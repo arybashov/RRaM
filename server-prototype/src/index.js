@@ -2,7 +2,8 @@ import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import { randomUUID } from 'node:crypto';
 import { createStore } from './game-state.js';
-import { ClientCommand, ServerEvent } from './protocol.js';
+import { ClientCommand, ServerEvent, GAME_COMMANDS } from './protocol.js';
+import { runBotTurn } from './bot.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -10,6 +11,7 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 const app = Fastify({ logger: true });
 const store = createStore();
 const clients = new Map();
+const botRunning = new Set(); // roomId → бот сейчас ходит
 
 await app.register(websocket);
 
@@ -33,7 +35,12 @@ app.get('/ws', { websocket: true }, (socket) => {
   });
 
   socket.on('close', () => {
+    const client = clients.get(connectionId);
+    const room = client?.roomId ? store.markDisconnected(connectionId) : null;
     clients.delete(connectionId);
+    if (room) {
+      broadcastState(room.id);
+    }
   });
 });
 
@@ -41,13 +48,11 @@ await app.listen({ port: PORT, host: HOST });
 
 function handleMessage(connectionId, rawMessage) {
   const client = clients.get(connectionId);
-
   if (!client) {
     return;
   }
 
   let message;
-
   try {
     message = JSON.parse(rawMessage.toString());
   } catch {
@@ -73,55 +78,76 @@ function routeCommand(connectionId, message) {
 
   switch (message.type) {
     case ClientCommand.ROOM_CREATE: {
+      const vsBot = message.payload?.vsBot === true;
       const { room, player } = store.createRoom({
         playerName: message.payload?.playerName,
         connectionId,
+        vsBot,
       });
-
-      client.roomId = room.id;
-      client.playerId = player.id;
-
+      bindClient(client, room.id, player.id);
       send(client.socket, ServerEvent.ROOM_CREATED, {
         roomId: room.id,
+        code: room.code,
         playerId: player.id,
+        sessionToken: player.sessionToken,
+        vsBot: room.vsBot,
       });
-      broadcastRoom(room.id, ServerEvent.ROOM_SNAPSHOT, { room });
+      broadcastState(room.id);
       break;
     }
 
     case ClientCommand.ROOM_JOIN: {
       const { room, player } = store.joinRoom({
-        roomId: message.payload?.roomId,
+        code: message.payload?.code,
         playerName: message.payload?.playerName,
         connectionId,
       });
-
-      client.roomId = room.id;
-      client.playerId = player.id;
-
+      bindClient(client, room.id, player.id);
       send(client.socket, ServerEvent.ROOM_JOINED, {
         roomId: room.id,
+        code: room.code,
+        playerId: player.id,
+        sessionToken: player.sessionToken,
+      });
+      broadcastState(room.id);
+      break;
+    }
+
+    case ClientCommand.SESSION_RESUME: {
+      const { room, player } = store.resumeSession({
+        roomId: message.payload?.roomId,
+        sessionToken: message.payload?.sessionToken,
+        connectionId,
+      });
+      bindClient(client, room.id, player.id);
+      send(client.socket, ServerEvent.SESSION_RESUMED, {
+        roomId: room.id,
+        code: room.code,
         playerId: player.id,
       });
-      broadcastRoom(room.id, ServerEvent.ROOM_SNAPSHOT, { room });
+      broadcastState(room.id);
       break;
     }
 
-    case ClientCommand.TURN_ROLL: {
+    default: {
+      if (!GAME_COMMANDS.has(message.type)) {
+        throw new Error(`Неизвестная команда: ${message.type}`);
+      }
       assertJoined(client);
-
-      const { room, roll } = store.rollTurn({
+      store.applyCommand({
         roomId: client.roomId,
         playerId: client.playerId,
+        type: message.type,
+        payload: message.payload,
       });
-
-      broadcastRoom(room.id, ServerEvent.TURN_ROLLED, { roll, room });
-      break;
+      broadcastState(client.roomId);
     }
-
-    default:
-      throw new Error(`Неизвестная команда: ${message.type}`);
   }
+}
+
+function bindClient(client, roomId, playerId) {
+  client.roomId = roomId;
+  client.playerId = playerId;
 }
 
 function assertJoined(client) {
@@ -130,12 +156,35 @@ function assertJoined(client) {
   }
 }
 
-function broadcastRoom(roomId, type, payload) {
+// Каждому клиенту в комнате — свой снимок (чужие карты скрыты).
+function broadcastState(roomId) {
+  const room = store.getRoom(roomId);
+  if (!room) return;
   for (const client of clients.values()) {
     if (client.roomId === roomId) {
-      send(client.socket, type, payload);
+      send(client.socket, ServerEvent.STATE_SNAPSHOT, {
+        room: store.snapshot(room, client.playerId),
+      });
     }
   }
+  maybeTriggerBot(roomId);
+}
+
+function maybeTriggerBot(roomId) {
+  if (botRunning.has(roomId)) return;
+  const room = store.getRoom(roomId);
+  if (!room?.vsBot || !room.game || room.game.over) return;
+  const bot = room.players.find(p => p.isBot);
+  if (!bot || room.game.turn.activePlayerId !== bot.id) return;
+
+  botRunning.add(roomId);
+  runBotTurn({
+    applyCommand: store.applyCommand,
+    getRoom:      store.getRoom,
+    broadcast:    broadcastState,
+    roomId,
+    botPlayerId:  bot.id,
+  }).finally(() => botRunning.delete(roomId));
 }
 
 function send(socket, type, payload) {

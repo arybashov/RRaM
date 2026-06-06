@@ -1,0 +1,15 @@
+# Деплой ws-сервера RRaM на Render (бесплатный тир, поддерживает WebSocket).
+# Подключить: на render.com -> New -> Blueprint -> указать этот репозиторий.
+services:
+  - type: web
+    name: rram-server
+    runtime: node
+    plan: free
+    rootDir: server-prototype
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      # Render сам подставит PORT; HOST должен слушать все интерфейсы.
+      - key: HOST
+        value: 0.0.0.0

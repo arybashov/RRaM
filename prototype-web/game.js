@@ -1,191 +1,404 @@
-const roles = {
-  K: "Кузнец",
-  P: "Помощник",
-  V: "Воин",
-  O: "Охотник",
-  S: "Шаман",
-};
+// RRaM Web Client — тонкий клиент, всё состояние на сервере.
+// Движение пока локальное (сервер ждёт карту), кубики/карты/ходы — сервер.
 
-// Файлы транспарентного арта персонажей по роли; цвет — по игроку.
-const roleArt = {
-  K: "blacksmith",
-  P: "assistant",
-  V: "warrior",
-  O: "hunter",
-  S: "shaman",
-};
+// ── Конфигурация ──────────────────────────────────────────────────
+const SERVER_URL = new URLSearchParams(location.search).get('server')
+  ?? 'ws://localhost:8787/ws';
 
-function characterArt(character) {
-  const color = character.player === 1 ? "green" : "red";
-  return `./assets/characters/${color}/transparent/${roleArt[character.role]}.png`;
-}
+const SESSION_KEY = 'rram_session';
 
-const starts = [
-  { role: "K", p1: [1, 1], p2: [13, 8] },
-  { role: "P", p1: [2, 1], p2: [12, 8] },
-  { role: "V", p1: [1, 2], p2: [13, 7] },
-  { role: "O", p1: [2, 2], p2: [12, 7] },
-  { role: "S", p1: [3, 2], p2: [11, 7] },
+// ── Константы ─────────────────────────────────────────────────────
+const ROLE_NAMES = { K: 'Кузнец', P: 'Помощник', V: 'Воин', O: 'Охотник', S: 'Шаман' };
+const ROLE_ART   = { K: 'blacksmith', P: 'assistant', V: 'warrior', O: 'hunter', S: 'shaman' };
+
+const STARTS = [
+  { role: 'K', p1: [1, 1], p2: [13, 8] },
+  { role: 'P', p1: [2, 1], p2: [12, 8] },
+  { role: 'V', p1: [1, 2], p2: [13, 7] },
+  { role: 'O', p1: [2, 2], p2: [12, 7] },
+  { role: 'S', p1: [3, 2], p2: [11, 7] },
 ];
 
-const deck = [
-  "Бусы телепортации",
-  "Железная руда",
-  "Кожаный ремень",
-  "Травы шамана",
-  "Охотничий трофей",
-  "Короткий меч",
-  "Оберег дороги",
-  "Карта переправы",
-];
-
-const state = {
-  activePlayer: 1,
-  rollsLeft: { 1: 10, 2: 10 },
-  dice: [null, null],
-  usedDice: [false, false],
-  dieActions: [null, null],
-  mode: "moveSum",
-  selectedDie: 0,
-  selectedCharacterId: null,
-  characters: [],
-  log: [],
+// Клиентский режим → серверный режим (для setMode)
+const TO_SERVER_MODE = {
+  moveSum:  'moveSum',
+  moveDie:  'split',
+  draw:     'split',
+  transfer: 'split',
+  teleport: 'split',
 };
 
-const boardEl = document.querySelector("#board");
-const charactersEl = document.querySelector("#characters");
-const inventoryEl = document.querySelector("#inventory");
-const logEl = document.querySelector("#log");
-const turnInfoEl = document.querySelector("#turnInfo");
-const diceHintEl = document.querySelector("#diceHint");
-const endTurnBtn = document.querySelector("#endTurnBtn");
-const resetBtn = document.querySelector("#resetBtn");
-const performActionBtn = document.querySelector("#performActionBtn");
-const dieButtons = [document.querySelector("#die1"), document.querySelector("#die2")];
+// ── WebSocket-состояние ───────────────────────────────────────────
+let ws            = null;
+let myPlayerId    = null;
+let myRoomId      = null;
+let mySessionToken = null;
+let serverRoom    = null;   // последний state:snapshot
+let autoModeSent  = false;  // флаг: setMode уже отправлен в этом броске
 
+// ── Локальное UI-состояние ────────────────────────────────────────
+const positions = new Map();  // characterId → cellId (до подключения карты)
+let selectedCharId = null;
+let selectedDieIdx = 0;
+let localMode      = 'moveSum';
+const eventLog     = [];
+
+// ── Борд (геометрия) ──────────────────────────────────────────────
 const cells = [];
-const cols = 15;
-const rows = 10;
-// Гексы pointy-top. Сетка рисуется одним inline-SVG (векторные polygon),
-// без clip-path и растрового фона — это надёжно на любой видеокарте.
-// Координаты — в логических единицах viewBox; масштаб задаёт только размер SVG.
+const cols = 15, rows = 10;
 const BASE = { hexW: 46, hexH: 53, colStep: 46, rowStep: 40, odd: 23 };
-const svgNS = "http://www.w3.org/2000/svg";
 const GRID_W = (cols - 1) * BASE.colStep + BASE.odd + BASE.hexW;
 const GRID_H = (rows - 1) * BASE.rowStep + BASE.hexH;
+const svgNS = 'http://www.w3.org/2000/svg';
 let scale = 1;
 let boardSvg = null;
 
-function hexCenter(q, r) {
-  return {
-    cx: q * BASE.colStep + (r % 2 ? BASE.odd : 0) + BASE.hexW / 2,
-    cy: r * BASE.rowStep + BASE.hexH / 2,
+// ── DOM ───────────────────────────────────────────────────────────
+const boardEl        = document.querySelector('#board');
+const charactersEl   = document.querySelector('#characters');
+const inventoryEl    = document.querySelector('#inventory');
+const logEl          = document.querySelector('#log');
+const turnInfoEl     = document.querySelector('#turnInfo');
+const diceHintEl     = document.querySelector('#diceHint');
+const endTurnBtn     = document.querySelector('#endTurnBtn');
+const performBtn     = document.querySelector('#performActionBtn');
+const dieButtons     = [document.querySelector('#die1'), document.querySelector('#die2')];
+const lobbyBtn       = document.querySelector('#lobbyBtn');
+
+// Лобби-DOM (создаётся динамически)
+let lobbyEl, nameInput, joinCodeInput, createBtn, joinBtn, vsAiBtn,
+    sharedCodeEl, lobbyStatusEl, connBadgeEl;
+
+// ── Старт ─────────────────────────────────────────────────────────
+buildBoard();
+buildLobbyOverlay();
+requestAnimationFrame(fitBoard);
+connect();
+
+// ═════════════════════════════════════════════════════════════════
+// WebSocket
+// ═════════════════════════════════════════════════════════════════
+
+function connect() {
+  setConnStatus('connecting');
+  try { ws = new WebSocket(SERVER_URL); }
+  catch { setConnStatus('error'); return; }
+
+  ws.onopen = () => {
+    setConnStatus('connected');
+    const saved = loadSession();
+    if (saved) wsSend('session:resume', saved);
   };
+  ws.onmessage = (e) => { try { handleMsg(JSON.parse(e.data)); } catch {} };
+  ws.onclose   = () => { setConnStatus('disconnected'); ws = null; };
+  ws.onerror   = () => setConnStatus('error');
 }
 
-function hexPoints(q, r) {
-  const { cx, cy } = hexCenter(q, r);
-  const hw = BASE.hexW / 2;
-  const qh = BASE.hexH / 4;
-  const hh = BASE.hexH / 2;
-  return [
-    [cx, cy - hh],
-    [cx + hw, cy - qh],
-    [cx + hw, cy + qh],
-    [cx, cy + hh],
-    [cx - hw, cy + qh],
-    [cx - hw, cy - qh],
-  ]
-    .map(([x, y]) => `${Math.round(x * 100) / 100},${Math.round(y * 100) / 100}`)
-    .join(" ");
+function wsSend(type, payload = {}) {
+  if (ws?.readyState === WebSocket.OPEN)
+    ws.send(JSON.stringify({ type, payload }));
 }
 
-function cellId(q, r) {
-  return `${q}:${r}`;
+function handleMsg({ type, payload }) {
+  switch (type) {
+
+    case 'server:connected':
+      showLobby();
+      break;
+
+    case 'room:created':
+      myPlayerId     = payload.playerId;
+      myRoomId       = payload.roomId;
+      mySessionToken = payload.sessionToken;
+      saveSession({ roomId: myRoomId, sessionToken: mySessionToken });
+      if (payload.vsBot) {
+        setLobbyStatus('Партия против ИИ начинается…');
+      } else {
+        showRoomCode(payload.code);
+      }
+      break;
+
+    case 'room:joined':
+      myPlayerId     = payload.playerId;
+      myRoomId       = payload.roomId;
+      mySessionToken = payload.sessionToken;
+      saveSession({ roomId: myRoomId, sessionToken: mySessionToken });
+      hideLobby();
+      break;
+
+    case 'session:resumed':
+      myPlayerId = payload.playerId;
+      myRoomId   = payload.roomId;
+      hideLobby();
+      break;
+
+    case 'state:snapshot': {
+      const prevStatus = serverRoom?.status;
+      serverRoom = payload.room;
+
+      if (prevStatus !== 'active' && serverRoom.status === 'active') {
+        initPositions();
+        hideLobby();
+        addLog('Партия началась!');
+        autoModeSent = false;
+      }
+
+      // Авто-setMode: отправляем один раз после броска кубиков
+      const g = getGame();
+      if (g && isMyTurn() && g.turn.dice && !g.turn.mode && !autoModeSent) {
+        const sm = TO_SERVER_MODE[localMode];
+        if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
+      }
+      if (!g?.turn.dice) autoModeSent = false;
+
+      render();
+      break;
+    }
+
+    case 'server:error':
+      // Ошибки режима (не-rolled, уже потрачен) — тихо; остальное — в лог
+      if (!/режим|бросьте/i.test(payload.message))
+        addLog(`Ошибка: ${payload.message}`);
+      render();
+      break;
+  }
 }
 
-function createMatch() {
-  state.activePlayer = 1;
-  state.rollsLeft = { 1: 10, 2: 10 };
-  state.dice = [null, null];
-  state.usedDice = [false, false];
-  state.dieActions = [null, null];
-  state.mode = "moveSum";
-  state.selectedDie = 0;
-  state.characters = [];
-  state.log = [];
+// ═════════════════════════════════════════════════════════════════
+// Хелперы состояния
+// ═════════════════════════════════════════════════════════════════
 
-  for (const start of starts) {
-    state.characters.push(makeCharacter(1, start.role, start.p1));
-    state.characters.push(makeCharacter(2, start.role, start.p2));
+const getGame     = () => serverRoom?.game ?? null;
+const isMyTurn    = () => getGame()?.turn.activePlayerId === myPlayerId;
+const getDice     = () => getGame()?.turn.dice ?? null;
+const getServMode = () => getGame()?.turn.mode ?? null;
+
+function getMyChars() {
+  return getGame()?.characters.filter(c => c.owner === myPlayerId) ?? [];
+}
+
+function getSelChar() {
+  if (!selectedCharId) return null;
+  return getGame()?.characters.find(c => c.id === selectedCharId) ?? null;
+}
+
+function getSelDieVal() {
+  const dice = getDice(); if (!dice) return null;
+  const used = getGame().turn.usedDice;
+  return used[selectedDieIdx] ? null : dice[selectedDieIdx];
+}
+
+function charSide(char) {
+  return serverRoom?.players.find(p => p.id === char.owner)?.side ?? 'green';
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Позиции (локальные, до карты заказчика)
+// ═════════════════════════════════════════════════════════════════
+
+function initPositions() {
+  const green = serverRoom.players.find(p => p.side === 'green');
+  const red   = serverRoom.players.find(p => p.side === 'red');
+  for (const s of STARTS) {
+    if (green) positions.set(`${green.id}:${s.role}`, cellId(s.p1[0], s.p1[1]));
+    if (red)   positions.set(`${red.id}:${s.role}`,   cellId(s.p2[0], s.p2[1]));
+  }
+  const myWarrior = getGame()?.characters.find(c => c.owner === myPlayerId && c.role === 'V');
+  if (myWarrior) selectedCharId = myWarrior.id;
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Лобби
+// ═════════════════════════════════════════════════════════════════
+
+function buildLobbyOverlay() {
+  lobbyEl = document.createElement('div');
+  lobbyEl.id = 'lobby';
+  lobbyEl.innerHTML = `
+    <div class="lobby-card">
+      <div class="lobby-logo">RRaM</div>
+      <p class="lobby-sub">Настольная игра онлайн</p>
+      <div id="lobbyStatus" class="lobby-status"></div>
+      <input id="playerName" type="text" placeholder="Ваше имя" maxlength="32" autocomplete="off" />
+      <div class="lobby-btns">
+        <button id="createBtn">Создать партию</button>
+        <button id="joinBtn" class="ghost">Войти по коду</button>
+      </div>
+      <button id="vsAiBtn" class="lobby-vsai-btn">Против ИИ</button>
+      <div id="joinSection" class="lobby-join hidden">
+        <input id="joinCode" type="text" placeholder="Код (4 символа)" maxlength="4" autocomplete="off" />
+        <button id="confirmJoinBtn">Войти</button>
+      </div>
+      <div id="codeDisplay" class="lobby-code hidden">
+        Код партии: <strong id="sharedCode"></strong>
+        <span class="lobby-code-hint">Передайте второму игроку</span>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(lobbyEl);
+
+  nameInput    = lobbyEl.querySelector('#playerName');
+  joinCodeInput = lobbyEl.querySelector('#joinCode');
+  createBtn    = lobbyEl.querySelector('#createBtn');
+  joinBtn      = lobbyEl.querySelector('#joinBtn');
+  vsAiBtn      = lobbyEl.querySelector('#vsAiBtn');
+  sharedCodeEl = lobbyEl.querySelector('#sharedCode');
+  lobbyStatusEl = lobbyEl.querySelector('#lobbyStatus');
+
+  createBtn.addEventListener('click', () => {
+    if (!ws) { setLobbyStatus('Нет соединения с сервером.'); return; }
+    wsSend('room:create', { playerName: name() });
+  });
+  vsAiBtn.addEventListener('click', () => {
+    if (!ws) { setLobbyStatus('Нет соединения с сервером.'); return; }
+    wsSend('room:create', { playerName: name(), vsBot: true });
+  });
+  joinBtn.addEventListener('click', () => {
+    lobbyEl.querySelector('#joinSection').classList.toggle('hidden');
+  });
+  lobbyEl.querySelector('#confirmJoinBtn').addEventListener('click', () => {
+    const code = joinCodeInput.value.trim().toUpperCase();
+    if (!code) return;
+    wsSend('room:join', { code, playerName: name() });
+  });
+
+  // Значок соединения в topbar
+  connBadgeEl = document.createElement('span');
+  connBadgeEl.id = 'connBadge';
+  document.querySelector('.topbar > div:first-child').appendChild(connBadgeEl);
+}
+
+const name = () => nameInput?.value.trim() || 'Игрок';
+
+function showLobby()  { lobbyEl.classList.remove('hidden'); }
+function hideLobby()  { lobbyEl.classList.add('hidden'); }
+
+function showRoomCode(code) {
+  sharedCodeEl.textContent = code;
+  lobbyEl.querySelector('#codeDisplay').classList.remove('hidden');
+  createBtn.disabled = true;
+  vsAiBtn.disabled   = true;
+  joinBtn.disabled   = true;
+  setLobbyStatus('Ожидание второго игрока…');
+}
+
+function setLobbyStatus(text) {
+  if (lobbyStatusEl) lobbyStatusEl.textContent = text;
+}
+
+function setConnStatus(s) {
+  if (!connBadgeEl) return;
+  connBadgeEl.className = `conn-badge conn-${s}`;
+  connBadgeEl.textContent = { connecting: '⟳ Подключение', connected: '● Онлайн',
+    disconnected: '○ Разрыв', error: '✕ Ошибка' }[s] ?? s;
+}
+
+// ── Возврат в лобби ───────────────────────────────────────────────
+if (lobbyBtn) {
+  lobbyBtn.addEventListener('click', () => {
+    clearSession();
+    serverRoom = null; myPlayerId = null; myRoomId = null;
+    positions.clear(); selectedCharId = null;
+    showLobby();
+    render();
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Сессия (localStorage)
+// ═════════════════════════════════════════════════════════════════
+
+function saveSession(data)  { try { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch {} }
+function loadSession()      { try { return JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null'); } catch { return null; } }
+function clearSession()     { try { localStorage.removeItem(SESSION_KEY); } catch {} }
+
+// ═════════════════════════════════════════════════════════════════
+// Обработчики игровых контролов
+// ═════════════════════════════════════════════════════════════════
+
+dieButtons.forEach((btn, i) => {
+  btn.addEventListener('click', () => {
+    if (!getDice()) {
+      wsSend('turn:roll');
+    } else if (!getGame().turn.usedDice[i]) {
+      selectedDieIdx = i;
+      render();
+    }
+  });
+});
+
+document.querySelectorAll('.mode').forEach(btn => {
+  btn.addEventListener('click', () => {
+    localMode = btn.dataset.mode;
+    document.querySelectorAll('.mode').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // Если режим draw/transfer/teleport — убедиться что сервер в split
+    if (getDice() && getServMode() === null) {
+      const sm = TO_SERVER_MODE[localMode];
+      if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
+    }
+    render();
+  });
+});
+
+endTurnBtn.addEventListener('click', () => wsSend('turn:end'));
+
+performBtn.addEventListener('click', () => {
+  if (!isMyTurn()) return;
+  const char = getSelChar();
+  if (!char) return;
+
+  if (localMode === 'draw') {
+    wsSend('action:draw', { characterId: char.id, dieIndex: selectedDieIdx });
+
+  } else if (localMode === 'transfer') {
+    const allies = getMyChars().filter(c => c.id !== char.id);
+    if (!allies.length) { addLog('Нет союзников для передачи.'); return; }
+    // Предпочитаем союзника на той же позиции
+    const pos = positions.get(char.id);
+    const target = allies.find(c => positions.get(c.id) === pos) ?? allies[0];
+    wsSend('action:transfer', { fromId: char.id, toId: target.id, dieIndex: selectedDieIdx });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════
+// Клики по бордам (движение — локально, сервер ждёт карту)
+// ═════════════════════════════════════════════════════════════════
+
+function handleCellClick(targetId) {
+  if (!isMyTurn() || !getGame()) return;
+  const char = getSelChar();
+  if (!char) return;
+
+  if (localMode === 'teleport') {
+    const inv = char.inventory ?? [];
+    if (!inv.includes('Бусы телепортации') || !isStartCell(targetId)) return;
+    positions.set(char.id, targetId);
+    addLog(`${ROLE_NAMES[char.role]} телепортируется на ${targetId}.`);
+    render(); return;
   }
 
-  state.characters.find((c) => c.player === 1 && c.role === "S").inventory.push("Бусы телепортации");
-  state.characters.find((c) => c.player === 2 && c.role === "S").inventory.push("Бусы телепортации");
-  state.selectedCharacterId = state.characters.find((c) => c.player === 1 && c.role === "V").id;
-  addLog("Матч создан. Игрок 1 начинает на левом острове.");
+  if (localMode !== 'moveSum' && localMode !== 'moveDie') return;
+
+  const maxDist = getMoveDistance();
+  const dist = cellDistance(positions.get(char.id), targetId);
+  if (!maxDist || dist <= 0 || dist > maxDist) return;
+
+  positions.set(char.id, targetId);
+  addLog(`${ROLE_NAMES[char.role]} → ${targetId}.`);
   render();
 }
 
-function makeCharacter(player, role, position) {
-  return {
-    id: `p${player}-${role}`,
-    player,
-    role,
-    name: roles[role],
-    position: cellId(position[0], position[1]),
-    inventory: [],
-  };
+function getMoveDistance() {
+  const dice = getDice(); if (!dice) return 0;
+  const used = getGame().turn.usedDice;
+  if (localMode === 'moveSum') return (used[0] || used[1]) ? 0 : dice[0] + dice[1];
+  return getSelDieVal() ?? 0;
 }
 
-function buildBoard() {
-  boardEl.innerHTML = "";
-  cells.length = 0;
-
-  boardSvg = document.createElementNS(svgNS, "svg");
-  boardSvg.setAttribute("class", "board-svg");
-  boardSvg.setAttribute("viewBox", `0 0 ${GRID_W} ${GRID_H}`);
-  boardSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-
-  for (let r = 0; r < rows; r += 1) {
-    for (let q = 0; q < cols; q += 1) {
-      const id = cellId(q, r);
-      cells.push({ id, q, r });
-
-      const poly = document.createElementNS(svgNS, "polygon");
-      poly.setAttribute("class", "cell");
-      poly.setAttribute("points", hexPoints(q, r));
-      poly.setAttribute("data-id", id);
-      poly.addEventListener("click", () => handleCellClick(id));
-      boardSvg.appendChild(poly);
-    }
-  }
-
-  // Статичные подписи стартовых клеток.
-  for (const cell of cells) {
-    const label = getStartLabel(cell.id);
-    if (!label) continue;
-    const { cx, cy } = hexCenter(cell.q, cell.r);
-    const text = document.createElementNS(svgNS, "text");
-    text.setAttribute("class", "start-label");
-    text.setAttribute("x", cx);
-    text.setAttribute("y", cy);
-    text.textContent = label;
-    boardSvg.appendChild(text);
-  }
-
-  boardEl.appendChild(boardSvg);
-  layoutBoard();
-}
-
-function layoutBoard() {
-  const w = GRID_W * scale;
-  const h = GRID_H * scale;
-  boardEl.style.width = `${w}px`;
-  boardEl.style.height = `${h}px`;
-  boardSvg.setAttribute("width", w);
-  boardSvg.setAttribute("height", h);
-}
+// ═════════════════════════════════════════════════════════════════
+// Рендер
+// ═════════════════════════════════════════════════════════════════
 
 function render() {
   renderTopbar();
@@ -197,68 +410,98 @@ function render() {
 }
 
 function renderTopbar() {
-  turnInfoEl.textContent = `Ход игрока ${state.activePlayer}. Осталось бросков: ${state.rollsLeft[state.activePlayer]}`;
-  performActionBtn.disabled = !canPerformPanelAction();
+  const g = getGame();
+  if (!g) {
+    turnInfoEl.textContent = 'Ожидание второго игрока…';
+    endTurnBtn.disabled = true;
+    performBtn.disabled = true;
+    return;
+  }
+  if (g.over) {
+    const winner = serverRoom.players.find(p => p.id === g.winnerId)?.name ?? '?';
+    turnInfoEl.textContent = `Партия завершена. Победитель: ${winner}`;
+    endTurnBtn.disabled = true;
+    performBtn.disabled = true;
+    return;
+  }
+  const myTurn = isMyTurn();
+  const rolls  = g.turn.rollsLeft[myPlayerId] ?? 0;
+  const who    = serverRoom.players.find(p => p.id === g.turn.activePlayerId)?.name ?? '…';
+  turnInfoEl.textContent = myTurn
+    ? `Ваш ход. Осталось бросков: ${rolls}`
+    : `Ход: ${who}`;
+  endTurnBtn.disabled = !myTurn;
+  performBtn.disabled  = !myTurn || !canPerformAction();
+}
+
+function canPerformAction() {
+  if (localMode !== 'draw' && localMode !== 'transfer') return false;
+  if (!getSelChar()) return false;
+  return getSelDieVal() !== null;
 }
 
 function renderDice() {
-  const notRolled = state.dice[0] === null;
-  const canRoll = state.rollsLeft[state.activePlayer] > 0;
-  dieButtons.forEach((button, index) => {
-    button.textContent = state.dice[index] ?? "🎲";
-    button.disabled = notRolled ? !canRoll : state.usedDice[index] || state.mode === "moveSum";
-    button.classList.toggle("rollable", notRolled && canRoll);
-    button.classList.toggle("selected", !notRolled && state.selectedDie === index && state.mode !== "moveSum");
-    button.classList.toggle("used", state.usedDice[index]);
+  const g = getGame();
+  if (!g) {
+    dieButtons.forEach(b => { b.textContent = '–'; b.disabled = true; b.className = 'die'; });
+    diceHintEl.textContent = 'Ожидание начала партии.';
+    return;
+  }
+  const myTurn  = isMyTurn();
+  const dice    = getDice();
+  const used    = g.turn.usedDice;
+  const canRoll = myTurn && !dice && (g.turn.rollsLeft[myPlayerId] ?? 0) > 0;
+
+  dieButtons.forEach((btn, i) => {
+    btn.textContent = dice ? dice[i] : '🎲';
+    btn.disabled    = dice ? (!myTurn || used[i]) : !canRoll;
+    btn.className   = 'die';
+    if (canRoll)                                               btn.classList.add('rollable');
+    if (dice && !used[i] && selectedDieIdx === i && localMode !== 'moveSum') btn.classList.add('selected');
+    if (dice && used[i])                                       btn.classList.add('used');
   });
 
-  const selectedValue = getSelectedDieValue();
-  if (notRolled) {
-    diceHintEl.textContent = canRoll
-      ? "Нажмите на кубики, чтобы бросить."
-      : "Броски закончились — завершите ход.";
-  } else if (state.mode === "moveSum") {
-    diceHintEl.textContent = `Движение на сумму: ${state.dice[0] + state.dice[1]} бордов.`;
-  } else if (selectedValue !== null) {
-    const usedActions = state.dieActions
-      .map((action, index) => (action ? `К${index + 1}: ${getActionLabel(action)}` : null))
-      .filter(Boolean)
-      .join(", ");
-    diceHintEl.textContent = `Выбран кубик ${state.selectedDie + 1}: значение ${selectedValue}.${usedActions ? ` Уже потрачено: ${usedActions}.` : ""}`;
+  if (!dice) {
+    diceHintEl.textContent = canRoll ? 'Нажмите на кубики, чтобы бросить.' : 'Броски закончились.';
+  } else if (getServMode() === 'moveSum') {
+    diceHintEl.textContent = `Движение суммой: ${dice[0] + dice[1]} бордов.`;
   } else {
-    diceHintEl.textContent = "Выберите доступный непотраченный кубик.";
+    const v = getSelDieVal();
+    diceHintEl.textContent = v !== null
+      ? `Кубик ${selectedDieIdx + 1}: значение ${v}.`
+      : 'Оба кубика потрачены.';
   }
 }
 
 function renderBoard() {
-  boardSvg.querySelectorAll(".token").forEach((node) => node.remove());
-  const selected = getSelectedCharacter();
-  const validTargets = selected ? getValidTargets(selected) : new Set();
+  if (!boardSvg) return;
+  boardSvg.querySelectorAll('.token').forEach(n => n.remove());
+  const sel    = getSelChar();
+  const valid  = sel ? validTargets(sel) : new Set();
+  const game   = getGame();
 
-  for (const el of boardSvg.querySelectorAll(".cell")) {
-    const id = el.getAttribute("data-id");
-    el.setAttribute("class", "cell");
-    el.classList.toggle("start", Boolean(getStartLabel(id)));
-    el.classList.toggle("occupied", state.characters.some((c) => c.position === id));
-    el.classList.toggle("selected", selected?.position === id);
-    el.classList.toggle("valid", validTargets.has(id));
+  for (const el of boardSvg.querySelectorAll('.cell')) {
+    const id = el.getAttribute('data-id');
+    el.className = 'cell';
+    if (isStartCell(id)) el.classList.add('start');
+    if (game?.characters.some(c => positions.get(c.id) === id)) el.classList.add('occupied');
+    if (sel && positions.get(sel.id) === id) el.classList.add('selected');
+    if (valid.has(id)) el.classList.add('valid');
   }
 
-  for (const character of state.characters) {
-    const cell = cells.find((c) => c.id === character.position);
+  if (!game) return;
+  for (const char of game.characters) {
+    const pos  = positions.get(char.id);
+    const cell = cells.find(c => c.id === pos);
     if (!cell) continue;
-
     const { cx, cy } = hexCenter(cell.q, cell.r);
-    const g = document.createElementNS(svgNS, "g");
-    g.setAttribute("class", `token p${character.player}`);
-    g.setAttribute("transform", `translate(${cx} ${cy})`);
-
-    const circle = document.createElementNS(svgNS, "circle");
-    circle.setAttribute("r", 13);
-
-    const text = document.createElementNS(svgNS, "text");
-    text.textContent = character.role;
-
+    const g = document.createElementNS(svgNS, 'g');
+    g.setAttribute('class', `token side-${charSide(char)}`);
+    g.setAttribute('transform', `translate(${cx} ${cy})`);
+    const circle = document.createElementNS(svgNS, 'circle');
+    circle.setAttribute('r', 13);
+    const text = document.createElementNS(svgNS, 'text');
+    text.textContent = char.role;
     g.appendChild(circle);
     g.appendChild(text);
     boardSvg.appendChild(g);
@@ -266,272 +509,169 @@ function renderBoard() {
 }
 
 function renderCharacters() {
-  charactersEl.innerHTML = "";
-  for (const character of state.characters.filter((c) => c.player === state.activePlayer)) {
-    const button = document.createElement("button");
-    button.className = `character-card p${character.player}`;
-    button.classList.toggle("active", character.id === state.selectedCharacterId);
-    button.innerHTML = `
-      <img class="portrait-img" src="${characterArt(character)}" alt="${character.name}" />
-      <strong>${character.name}</strong>
-      <span class="meta">Позиция ${character.position} · карт: ${character.inventory.length}</span>
+  charactersEl.innerHTML = '';
+  const game = getGame();
+  if (!game) return;
+
+  for (const char of getMyChars()) {
+    const side   = charSide(char);
+    const hp     = char.hp ?? 100;
+    const cards  = char.cardCount ?? char.inventory?.length ?? 0;
+    const btn    = document.createElement('button');
+    btn.className = `character-card side-${side}`;
+    if (char.id === selectedCharId) btn.classList.add('active');
+    btn.innerHTML = `
+      <img class="portrait-img" src="./assets/characters/${side}/transparent/${ROLE_ART[char.role]}.png" alt="${ROLE_NAMES[char.role]}" />
+      <strong>${ROLE_NAMES[char.role]}</strong>
+      <span class="meta">HP ${hp} · ${cards} карт</span>
     `;
-    button.addEventListener("click", () => {
-      state.selectedCharacterId = character.id;
-      render();
-    });
-    charactersEl.appendChild(button);
+    btn.addEventListener('click', () => { selectedCharId = char.id; render(); });
+    charactersEl.appendChild(btn);
   }
 }
 
 function renderInventory() {
-  const character = getSelectedCharacter();
-  if (!character) {
-    inventoryEl.className = "inventory empty";
-    inventoryEl.textContent = "Выберите персонажа.";
+  const char = getSelChar();
+  if (!char) {
+    inventoryEl.className = 'inventory empty';
+    inventoryEl.textContent = 'Выберите персонажа.';
     return;
   }
-
-  inventoryEl.className = character.inventory.length ? "inventory" : "inventory empty";
-  inventoryEl.innerHTML = character.inventory.length
-    ? character.inventory.map((card) => `<div class="card">${card}</div>`).join("")
-    : "Инвентарь пуст.";
+  const inv = char.inventory;
+  if (!inv) {
+    inventoryEl.className = 'inventory empty';
+    inventoryEl.textContent = 'Инвентарь скрыт.';
+    return;
+  }
+  inventoryEl.className = inv.length ? 'inventory' : 'inventory empty';
+  inventoryEl.innerHTML = inv.length
+    ? inv.map(c => `<div class="card">${c}</div>`).join('')
+    : 'Инвентарь пуст.';
 }
 
 function renderLog() {
-  logEl.innerHTML = state.log.map((entry) => `<div class="log-entry">${entry}</div>`).join("");
+  logEl.innerHTML = eventLog.map(e => `<div class="log-entry">${e}</div>`).join('');
 }
 
-function handleCellClick(targetId) {
-  const character = getSelectedCharacter();
-  if (!character || state.dice[0] === null) return;
+// ═════════════════════════════════════════════════════════════════
+// Допустимые цели движения / телепорта
+// ═════════════════════════════════════════════════════════════════
 
-  if (state.mode === "teleport") {
-    teleport(character, targetId);
-    return;
-  }
+function validTargets(char) {
+  const result = new Set();
+  if (!getDice()) return result;
 
-  if (state.mode !== "moveSum" && state.mode !== "moveDie") return;
-
-  const maxDistance = getMoveDistance();
-  if (!maxDistance) return;
-
-  const distance = getDistance(character.position, targetId);
-  if (distance <= 0 || distance > maxDistance) return;
-
-  const from = character.position;
-  character.position = targetId;
-  spendMoveDice();
-  addLog(`${character.name} игрока ${character.player}: ${from} -> ${targetId}, потрачено ${distance}.`);
-  render();
-}
-
-function getValidTargets(character) {
-  const targets = new Set();
-  if (state.dice[0] === null) return targets;
-
-  if (state.mode === "teleport") {
-    if (state.dice[0] === null) return targets;
-    if (!character.inventory.includes("Бусы телепортации")) return targets;
-    for (const start of starts) {
-      targets.add(cellId(start.p1[0], start.p1[1]));
-      targets.add(cellId(start.p2[0], start.p2[1]));
+  if (localMode === 'teleport') {
+    const inv = char.inventory ?? [];
+    if (!inv.includes('Бусы телепортации')) return result;
+    for (const s of STARTS) {
+      result.add(cellId(s.p1[0], s.p1[1]));
+      result.add(cellId(s.p2[0], s.p2[1]));
     }
-    return targets;
+    return result;
   }
 
-  if (state.mode !== "moveSum" && state.mode !== "moveDie") return targets;
-
-  const maxDistance = getMoveDistance();
+  if (localMode !== 'moveSum' && localMode !== 'moveDie') return result;
+  const maxDist = getMoveDistance();
+  const from    = positions.get(char.id);
   for (const cell of cells) {
-    const distance = getDistance(character.position, cell.id);
-    if (distance > 0 && distance <= maxDistance) {
-      targets.add(cell.id);
+    const d = cellDistance(from, cell.id);
+    if (d > 0 && d <= maxDist) result.add(cell.id);
+  }
+  return result;
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Борд — геометрия
+// ═════════════════════════════════════════════════════════════════
+
+function hexCenter(q, r) {
+  return {
+    cx: q * BASE.colStep + (r % 2 ? BASE.odd : 0) + BASE.hexW / 2,
+    cy: r * BASE.rowStep + BASE.hexH / 2,
+  };
+}
+
+function hexPoints(q, r) {
+  const { cx, cy } = hexCenter(q, r);
+  const hw = BASE.hexW / 2, qh = BASE.hexH / 4, hh = BASE.hexH / 2;
+  return [
+    [cx, cy - hh], [cx + hw, cy - qh], [cx + hw, cy + qh],
+    [cx, cy + hh], [cx - hw, cy + qh], [cx - hw, cy - qh],
+  ].map(([x, y]) => `${Math.round(x * 100) / 100},${Math.round(y * 100) / 100}`).join(' ');
+}
+
+function cellId(q, r)   { return `${q}:${r}`; }
+function isStartCell(id){ return STARTS.some(s => id === cellId(s.p1[0], s.p1[1]) || id === cellId(s.p2[0], s.p2[1])); }
+
+function cellDistance(fromId, toId) {
+  if (!fromId || !toId) return Infinity;
+  const [fq, fr] = fromId.split(':').map(Number);
+  const [tq, tr] = toId.split(':').map(Number);
+  return Math.abs(fq - tq) + Math.abs(fr - tr);
+}
+
+function buildBoard() {
+  boardEl.innerHTML = '';
+  cells.length = 0;
+  boardSvg = document.createElementNS(svgNS, 'svg');
+  boardSvg.setAttribute('class', 'board-svg');
+  boardSvg.setAttribute('viewBox', `0 0 ${GRID_W} ${GRID_H}`);
+  boardSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  for (let r = 0; r < rows; r++) {
+    for (let q = 0; q < cols; q++) {
+      const id = cellId(q, r);
+      cells.push({ id, q, r });
+      const poly = document.createElementNS(svgNS, 'polygon');
+      poly.setAttribute('class', 'cell');
+      poly.setAttribute('points', hexPoints(q, r));
+      poly.setAttribute('data-id', id);
+      poly.addEventListener('click', () => handleCellClick(id));
+      boardSvg.appendChild(poly);
     }
   }
-  return targets;
-}
 
-function rollDice() {
-  if (state.rollsLeft[state.activePlayer] <= 0 || state.dice[0] !== null) return;
-  state.dice = [rollDie(), rollDie()];
-  state.usedDice = [false, false];
-  state.rollsLeft[state.activePlayer] -= 1;
-  addLog(`Игрок ${state.activePlayer} бросил ${state.dice[0]} и ${state.dice[1]}.`);
-  render();
-}
-
-function rollDie() {
-  return Math.floor(Math.random() * 6) + 1;
-}
-
-function endTurn() {
-  state.activePlayer = state.activePlayer === 1 ? 2 : 1;
-  state.dice = [null, null];
-  state.usedDice = [false, false];
-  state.selectedDie = 0;
-  state.selectedCharacterId = state.characters.find((c) => c.player === state.activePlayer)?.id ?? null;
-  addLog(`Ход перешел к игроку ${state.activePlayer}.`);
-  render();
-}
-
-function drawCard() {
-  const character = getSelectedCharacter();
-  const dieValue = getSelectedDieValue();
-  if (!character || dieValue === null) return;
-
-  const card = deck[Math.floor(Math.random() * deck.length)];
-  character.inventory.push(card);
-  state.usedDice[state.selectedDie] = true;
-  addLog(`${character.name} добирает карту: ${card}. Значение кубика не увеличивает добор.`);
-  clearDiceIfSpent();
-  render();
-}
-
-function transferCards() {
-  const from = getSelectedCharacter();
-  const dieValue = getSelectedDieValue();
-  if (!from || dieValue === null) return;
-
-  const allies = state.characters.filter((c) => c.player === state.activePlayer && c.id !== from.id);
-  const target = allies.find((c) => c.position === from.position) ?? allies[0];
-  const count = Math.min(dieValue, from.inventory.length);
-
-  if (count === 0) {
-    addLog(`${from.name}: нет карт для передачи.`);
-    return;
+  for (const s of STARTS) {
+    for (const [q, r] of [s.p1, s.p2]) {
+      const { cx, cy } = hexCenter(q, r);
+      const t = document.createElementNS(svgNS, 'text');
+      t.setAttribute('class', 'start-label');
+      t.setAttribute('x', cx);
+      t.setAttribute('y', cy);
+      t.textContent = s.role;
+      boardSvg.appendChild(t);
+    }
   }
 
-  const cards = from.inventory.splice(0, count);
-  target.inventory.push(...cards);
-  state.usedDice[state.selectedDie] = true;
-  addLog(`${from.name} передает ${cards.length} карт персонажу ${target.name}. Лимит кубика: ${dieValue}.`);
-  clearDiceIfSpent();
-  render();
+  boardEl.appendChild(boardSvg);
 }
 
-function performPanelAction() {
-  if (state.mode === "draw") {
-    drawCard();
-  } else if (state.mode === "transfer") {
-    transferCards();
-  }
+function layoutBoard() {
+  const w = GRID_W * scale, h = GRID_H * scale;
+  boardEl.style.width = `${w}px`;
+  boardEl.style.height = `${h}px`;
+  boardSvg.setAttribute('width', w);
+  boardSvg.setAttribute('height', h);
 }
 
-function canPerformPanelAction() {
-  if (state.mode !== "draw" && state.mode !== "transfer") return false;
-  if (!getSelectedCharacter()) return false;
-  return getSelectedDieValue() !== null;
+function fitBoard() {
+  const wrap = boardEl.parentElement; if (!wrap) return;
+  const cs = getComputedStyle(wrap);
+  const avW = wrap.clientWidth  - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const avH = wrap.clientHeight - parseFloat(cs.paddingTop)  - parseFloat(cs.paddingBottom);
+  scale = Math.max(0.3, Math.min(avW / GRID_W, avH / GRID_H));
+  layoutBoard();
+  if (serverRoom?.game) renderBoard();
 }
 
-function teleport(character, targetId) {
-  const isStart = Boolean(getStartLabel(targetId));
-  if (state.dice[0] === null || !isStart || !character.inventory.includes("Бусы телепортации")) return;
+window.addEventListener('resize', fitBoard);
 
-  const from = character.position;
-  const beadIndex = character.inventory.indexOf("Бусы телепортации");
-  character.position = targetId;
-  character.inventory.splice(beadIndex, 1);
-  state.usedDice = [true, true];
-  addLog(`${character.name} использует Бусы телепортации: ${from} -> ${targetId}.`);
-  clearDiceIfSpent();
-  render();
-}
-
-function getSelectedCharacter() {
-  return state.characters.find((c) => c.id === state.selectedCharacterId) ?? null;
-}
-
-function getSelectedDieValue() {
-  if (state.dice[0] === null) return null;
-  if (state.usedDice[state.selectedDie]) return null;
-  return state.dice[state.selectedDie];
-}
-
-function getMoveDistance() {
-  if (state.dice[0] === null) return 0;
-  if (state.mode === "moveSum") {
-    return state.usedDice[0] || state.usedDice[1] ? 0 : state.dice[0] + state.dice[1];
-  }
-  return getSelectedDieValue() ?? 0;
-}
-
-function spendMoveDice() {
-  if (state.mode === "moveSum") {
-    state.usedDice = [true, true];
-  } else {
-    state.usedDice[state.selectedDie] = true;
-  }
-  clearDiceIfSpent();
-}
-
-function clearDiceIfSpent() {
-  if (state.usedDice.every(Boolean)) {
-    state.dice = [null, null];
-    state.usedDice = [false, false];
-  }
-}
-
-function getDistance(fromId, toId) {
-  const [fromQ, fromR] = fromId.split(":").map(Number);
-  const [toQ, toR] = toId.split(":").map(Number);
-  return Math.abs(fromQ - toQ) + Math.abs(fromR - toR);
-}
-
-function getStartLabel(id) {
-  for (const start of starts) {
-    if (id === cellId(start.p1[0], start.p1[1])) return start.role;
-    if (id === cellId(start.p2[0], start.p2[1])) return start.role;
-  }
-  return "";
-}
+// ═════════════════════════════════════════════════════════════════
+// Лог
+// ═════════════════════════════════════════════════════════════════
 
 function addLog(text) {
-  state.log.unshift(text);
-  state.log = state.log.slice(0, 40);
+  eventLog.unshift(text);
+  if (eventLog.length > 40) eventLog.length = 40;
 }
-
-document.querySelectorAll(".mode").forEach((button) => {
-  button.addEventListener("click", () => {
-    state.mode = button.dataset.mode;
-    document.querySelectorAll(".mode").forEach((node) => node.classList.remove("active"));
-    button.classList.add("active");
-    render();
-  });
-});
-
-dieButtons.forEach((button, index) => {
-  button.addEventListener("click", () => {
-    if (state.dice[0] === null) {
-      rollDice();
-      return;
-    }
-    state.selectedDie = index;
-    render();
-  });
-});
-
-endTurnBtn.addEventListener("click", endTurn);
-resetBtn.addEventListener("click", createMatch);
-performActionBtn.addEventListener("click", performPanelAction);
-
-// Равномерно вписываем поле в его рамку, сохраняя пропорции гексов.
-// Меняем геометрию (а не transform), чтобы контуры не «рвались» при растяжении.
-function fitBoard() {
-  const wrap = boardEl.parentElement;
-  if (!wrap) return;
-  const cs = getComputedStyle(wrap);
-  const availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  const availH = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  const gridW = (cols - 1) * BASE.colStep + BASE.odd + BASE.hexW;
-  const gridH = (rows - 1) * BASE.rowStep + BASE.hexH;
-  scale = Math.max(0.3, Math.min(availW / gridW, availH / gridH));
-  layoutBoard();
-  renderBoard();
-}
-
-window.addEventListener("resize", fitBoard);
-
-buildBoard();
-createMatch();
-requestAnimationFrame(fitBoard);
