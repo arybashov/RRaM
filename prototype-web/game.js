@@ -50,6 +50,9 @@ const eventLog     = []; // { msg: string, charId?: string, to?: string }
 // ── Борд (геометрия) ──────────────────────────────────────────────
 const cells = [];
 const cols = 15, rows = 10;
+const STEP_MS = 140;                 // длительность одного шага фишки по клетке
+const tokenDisplayPos = new Map();   // charId → клетка, где фишка показана СЕЙЧАС (во время анимации)
+const animTokens = new Map();        // charId → id текущей анимации (для отмены устаревших)
 const BASE = { hexW: 46, hexH: 53, colStep: 46, rowStep: 40, odd: 23 };
 const GRID_W = (cols - 1) * BASE.colStep + BASE.odd + BASE.hexW;
 const GRID_H = (rows - 1) * BASE.rowStep + BASE.hexH;
@@ -192,6 +195,7 @@ function handleMsg({ type, payload }) {
         autoModeSent = false;
       } else if (serverRoom.status === 'active' && prevRoom?.game) {
         diffAndLog(prevRoom, serverRoom);
+        animateMovesFromDiff(prevRoom, serverRoom);
       }
 
       // Авто-setMode: отправляем один раз после броска кубиков
@@ -879,7 +883,7 @@ function renderBoard() {
 
   if (!game) return;
   for (const char of game.characters) {
-    const pos  = characterPosition(char);
+    const pos  = tokenDisplayPos.get(char.id) ?? characterPosition(char);
     const cell = cells.find(c => c.id === pos);
     if (!cell) continue;
     const { cx, cy } = hexCenter(cell.q, cell.r);
@@ -1024,6 +1028,84 @@ function hexPoints(q, r) {
 
 function cellId(q, r)   { return `${q}:${r}`; }
 function isStartCell(id){ return STARTS.some(s => id === cellId(s.p1[0], s.p1[1]) || id === cellId(s.p2[0], s.p2[1])); }
+
+// Соседи гекса (odd-r) — ДОЛЖНЫ совпадать с server/map.js neighbors().
+function hexNeighbors(id) {
+  const [q, r] = id.split(':').map(Number);
+  const even = [[-1, 0], [1, 0], [-1, -1], [0, -1], [-1, 1], [0, 1]];
+  const odd  = [[-1, 0], [1, 0], [0, -1], [1, -1], [0, 1], [1, 1]];
+  return (r % 2 === 0 ? even : odd)
+    .map(([dq, dr]) => [q + dq, r + dr])
+    .filter(([a, b]) => a >= 0 && a < cols && b >= 0 && b < rows)
+    .map(([a, b]) => `${a}:${b}`);
+}
+
+// Кратчайший путь по гексам (BFS), огибая занятые клетки. Конечную клетку
+// блокировкой не считаем. Нет пути — возвращаем [from, to] (будет «прыжок»).
+function hexPath(from, to, blocked = new Set()) {
+  if (from === to) return [from];
+  const prev = new Map([[from, null]]);
+  const queue = [from];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const nb of hexNeighbors(cur)) {
+      if (prev.has(nb) || (blocked.has(nb) && nb !== to)) continue;
+      prev.set(nb, cur);
+      if (nb === to) {
+        const path = [];
+        for (let c = nb; c !== null; c = prev.get(c)) path.unshift(c);
+        return path;
+      }
+      queue.push(nb);
+    }
+  }
+  return [from, to];
+}
+
+// Прошагать фишку по клеткам from→to. Телепорт (далёкий прыжок на стартовую
+// клетку) не анимируем — он визуально именно мгновенный.
+function animateMove(charId, from, to) {
+  const occupied = new Set(
+    (getGame()?.characters ?? [])
+      .filter(c => c.id !== charId)
+      .map(c => characterPosition(c)),
+  );
+  const path = hexPath(from, to, occupied);
+  if (path.length <= 1) return;
+  if (isStartCell(to) && path.length > 3) return; // похоже на телепорт — мгновенно
+
+  const token = Symbol('anim');
+  animTokens.set(charId, token);
+  tokenDisplayPos.set(charId, path[0]);
+
+  let i = 1;
+  const step = () => {
+    if (animTokens.get(charId) !== token) return; // отменена более новой анимацией
+    tokenDisplayPos.set(charId, path[i]);
+    renderBoard();
+    if (++i < path.length) {
+      setTimeout(step, STEP_MS);
+    } else {
+      animTokens.delete(charId);
+      tokenDisplayPos.delete(charId);
+      renderBoard();
+    }
+  };
+  setTimeout(step, STEP_MS);
+}
+
+// Сравнить позиции до/после снапшота и запустить шаги для сдвинувшихся фишек.
+function animateMovesFromDiff(prevRoom, nextRoom) {
+  const prevChars = prevRoom?.game?.characters;
+  const nextChars = nextRoom?.game?.characters;
+  if (!prevChars || !nextChars) return;
+  for (const next of nextChars) {
+    const prev = prevChars.find(c => c.id === next.id);
+    if (prev && next.position && prev.position && prev.position !== next.position) {
+      animateMove(next.id, prev.position, next.position);
+    }
+  }
+}
 
 function cellDistance(fromId, toId) {
   if (!fromId || !toId) return Infinity;
