@@ -426,26 +426,24 @@ export async function runBotTurn({
     return;
   }
 
+  // moveSum: одно перемещение на сумму кубиков за ход (а не два раздельных).
+  // Карты на победу пока не влияют (выигрыш — добег до острова), поэтому
+  // отказ от split/draw/transfer ничего важного у бота не отнимает.
   await wait(350);
-  if (!simple('turn:setMode', { mode: 'split' })) {
+  if (!simple('turn:setMode', { mode: 'moveSum' })) {
     simple('turn:end');
     return;
   }
 
-  for (const dieIndex of [0, 1]) {
-    const room = getRoom(roomId);
-    if (!room?.game?.turn.dice) break;
-
-    await wait(500);
-    performBestAction({
-      applyCommand,
-      getRoom,
-      broadcast,
-      roomId,
-      botPlayerId,
-      dieIndex,
-    });
-  }
+  await wait(500);
+  performBestAction({
+    applyCommand,
+    getRoom,
+    broadcast,
+    roomId,
+    botPlayerId,
+    dieIndex: 0,
+  });
 
   await wait(450);
   simple('turn:end');
