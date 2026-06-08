@@ -4,7 +4,7 @@
 // ── Конфигурация ──────────────────────────────────────────────────
 const SERVER_URL = new URLSearchParams(location.search).get('server')
   ?? localStorage.getItem('rram_server')
-  ?? 'wss://rram-server.onrender.com/ws';
+  ?? 'wss://rram.com.ru/ws';
 
 const SESSION_KEY = 'rram_session';
 
@@ -527,7 +527,7 @@ function buildSettingsOverlay() {
       <label class="lobby-label">Адрес сервера
         <input id="setServer" type="text" autocomplete="off" />
       </label>
-      <p class="lobby-label-hint">Оставьте пустым — основной сервер rram-server.onrender.com. Можно указать другой адрес (например, запасной).</p>
+      <p class="lobby-label-hint">Оставьте пустым — основной сервер rram.com.ru. Можно указать другой адрес (например, запасной).</p>
       <div class="lobby-btns">
         <button id="setSaveBtn">Сохранить</button>
         <button id="setBackBtn" class="ghost">← Назад</button>
