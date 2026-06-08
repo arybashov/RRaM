@@ -11,7 +11,8 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 const app = Fastify({ logger: true });
 const store = createStore();
 const clients = new Map();
-const botRunning = new Set(); // roomId → бот сейчас ходит
+const botRunning = new Set();        // roomId → бот сейчас ходит
+const lobbySubscribers = new Set();  // connectionId → смотрит список открытых игр
 
 await app.register(websocket);
 
@@ -38,9 +39,12 @@ app.get('/ws', { websocket: true }, (socket) => {
     const client = clients.get(connectionId);
     const room = client?.roomId ? store.markDisconnected(connectionId) : null;
     clients.delete(connectionId);
+    lobbySubscribers.delete(connectionId);
     if (room) {
       broadcastState(room.id);
     }
+    // Уход игрока мог освободить/удалить публичную комнату — обновим списки.
+    broadcastLobby();
   });
 });
 
@@ -79,20 +83,25 @@ function routeCommand(connectionId, message) {
   switch (message.type) {
     case ClientCommand.ROOM_CREATE: {
       const vsBot = message.payload?.vsBot === true;
+      const isPublic = message.payload?.public === true;
       const { room, player } = store.createRoom({
         playerName: message.payload?.playerName,
         connectionId,
         vsBot,
+        isPublic,
       });
       bindClient(client, room.id, player.id);
+      lobbySubscribers.delete(connectionId); // хост больше не смотрит список
       send(client.socket, ServerEvent.ROOM_CREATED, {
         roomId: room.id,
         code: room.code,
         playerId: player.id,
         sessionToken: player.sessionToken,
         vsBot: room.vsBot,
+        public: room.public,
       });
       broadcastState(room.id);
+      broadcastLobby();
       break;
     }
 
@@ -103,6 +112,7 @@ function routeCommand(connectionId, message) {
         connectionId,
       });
       bindClient(client, room.id, player.id);
+      lobbySubscribers.delete(connectionId);
       send(client.socket, ServerEvent.ROOM_JOINED, {
         roomId: room.id,
         code: room.code,
@@ -110,6 +120,37 @@ function routeCommand(connectionId, message) {
         sessionToken: player.sessionToken,
       });
       broadcastState(room.id);
+      broadcastLobby();
+      break;
+    }
+
+    case ClientCommand.LOBBY_JOIN: {
+      const { room, player } = store.joinById({
+        roomId: message.payload?.roomId,
+        playerName: message.payload?.playerName,
+        connectionId,
+      });
+      bindClient(client, room.id, player.id);
+      lobbySubscribers.delete(connectionId);
+      send(client.socket, ServerEvent.ROOM_JOINED, {
+        roomId: room.id,
+        code: room.code,
+        playerId: player.id,
+        sessionToken: player.sessionToken,
+      });
+      broadcastState(room.id);
+      broadcastLobby();
+      break;
+    }
+
+    case ClientCommand.LOBBY_SUBSCRIBE: {
+      lobbySubscribers.add(connectionId);
+      send(client.socket, ServerEvent.LOBBY_LIST, { rooms: store.listPublicRooms() });
+      break;
+    }
+
+    case ClientCommand.LOBBY_UNSUBSCRIBE: {
+      lobbySubscribers.delete(connectionId);
       break;
     }
 
@@ -168,6 +209,16 @@ function broadcastState(roomId) {
     }
   }
   maybeTriggerBot(roomId);
+}
+
+// Список открытых игр — всем, кто сейчас на экране лобби.
+function broadcastLobby() {
+  if (lobbySubscribers.size === 0) return;
+  const rooms = store.listPublicRooms();
+  for (const connectionId of lobbySubscribers) {
+    const client = clients.get(connectionId);
+    if (client) send(client.socket, ServerEvent.LOBBY_LIST, { rooms });
+  }
 }
 
 function maybeTriggerBot(roomId) {

@@ -10,7 +10,7 @@ export function createStore() {
   const rooms = new Map(); // roomId -> room
   const codes = new Map(); // code -> roomId
 
-  function createRoom({ playerName, connectionId, vsBot = false }) {
+  function createRoom({ playerName, connectionId, vsBot = false, isPublic = false }) {
     const room = {
       id: randomUUID(),
       code: makeUniqueCode(codes),
@@ -19,6 +19,7 @@ export function createStore() {
       players: [],
       game: null,
       vsBot: false,
+      public: vsBot ? false : isPublic === true,
     };
 
     const player = makePlayer({ playerName, connectionId, seatIndex: 0 });
@@ -48,11 +49,19 @@ export function createStore() {
   function joinRoom({ code, playerName, connectionId }) {
     const roomId = codes.get(normalizeCode(code));
     const room = roomId ? rooms.get(roomId) : null;
+    return addPlayer({ room, playerName, connectionId });
+  }
 
+  function joinById({ roomId, playerName, connectionId }) {
+    const room = roomId ? rooms.get(roomId) : null;
+    return addPlayer({ room, playerName, connectionId });
+  }
+
+  function addPlayer({ room, playerName, connectionId }) {
     if (!room) {
       throw new Error('Комната не найдена.');
     }
-    if (room.players.length >= PLAYER_LIMIT) {
+    if (room.status !== 'waiting' || room.players.length >= PLAYER_LIMIT) {
       throw new Error('Комната уже заполнена.');
     }
 
@@ -70,6 +79,30 @@ export function createStore() {
     }
 
     return { room, player };
+  }
+
+  // Открытые игры для лобби: публичные, ждут второго, не против ИИ,
+  // и хост ещё на связи.
+  function listPublicRooms() {
+    const list = [];
+    for (const room of rooms.values()) {
+      if (
+        room.public
+        && room.status === 'waiting'
+        && !room.vsBot
+        && room.players.length < PLAYER_LIMIT
+        && room.players.some((p) => !p.isBot && p.connected)
+      ) {
+        const host = room.players.find((p) => !p.isBot);
+        list.push({
+          roomId: room.id,
+          hostName: host?.name ?? 'Игрок',
+          playerCount: room.players.length,
+          playerLimit: PLAYER_LIMIT,
+        });
+      }
+    }
+    return list;
   }
 
   function resumeSession({ roomId, sessionToken, connectionId }) {
@@ -93,6 +126,15 @@ export function createStore() {
       const player = room.players.find((p) => p.connectionId === connectionId);
       if (player) {
         player.connected = false;
+        // Брошенную комнату, которая ещё не стартовала и где не осталось
+        // живых людей, удаляем — иначе она будет висеть мусором в лобби.
+        if (
+          room.status === 'waiting'
+          && !room.players.some((p) => !p.isBot && p.connected)
+        ) {
+          rooms.delete(room.id);
+          codes.delete(room.code);
+        }
         return room;
       }
     }
@@ -140,6 +182,8 @@ export function createStore() {
   return {
     createRoom,
     joinRoom,
+    joinById,
+    listPublicRooms,
     resumeSession,
     markDisconnected,
     applyCommand,

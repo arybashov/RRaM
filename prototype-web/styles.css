@@ -848,8 +848,83 @@ h2::after {
 .lobby-view.is-waiting > #playerName,
 .lobby-view.is-waiting > .lobby-btns,
 .lobby-view.is-waiting > .lobby-vsai-btn,
-.lobby-view.is-waiting > .lobby-join {
+.lobby-view.is-waiting > .lobby-check,
+.lobby-view.is-waiting > .lobby-join,
+.lobby-view.is-waiting > .lobby-list {
   display: none;
+}
+
+.lobby-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.lobby-check input { accent-color: var(--accent); }
+
+.lobby-list {
+  border-top: 1px solid var(--line-strong);
+  padding-top: 12px;
+  text-align: left;
+}
+
+.lobby-list-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.lobby-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.lobby-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line-strong);
+}
+
+.lobby-list-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-list-count {
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lobby-list-join {
+  padding: 6px 14px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.lobby-list-empty {
+  font-size: 13px;
+  color: var(--muted);
+  opacity: 0.7;
+  text-align: center;
+  padding: 8px 0;
 }
 
 .lobby-vsai-btn {

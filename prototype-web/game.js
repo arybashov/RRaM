@@ -4,7 +4,7 @@
 // ── Конфигурация ──────────────────────────────────────────────────
 const SERVER_URL = new URLSearchParams(location.search).get('server')
   ?? localStorage.getItem('rram_server')
-  ?? 'wss://rram.com.ru/ws';
+  ?? 'wss://rram-server.onrender.com/ws';
 
 const SESSION_KEY = 'rram_session';
 
@@ -129,6 +129,10 @@ function handleMsg({ type, payload }) {
 
     case 'server:connected':
       showLobby();
+      break;
+
+    case 'lobby:list':
+      renderLobbyList(payload.rooms || []);
       break;
 
     case 'room:created':
@@ -314,10 +318,17 @@ function buildLobbyOverlay() {
           <button id="createBtn">Создать партию</button>
           <button id="joinBtn" class="ghost">Войти по коду</button>
         </div>
+        <label class="lobby-check">
+          <input id="privateToggle" type="checkbox" /> Скрытая партия (только по коду)
+        </label>
         <button id="vsAiBtn" class="lobby-vsai-btn">Против ИИ</button>
         <div id="joinSection" class="lobby-join hidden">
           <input id="joinCode" type="text" placeholder="Код (4 символа)" maxlength="4" autocomplete="off" />
           <button id="confirmJoinBtn">Войти</button>
+        </div>
+        <div id="lobbyList" class="lobby-list">
+          <div class="lobby-list-title">Открытые игры</div>
+          <div id="lobbyListItems" class="lobby-list-items"></div>
         </div>
         <div id="codeDisplay" class="lobby-code hidden">
           Код партии: <strong id="sharedCode"></strong>
@@ -349,7 +360,8 @@ function buildLobbyOverlay() {
 
   createBtn.addEventListener('click', () => {
     if (!ws) { connect(); setLobbyStatus('Подключение… попробуйте ещё раз через секунду.'); return; }
-    wsSend('room:create', { playerName: name() });
+    const isPrivate = lobbyEl.querySelector('#privateToggle')?.checked === true;
+    wsSend('room:create', { playerName: name(), public: !isPrivate });
   });
   vsAiBtn.addEventListener('click', () => {
     if (!ws) { connect(); setLobbyStatus('Подключение… попробуйте ещё раз через секунду.'); return; }
@@ -404,6 +416,7 @@ function resetLobby() {
   lobbyEl.querySelector('#viewHome').classList.remove('is-waiting');
   lobbyEl.querySelector('#codeDisplay').classList.add('hidden');
   lobbyEl.querySelector('#joinSection').classList.add('hidden');
+  lobbyEl.querySelector('#lobbyList').classList.remove('hidden');
   createBtn.disabled = false;
   vsAiBtn.disabled   = false;
   joinBtn.disabled   = false;
@@ -509,7 +522,7 @@ function buildSettingsOverlay() {
       <label class="lobby-label">Адрес сервера
         <input id="setServer" type="text" autocomplete="off" />
       </label>
-      <p class="lobby-label-hint">Оставьте пустым — основной сервер rram.com.ru. Можно указать другой адрес (например, запасной).</p>
+      <p class="lobby-label-hint">Оставьте пустым — основной сервер rram-server.onrender.com. Можно указать другой адрес (например, запасной).</p>
       <div class="lobby-btns">
         <button id="setSaveBtn">Сохранить</button>
         <button id="setBackBtn" class="ghost">← Назад</button>
@@ -551,16 +564,19 @@ const name = () => nameInput?.value.trim() || localStorage.getItem(NAME_KEY) || 
 function showLobby()  {
   lobbyEl.classList.remove('hidden');
   menuBtn?.classList.add('hidden');
+  wsSend('lobby:subscribe'); // получать список открытых игр (no-op если сокет не открыт)
 }
 function hideLobby()  {
   lobbyEl.classList.add('hidden');
   menuBtn?.classList.remove('hidden');
+  wsSend('lobby:unsubscribe');
 }
 
 function showRoomCode(code) {
   sharedCodeEl.textContent = code;
   lobbyEl.querySelector('#viewHome').classList.add('is-waiting');
   lobbyEl.querySelector('#codeDisplay').classList.remove('hidden');
+  lobbyEl.querySelector('#lobbyList').classList.add('hidden');
   createBtn.disabled = true;
   vsAiBtn.disabled   = true;
   joinBtn.disabled   = true;
@@ -591,6 +607,34 @@ function cancelWaitingRoom() {
 
 function setLobbyStatus(text) {
   if (lobbyStatusEl) lobbyStatusEl.textContent = text;
+}
+
+// Список открытых игр в лобби (приходит пушем по 'lobby:list').
+function renderLobbyList(rooms) {
+  const box = lobbyEl?.querySelector('#lobbyListItems');
+  if (!box) return;
+  if (rooms.length === 0) {
+    box.innerHTML = '<div class="lobby-list-empty">Нет открытых игр — создайте первую.</div>';
+    return;
+  }
+  box.innerHTML = rooms.map(r => `
+    <div class="lobby-list-row">
+      <span class="lobby-list-name">${escapeHtml(r.hostName)}</span>
+      <span class="lobby-list-count">${r.playerCount}/${r.playerLimit}</span>
+      <button class="lobby-list-join" data-room="${r.roomId}">Войти</button>
+    </div>
+  `).join('');
+  box.querySelectorAll('.lobby-list-join').forEach(btn => {
+    btn.addEventListener('click', () => {
+      wsSend('lobby:join', { roomId: btn.dataset.room, playerName: name() });
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
 }
 
 function setConnStatus(s) {

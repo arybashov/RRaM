@@ -6,6 +6,10 @@ export const ClientCommand = Object.freeze({
   ROOM_CREATE: 'room:create',
   ROOM_JOIN: 'room:join',
   SESSION_RESUME: 'session:resume',
+  // публичное лобби
+  LOBBY_SUBSCRIBE: 'lobby:subscribe',
+  LOBBY_UNSUBSCRIBE: 'lobby:unsubscribe',
+  LOBBY_JOIN: 'lobby:join',
   // ход и кубики
   TURN_ROLL: 'turn:roll',
   TURN_SET_MODE: 'turn:setMode',
@@ -36,6 +40,8 @@ export const ServerEvent = Object.freeze({
   ROOM_CREATED: 'room:created',
   ROOM_JOINED: 'room:joined',
   SESSION_RESUMED: 'session:resumed',
+  // список открытых публичных игр
+  LOBBY_LIST: 'lobby:list',
   // персональный снимок состояния (своя рука видна, чужая скрыта)
   STATE_SNAPSHOT: 'state:snapshot',
 });
