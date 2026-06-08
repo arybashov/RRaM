@@ -496,6 +496,7 @@ h2::after {
 .board-wrap {
   position: relative;
   overflow: hidden;
+  max-width: 100%;        /* не давать aspect-ratio раздувать ширину сверх контейнера */
   aspect-ratio: 16 / 9;
   min-height: 560px;
   padding: 20px;
@@ -1217,8 +1218,10 @@ h2::after {
   }
 
   .board-wrap {
-    min-height: 440px;
-    padding: 12px;
+    aspect-ratio: auto;       /* на телефоне высоту задаём явно, не через 16:9 */
+    height: 46dvh;
+    min-height: 300px;
+    padding: 10px;
   }
 
   #lobby {
