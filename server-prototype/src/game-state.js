@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { PLAYER_LIMIT } from './constants.js';
 import * as rules from './rules.js';
+import { mapSnapshot } from './map.js';
 
 // Хранилище комнат, игроков и сессий. Игровую логику не знает —
 // делегирует движку правил (rules.js) и отдает персональные снимки.
@@ -151,6 +152,8 @@ function snapshotGame(game, forPlayerId) {
   return {
     over: game.over,
     winnerId: game.winnerId,
+    positionAuthority: 'server-v1',
+    map: mapSnapshot(),
     deckCount: game.deck.length,
     discardCount: game.discard.length,
     turn: {
@@ -170,7 +173,39 @@ function snapshotGame(game, forPlayerId) {
       // полный инвентарь — только владельцу
       inventory: c.owner === forPlayerId ? [...c.inventory] : undefined,
     })),
+    legalTargets: snapshotLegalTargets(game, forPlayerId),
   };
+}
+
+function snapshotLegalTargets(game, forPlayerId) {
+  const empty = { moveSum: {}, dice: [{}, {}] };
+  if (
+    !forPlayerId
+    || game.over
+    || game.turn.activePlayerId !== forPlayerId
+    || !game.turn.dice
+  ) {
+    return empty;
+  }
+
+  const characters = game.characters.filter((character) => character.owner === forPlayerId);
+  if (game.turn.mode === 'moveSum') {
+    for (const character of characters) {
+      empty.moveSum[character.id] = rules
+        .availableMoveTargets(game, forPlayerId, character.id)
+        .map((target) => target.cellId);
+    }
+  } else if (game.turn.mode === 'split') {
+    for (const dieIndex of [0, 1]) {
+      if (game.turn.usedDice[dieIndex]) continue;
+      for (const character of characters) {
+        empty.dice[dieIndex][character.id] = rules
+          .availableMoveTargets(game, forPlayerId, character.id, dieIndex)
+          .map((target) => target.cellId);
+      }
+    }
+  }
+  return empty;
 }
 
 function makePlayer({ playerName, connectionId, seatIndex }) {

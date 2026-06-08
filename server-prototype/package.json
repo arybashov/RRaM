@@ -9,8 +9,10 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "test": "node --test scripts/test-rules.js scripts/test-bot.js",
     "smoke": "node scripts/smoke.js",
-    "smoke:bot": "node scripts/smoke-bot.js"
+    "smoke:bot": "node scripts/smoke-bot.js",
+    "test:all": "npm test && npm run smoke && npm run smoke:bot"
   },
   "dependencies": {
     "@fastify/websocket": "^11.2.0",

@@ -109,6 +109,8 @@ check('второй игрок присоединился', Boolean(playerB) && 
 const snapA = (await a.waitFor('state:snapshot')).payload.room;
 check('игра стартовала при 2 игроках', snapA.status === 'active' && snapA.game !== null);
 check('создано 10 персонажей (5+5)', snapA.game.characters.length === 10);
+check('позиции авторитетно хранятся на сервере', snapA.game.positionAuthority === 'server-v1');
+check('все стартовые позиции опубликованы', snapA.game.characters.every(c => typeof c.position === 'string'));
 check('колода конечная (mixed+forest+dark_forest = 41)', snapA.game.deckCount === 41);
 check('ход у первого игрока', snapA.game.turn.activePlayerId === playerA);
 
@@ -124,10 +126,19 @@ check('кубики брошены, осталось 9 бросков', a.lastSn
 check('два кубика на столе', Array.isArray(a.lastSnapshot.game.turn.dice) && a.lastSnapshot.game.turn.dice.length === 2);
 
 // движение пока заглушка (карты нет)
-a.send('action:move', { characterId: `${playerA}:V`, toCell: '5:5' });
-const errMove = await a.waitFor('server:error');
-check('движение пока заблокировано (нет карты)', /карта еще не подключена/i.test(errMove.payload.message));
+a.send('turn:setMode', { mode: 'moveSum' });
+await a.waitFor('state:snapshot');
+const moveTarget = a.lastSnapshot.game.legalTargets.moveSum[`${playerA}:V`]?.[0];
+check('сервер опубликовал легальные цели движения', typeof moveTarget === 'string');
+a.send('action:move', { characterId: `${playerA}:V`, toCell: moveTarget });
+await a.waitFor('state:snapshot');
+check(
+  'движение подтверждено сервером',
+  a.lastSnapshot.game.characters.find(c => c.id === `${playerA}:V`)?.position === moveTarget,
+);
 
+a.send('turn:roll', {});
+await a.waitFor('state:snapshot');
 a.send('turn:setMode', { mode: 'split' });
 await a.waitFor('state:snapshot');
 check('режим split установлен', a.lastSnapshot.game.turn.mode === 'split');

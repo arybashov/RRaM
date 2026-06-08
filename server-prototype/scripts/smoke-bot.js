@@ -61,7 +61,10 @@ class Client {
 async function waitForTurn(client, playerId, timeoutMs = 9000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (client.lastSnapshot?.game?.turn.activePlayerId === playerId) {
+    if (
+      client.lastSnapshot?.game?.turn.activePlayerId === playerId
+      || client.lastSnapshot?.game?.over
+    ) {
       client.buffer = client.buffer.filter(m => m.type !== 'state:snapshot');
       return client.lastSnapshot;
     }
@@ -114,6 +117,11 @@ check('ход перешёл боту', a.lastSnapshot.game.turn.activePlayerId 
 const botCardsBefore = a.lastSnapshot.game.characters
   .filter(c => c.owner === bot.id)
   .reduce((s, c) => s + c.cardCount, 0);
+const botPositionsBefore = new Map(
+  a.lastSnapshot.game.characters
+    .filter(c => c.owner === bot.id)
+    .map(c => [c.id, c.position]),
+);
 const botRollsBefore = a.lastSnapshot.game.turn.rollsLeft[bot.id];
 
 // --- Ждём пока бот сходит (~3.5 с) ---
@@ -124,7 +132,13 @@ check('ход вернулся к игроку (1-й цикл)', snapAfterBot1.g
 const botCardsAfter1 = snapAfterBot1.game.characters
   .filter(c => c.owner === bot.id)
   .reduce((s, c) => s + c.cardCount, 0);
-check('бот добрал карты за первый ход', botCardsAfter1 > botCardsBefore);
+const botMovedAfter1 = snapAfterBot1.game.characters
+  .filter(c => c.owner === bot.id)
+  .some(c => botPositionsBefore.get(c.id) !== c.position);
+check(
+  'бот совершил полезное действие за первый ход',
+  botCardsAfter1 > botCardsBefore || botMovedAfter1,
+);
 check('rollsLeft бота уменьшился на 1', snapAfterBot1.game.turn.rollsLeft[bot.id] === botRollsBefore - 1);
 
 // --- Второй ход: игрок только бросает и передаёт ход ---
@@ -136,7 +150,10 @@ check('второй ход перешёл боту', a.lastSnapshot.game.turn.ac
 
 console.log('  …  ожидание хода бота (2-й цикл)');
 const snapAfterBot2 = await waitForTurn(a, playerId, 9000);
-check('ход вернулся к игроку (2-й цикл)', snapAfterBot2.game.turn.activePlayerId === playerId);
+check(
+  'бот завершил 2-й цикл или выиграл партию',
+  snapAfterBot2.game.turn.activePlayerId === playerId || snapAfterBot2.game.over,
+);
 check('rollsLeft бота уменьшился ещё на 1', snapAfterBot2.game.turn.rollsLeft[bot.id] === botRollsBefore - 2);
 
 a.close();

@@ -3,6 +3,7 @@
 
 // ── Конфигурация ──────────────────────────────────────────────────
 const SERVER_URL = new URLSearchParams(location.search).get('server')
+  ?? localStorage.getItem('rram_server')
   ?? (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
       ? 'ws://localhost:8787/ws'
       : 'wss://rram-server.onrender.com/ws');
@@ -37,13 +38,16 @@ let myRoomId      = null;
 let mySessionToken = null;
 let serverRoom    = null;   // последний state:snapshot
 let autoModeSent  = false;  // флаг: setMode уже отправлен в этом броске
+let pendingResume = false;  // флаг: ждём ответа на session:resume
+let currentRoomId = null;   // ID комнаты для которой уже инициализированы позиции
 
 // ── Локальное UI-состояние ────────────────────────────────────────
 const positions = new Map();  // characterId → cellId (до подключения карты)
 let selectedCharId = null;
 let selectedDieIdx = 0;
 let localMode      = 'moveSum';
-const eventLog     = [];
+let localUsedDice  = [false, false]; // трекинг хода до синхронизации движения с сервером
+const eventLog     = []; // { msg: string, charId?: string, to?: string }
 
 // ── Борд (геометрия) ──────────────────────────────────────────────
 const cells = [];
@@ -65,11 +69,16 @@ const diceHintEl     = document.querySelector('#diceHint');
 const endTurnBtn     = document.querySelector('#endTurnBtn');
 const performBtn     = document.querySelector('#performActionBtn');
 const dieButtons     = [document.querySelector('#die1'), document.querySelector('#die2')];
-const lobbyBtn       = document.querySelector('#lobbyBtn');
 
 // Лобби-DOM (создаётся динамически)
 let lobbyEl, nameInput, joinCodeInput, createBtn, joinBtn, vsAiBtn,
-    sharedCodeEl, lobbyStatusEl, connBadgeEl;
+    sharedCodeEl, lobbyStatusEl, connBadgeEl, menuEl, menuBtn;
+let settingsEl = null;
+let matchResultEl = null;
+let settingsReturnTo = 'lobby';
+let reconnectTimer = null;
+
+const NAME_KEY = 'rram_player_name';
 
 // ── Старт ─────────────────────────────────────────────────────────
 buildBoard();
@@ -82,18 +91,34 @@ connect();
 // ═════════════════════════════════════════════════════════════════
 
 function connect() {
+  if (ws) return; // уже подключены
+  clearTimeout(reconnectTimer);
   setConnStatus('connecting');
-  try { ws = new WebSocket(SERVER_URL); }
-  catch { setConnStatus('error'); return; }
+  let sock;
+  try { sock = new WebSocket(SERVER_URL); }
+  catch { setConnStatus('error'); scheduleReconnect(); return; }
+
+  ws = sock;
 
   ws.onopen = () => {
     setConnStatus('connected');
     const saved = loadSession();
-    if (saved) wsSend('session:resume', saved);
+    if (saved) { pendingResume = true; wsSend('session:resume', saved); }
   };
   ws.onmessage = (e) => { try { handleMsg(JSON.parse(e.data)); } catch {} };
-  ws.onclose   = () => { setConnStatus('disconnected'); ws = null; };
+  ws.onclose   = () => {
+    if (ws === sock) { ws = null; }
+    setConnStatus('disconnected');
+    scheduleReconnect();
+  };
   ws.onerror   = () => setConnStatus('error');
+}
+
+function scheduleReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => {
+    if (!ws) connect();
+  }, 3000);
 }
 
 function wsSend(type, payload = {}) {
@@ -129,20 +154,42 @@ function handleMsg({ type, payload }) {
       break;
 
     case 'session:resumed':
+      pendingResume = false;
       myPlayerId = payload.playerId;
       myRoomId   = payload.roomId;
       hideLobby();
       break;
 
     case 'state:snapshot': {
+      const prevRoom   = serverRoom;
       const prevStatus = serverRoom?.status;
+      const prevDice   = serverRoom?.game?.turn?.dice;
+      const wasOver    = serverRoom?.game?.over === true;
       serverRoom = payload.room;
 
-      if (prevStatus !== 'active' && serverRoom.status === 'active') {
-        initPositions();
+      // Сброс локального трекинга кубиков при смене состояния
+      const newDice = serverRoom?.game?.turn?.dice;
+      if (!newDice || prevDice?.[0] !== newDice[0] || prevDice?.[1] !== newDice[1]) {
+        localUsedDice = [false, false];
+      }
+
+      if (serverRoom.status === 'active' && serverRoom.id !== currentRoomId) {
+        currentRoomId = serverRoom.id;
+        if (usesServerPositions()) {
+          positions.clear();
+          const myWarrior = getGame()?.characters.find(
+            c => c.owner === myPlayerId && c.role === 'V',
+          );
+          if (myWarrior) selectedCharId = myWarrior.id;
+        } else {
+          initPositions();
+          restoreFromLog();
+        }
         hideLobby();
-        addLog('Партия началась!');
+        if (currentRoomId !== myRoomId) addLog('Партия началась!', { type: 'sys' });
         autoModeSent = false;
+      } else if (serverRoom.status === 'active' && prevRoom?.game) {
+        diffAndLog(prevRoom, serverRoom);
       }
 
       // Авто-setMode: отправляем один раз после броска кубиков
@@ -154,13 +201,37 @@ function handleMsg({ type, payload }) {
       if (!g?.turn.dice) autoModeSent = false;
 
       render();
+      if (serverRoom?.game?.over) {
+        showMatchResult();
+        if (!wasOver) {
+          const won = serverRoom.game.winnerId === myPlayerId;
+          addLog(won ? 'Партия завершена: вы победили.' : 'Партия завершена: победил соперник.', {
+            type: won ? 'my' : 'opp',
+          });
+          renderLog();
+        }
+      } else {
+        hideMatchResult();
+      }
       break;
     }
 
     case 'server:error':
+      if (pendingResume) {
+        // Сервер перезапустился — старая сессия недействительна, молча сбрасываем
+        pendingResume = false;
+        clearSession();
+        showLobby();
+        break;
+      }
+      // Ошибки входа по коду — в статус лобби, не в лог игры
+      if (/комната не найдена/i.test(payload.message)) {
+        setLobbyStatus('Комната не найдена. Проверьте код.');
+        break;
+      }
       // Ошибки режима (не-rolled, уже потрачен) — тихо; остальное — в лог
       if (!/режим|бросьте/i.test(payload.message))
-        addLog(`Ошибка: ${payload.message}`);
+        addLog(`Ошибка: ${payload.message}`, { type: 'err' });
       render();
       break;
   }
@@ -184,6 +255,13 @@ function getSelChar() {
   return getGame()?.characters.find(c => c.id === selectedCharId) ?? null;
 }
 
+function selectCharacter(charId) {
+  const char = getGame()?.characters.find(c => c.id === charId);
+  if (!char || char.owner !== myPlayerId) return;
+  selectedCharId = char.id;
+  render();
+}
+
 function getSelDieVal() {
   const dice = getDice(); if (!dice) return null;
   const used = getGame().turn.usedDice;
@@ -194,11 +272,20 @@ function charSide(char) {
   return serverRoom?.players.find(p => p.id === char.owner)?.side ?? 'green';
 }
 
+function usesServerPositions() {
+  return getGame()?.positionAuthority === 'server-v1';
+}
+
+function characterPosition(char) {
+  return usesServerPositions() ? char?.position : positions.get(char?.id);
+}
+
 // ═════════════════════════════════════════════════════════════════
 // Позиции (локальные, до карты заказчика)
 // ═════════════════════════════════════════════════════════════════
 
 function initPositions() {
+  positions.clear();
   const green = serverRoom.players.find(p => p.side === 'green');
   const red   = serverRoom.players.find(p => p.side === 'red');
   for (const s of STARTS) {
@@ -218,41 +305,56 @@ function buildLobbyOverlay() {
   lobbyEl.id = 'lobby';
   lobbyEl.innerHTML = `
     <div class="lobby-card">
-      <div class="lobby-logo">RRaM</div>
-      <p class="lobby-sub">Настольная игра онлайн</p>
-      <div id="lobbyStatus" class="lobby-status"></div>
-      <input id="playerName" type="text" placeholder="Ваше имя" maxlength="32" autocomplete="off" />
-      <div class="lobby-btns">
-        <button id="createBtn">Создать партию</button>
-        <button id="joinBtn" class="ghost">Войти по коду</button>
+
+      <!-- Вид: главный экран -->
+      <div class="lobby-view" id="viewHome">
+        <div class="lobby-logo">RRaM</div>
+        <p class="lobby-sub">Настольная игра онлайн</p>
+        <div id="lobbyStatus" class="lobby-status"></div>
+        <input id="playerName" type="text" placeholder="Ваше имя" maxlength="32" autocomplete="off" />
+        <div class="lobby-btns">
+          <button id="createBtn">Создать партию</button>
+          <button id="joinBtn" class="ghost">Войти по коду</button>
+        </div>
+        <button id="vsAiBtn" class="lobby-vsai-btn">Против ИИ</button>
+        <div id="joinSection" class="lobby-join hidden">
+          <input id="joinCode" type="text" placeholder="Код (4 символа)" maxlength="4" autocomplete="off" />
+          <button id="confirmJoinBtn">Войти</button>
+        </div>
+        <div id="codeDisplay" class="lobby-code hidden">
+          Код партии: <strong id="sharedCode"></strong>
+          <span class="lobby-code-hint">Передайте второму игроку</span>
+          <button id="cancelWaitBtn" class="lobby-cancel-btn">Отменить ожидание</button>
+        </div>
+        <div class="lobby-bottom-row">
+          <button id="settingsBtn" class="lobby-link-btn">⚙ Настройки</button>
+          <button id="reconnectBtn" class="lobby-link-btn hidden">⟳ Переподключиться</button>
+        </div>
       </div>
-      <button id="vsAiBtn" class="lobby-vsai-btn">Против ИИ</button>
-      <div id="joinSection" class="lobby-join hidden">
-        <input id="joinCode" type="text" placeholder="Код (4 символа)" maxlength="4" autocomplete="off" />
-        <button id="confirmJoinBtn">Войти</button>
-      </div>
-      <div id="codeDisplay" class="lobby-code hidden">
-        Код партии: <strong id="sharedCode"></strong>
-        <span class="lobby-code-hint">Передайте второму игроку</span>
-      </div>
+
+
     </div>
   `;
   document.body.appendChild(lobbyEl);
 
-  nameInput    = lobbyEl.querySelector('#playerName');
+  nameInput     = lobbyEl.querySelector('#playerName');
   joinCodeInput = lobbyEl.querySelector('#joinCode');
-  createBtn    = lobbyEl.querySelector('#createBtn');
-  joinBtn      = lobbyEl.querySelector('#joinBtn');
-  vsAiBtn      = lobbyEl.querySelector('#vsAiBtn');
-  sharedCodeEl = lobbyEl.querySelector('#sharedCode');
+  createBtn     = lobbyEl.querySelector('#createBtn');
+  joinBtn       = lobbyEl.querySelector('#joinBtn');
+  vsAiBtn       = lobbyEl.querySelector('#vsAiBtn');
+  sharedCodeEl  = lobbyEl.querySelector('#sharedCode');
   lobbyStatusEl = lobbyEl.querySelector('#lobbyStatus');
 
+  // Восстановить сохранённое имя
+  nameInput.value = localStorage.getItem(NAME_KEY) || '';
+  nameInput.addEventListener('input', () => localStorage.setItem(NAME_KEY, nameInput.value.trim()));
+
   createBtn.addEventListener('click', () => {
-    if (!ws) { setLobbyStatus('Нет соединения с сервером.'); return; }
+    if (!ws) { connect(); setLobbyStatus('Подключение… попробуйте ещё раз через секунду.'); return; }
     wsSend('room:create', { playerName: name() });
   });
   vsAiBtn.addEventListener('click', () => {
-    if (!ws) { setLobbyStatus('Нет соединения с сервером.'); return; }
+    if (!ws) { connect(); setLobbyStatus('Подключение… попробуйте ещё раз через секунду.'); return; }
     wsSend('room:create', { playerName: name(), vsBot: true });
   });
   joinBtn.addEventListener('click', () => {
@@ -263,25 +365,230 @@ function buildLobbyOverlay() {
     if (!code) return;
     wsSend('room:join', { code, playerName: name() });
   });
+  lobbyEl.querySelector('#cancelWaitBtn').addEventListener('click', cancelWaitingRoom);
+
+  // Настройки — открывают отдельный оверлей
+  lobbyEl.querySelector('#settingsBtn').addEventListener('click', () => openSettings('lobby'));
+
+  const reconnectBtn = lobbyEl.querySelector('#reconnectBtn');
+  reconnectBtn.addEventListener('click', () => { ws?.close(); connect(); });
 
   // Значок соединения в topbar
   connBadgeEl = document.createElement('span');
   connBadgeEl.id = 'connBadge';
   document.querySelector('.topbar > div:first-child').appendChild(connBadgeEl);
+
+  // Кнопка меню в topbar (видна только во время игры)
+  menuBtn = document.createElement('button');
+  menuBtn.id = 'menuBtn';
+  menuBtn.textContent = '☰ Меню';
+  menuBtn.classList.add('hidden', 'topbar-menu-btn');
+  document.querySelector('.topbar').appendChild(menuBtn);
+  menuBtn.addEventListener('click', showGameMenu);
+
+  buildGameMenu();
+  buildSettingsOverlay();
+  buildMatchResultOverlay();
 }
 
-const name = () => nameInput?.value.trim() || 'Игрок';
+function showLobbyView(view) {
+  lobbyEl.querySelectorAll('.lobby-view').forEach(el => el.classList.add('hidden'));
+  lobbyEl.querySelector(`#view${view.charAt(0).toUpperCase() + view.slice(1)}`).classList.remove('hidden');
+  if (view === 'settings') {
+    lobbyEl.querySelector('#settingsName').value = localStorage.getItem(NAME_KEY) || '';
+    lobbyEl.querySelector('#settingsServer').value = localStorage.getItem('rram_server') || '';
+  }
+}
 
-function showLobby()  { lobbyEl.classList.remove('hidden'); }
-function hideLobby()  { lobbyEl.classList.add('hidden'); }
+function resetLobby() {
+  showLobbyView('home');
+  setLobbyStatus('');
+  lobbyEl.querySelector('#viewHome').classList.remove('is-waiting');
+  lobbyEl.querySelector('#codeDisplay').classList.add('hidden');
+  lobbyEl.querySelector('#joinSection').classList.add('hidden');
+  createBtn.disabled = false;
+  vsAiBtn.disabled   = false;
+  joinBtn.disabled   = false;
+}
+
+// ── Игровое меню (пауза) ──────────────────────────────────────────
+
+function buildGameMenu() {
+  menuEl = document.createElement('div');
+  menuEl.id = 'gameMenu';
+  menuEl.classList.add('hidden');
+  menuEl.innerHTML = `
+    <div class="menu-card">
+      <div class="menu-title">Меню</div>
+      <button id="menuResumeBtn">▶ Продолжить игру</button>
+      <button id="menuNewBtn" class="ghost">⟳ Новая партия</button>
+      <button id="menuSettingsBtn" class="ghost">⚙ Настройки</button>
+    </div>
+  `;
+  document.body.appendChild(menuEl);
+
+  menuEl.querySelector('#menuResumeBtn').addEventListener('click', hideGameMenu);
+
+  menuEl.querySelector('#menuNewBtn').addEventListener('click', () => {
+    const active = serverRoom?.game && !serverRoom.game.over;
+    if (active && !confirm('Выйти из текущей игры?\nПрогресс партии будет потерян.')) return;
+    resetToLobby();
+  });
+
+  menuEl.querySelector('#menuSettingsBtn').addEventListener('click', () => {
+    hideGameMenu();
+    openSettings('game');
+  });
+}
+
+function showGameMenu() { menuEl.classList.remove('hidden'); }
+function hideGameMenu() { menuEl.classList.add('hidden'); }
+
+function resetToLobby() {
+  hideGameMenu();
+  hideMatchResult();
+  clearSession();
+  serverRoom = null;
+  myPlayerId = null;
+  myRoomId = null;
+  currentRoomId = null;
+  positions.clear();
+  selectedCharId = null;
+  eventLog.length = 0;
+  resetLobby();
+  showLobby();
+  render();
+}
+
+function buildMatchResultOverlay() {
+  matchResultEl = document.createElement('div');
+  matchResultEl.id = 'matchResult';
+  matchResultEl.classList.add('hidden');
+  matchResultEl.innerHTML = `
+    <div class="match-result-card">
+      <div id="matchResultTitle" class="match-result-title"></div>
+      <p id="matchResultText" class="match-result-text"></p>
+      <button id="matchResultNewBtn">Новая партия</button>
+      <button id="matchResultCloseBtn" class="ghost">Посмотреть поле</button>
+    </div>
+  `;
+  document.body.appendChild(matchResultEl);
+  matchResultEl.querySelector('#matchResultNewBtn').addEventListener('click', resetToLobby);
+  matchResultEl.querySelector('#matchResultCloseBtn').addEventListener('click', hideMatchResult);
+}
+
+function showMatchResult() {
+  const game = getGame();
+  if (!matchResultEl || !game?.over) return;
+  const won = game.winnerId === myPlayerId;
+  const winner = serverRoom?.players.find(player => player.id === game.winnerId)?.name;
+  matchResultEl.querySelector('#matchResultTitle').textContent = won ? 'Победа' : 'Поражение';
+  matchResultEl.querySelector('#matchResultText').textContent = winner
+    ? `Партия завершена. Победитель: ${winner}.`
+    : 'Партия завершена.';
+  matchResultEl.classList.toggle('is-win', won);
+  matchResultEl.classList.toggle('is-loss', !won);
+  matchResultEl.classList.remove('hidden');
+}
+
+function hideMatchResult() {
+  matchResultEl?.classList.add('hidden');
+}
+
+// ── Настройки (отдельный оверлей, не зависит от лобби) ───────────
+
+
+function buildSettingsOverlay() {
+  settingsEl = document.createElement('div');
+  settingsEl.id = 'settingsOverlay';
+  settingsEl.classList.add('hidden');
+  settingsEl.innerHTML = `
+    <div class="settings-card">
+      <div class="settings-title">Настройки</div>
+      <label class="lobby-label">Имя игрока
+        <input id="setName" type="text" maxlength="32" autocomplete="off" />
+      </label>
+      <label class="lobby-label">Адрес сервера
+        <input id="setServer" type="text" autocomplete="off" />
+      </label>
+      <p class="lobby-label-hint">Для локального тестирования: ws://localhost:8787/ws<br>Оставьте пустым — будет облачный сервер.</p>
+      <div class="lobby-btns">
+        <button id="setSaveBtn">Сохранить</button>
+        <button id="setBackBtn" class="ghost">← Назад</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(settingsEl);
+
+  settingsEl.querySelector('#setSaveBtn').addEventListener('click', () => {
+    const n = settingsEl.querySelector('#setName').value.trim();
+    const s = settingsEl.querySelector('#setServer').value.trim();
+    if (n) { localStorage.setItem(NAME_KEY, n); if (nameInput) nameInput.value = n; }
+    if (s) localStorage.setItem('rram_server', s);
+    else   localStorage.removeItem('rram_server');
+    closeSettings('Настройки сохранены.');
+  });
+
+  settingsEl.querySelector('#setBackBtn').addEventListener('click', () => closeSettings());
+}
+
+function openSettings(from) {
+  settingsReturnTo = from;
+  settingsEl.querySelector('#setName').value   = localStorage.getItem(NAME_KEY) || '';
+  settingsEl.querySelector('#setServer').value = localStorage.getItem('rram_server') || '';
+  settingsEl.classList.remove('hidden');
+}
+
+function closeSettings(statusMsg) {
+  settingsEl.classList.add('hidden');
+  if (settingsReturnTo === 'lobby') {
+    if (statusMsg) setLobbyStatus(statusMsg);
+  } else {
+    // Вернуться в игру — ничего не показываем
+  }
+}
+
+const name = () => nameInput?.value.trim() || localStorage.getItem(NAME_KEY) || 'Игрок';
+
+function showLobby()  {
+  lobbyEl.classList.remove('hidden');
+  menuBtn?.classList.add('hidden');
+}
+function hideLobby()  {
+  lobbyEl.classList.add('hidden');
+  menuBtn?.classList.remove('hidden');
+}
 
 function showRoomCode(code) {
   sharedCodeEl.textContent = code;
+  lobbyEl.querySelector('#viewHome').classList.add('is-waiting');
   lobbyEl.querySelector('#codeDisplay').classList.remove('hidden');
   createBtn.disabled = true;
   vsAiBtn.disabled   = true;
   joinBtn.disabled   = true;
   setLobbyStatus('Ожидание второго игрока…');
+}
+
+function cancelWaitingRoom() {
+  clearSession();
+  myPlayerId = null;
+  myRoomId = null;
+  serverRoom = null;
+  currentRoomId = null;
+  positions.clear();
+  selectedCharId = null;
+  resetLobby();
+
+  const socket = ws;
+  ws = null;
+  if (socket) {
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+    socket.close();
+  }
+  connect();
 }
 
 function setLobbyStatus(text) {
@@ -293,18 +600,12 @@ function setConnStatus(s) {
   connBadgeEl.className = `conn-badge conn-${s}`;
   connBadgeEl.textContent = { connecting: '⟳ Подключение', connected: '● Онлайн',
     disconnected: '○ Разрыв', error: '✕ Ошибка' }[s] ?? s;
+  const reconnectBtn = lobbyEl?.querySelector('#reconnectBtn');
+  if (reconnectBtn) {
+    reconnectBtn.classList.toggle('hidden', s === 'connected' || s === 'connecting');
+  }
 }
 
-// ── Возврат в лобби ───────────────────────────────────────────────
-if (lobbyBtn) {
-  lobbyBtn.addEventListener('click', () => {
-    clearSession();
-    serverRoom = null; myPlayerId = null; myRoomId = null;
-    positions.clear(); selectedCharId = null;
-    showLobby();
-    render();
-  });
-}
 
 // ═════════════════════════════════════════════════════════════════
 // Сессия (localStorage)
@@ -312,7 +613,26 @@ if (lobbyBtn) {
 
 function saveSession(data)  { try { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch {} }
 function loadSession()      { try { return JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null'); } catch { return null; } }
-function clearSession()     { try { localStorage.removeItem(SESSION_KEY); } catch {} }
+function clearSession()     { try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY + '_log'); } catch {} }
+
+function saveLog() {
+  try { localStorage.setItem(SESSION_KEY + '_log', JSON.stringify(eventLog)); } catch {}
+}
+
+function restoreFromLog() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SESSION_KEY + '_log') ?? 'null');
+    if (!Array.isArray(saved)) return false;
+    eventLog.length = 0;
+    saved.forEach(e => eventLog.push(e));
+    // Журнал хранится от новых записей к старым. Применяем его от старых к новым,
+    // чтобы последняя позиция каждого персонажа осталась итоговой.
+    for (const e of [...eventLog].reverse()) {
+      if (e.charId && e.to) positions.set(e.charId, e.to);
+    }
+    return true;
+  } catch { return false; }
+}
 
 // ═════════════════════════════════════════════════════════════════
 // Обработчики игровых контролов
@@ -355,10 +675,10 @@ performBtn.addEventListener('click', () => {
 
   } else if (localMode === 'transfer') {
     const allies = getMyChars().filter(c => c.id !== char.id);
-    if (!allies.length) { addLog('Нет союзников для передачи.'); return; }
+    if (!allies.length) { addLog('Нет союзников для передачи.', { type: 'err' }); return; }
     // Предпочитаем союзника на той же позиции
-    const pos = positions.get(char.id);
-    const target = allies.find(c => positions.get(c.id) === pos) ?? allies[0];
+    const pos = characterPosition(char);
+    const target = allies.find(c => characterPosition(c) === pos) ?? allies[0];
     wsSend('action:transfer', { fromId: char.id, toId: target.id, dieIndex: selectedDieIdx });
   }
 });
@@ -375,27 +695,50 @@ function handleCellClick(targetId) {
   if (localMode === 'teleport') {
     const inv = char.inventory ?? [];
     if (!inv.includes('Бусы телепортации') || !isStartCell(targetId)) return;
+    if (usesServerPositions()) {
+      wsSend('action:teleport', { characterId: char.id, toCell: targetId });
+      return;
+    }
+    if (localUsedDice[0] && localUsedDice[1]) return;
     positions.set(char.id, targetId);
-    addLog(`${ROLE_NAMES[char.role]} телепортируется на ${targetId}.`);
+    localUsedDice = [true, true];
+    addLog(`${ROLE_NAMES[char.role]} телепортируется на ${targetId}.`, { charId: char.id, to: targetId, type: 'my' });
     render(); return;
   }
 
   if (localMode !== 'moveSum' && localMode !== 'moveDie') return;
+
+  if (usesServerPositions()) {
+    if (!validTargets(char).has(targetId)) return;
+    const payload = { characterId: char.id, toCell: targetId };
+    if (localMode === 'moveDie') payload.dieIndex = selectedDieIdx;
+    wsSend('action:move', payload);
+    return;
+  }
 
   const maxDist = getMoveDistance();
   const dist = cellDistance(positions.get(char.id), targetId);
   if (!maxDist || dist <= 0 || dist > maxDist) return;
 
   positions.set(char.id, targetId);
-  addLog(`${ROLE_NAMES[char.role]} → ${targetId}.`);
+
+  if (localMode === 'moveSum') {
+    localUsedDice = [true, true];
+  } else {
+    localUsedDice[selectedDieIdx] = true;
+  }
+
+  addLog(`${ROLE_NAMES[char.role]} → ${targetId}.`, { charId: char.id, to: targetId, type: 'my' });
   render();
 }
 
 function getMoveDistance() {
   const dice = getDice(); if (!dice) return 0;
-  const used = getGame().turn.usedDice;
+  const srv  = getGame().turn.usedDice;
+  const used = [srv[0] || localUsedDice[0], srv[1] || localUsedDice[1]];
   if (localMode === 'moveSum') return (used[0] || used[1]) ? 0 : dice[0] + dice[1];
-  return getSelDieVal() ?? 0;
+  if (used[selectedDieIdx]) return 0;
+  return dice[selectedDieIdx] ?? 0;
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -484,22 +827,40 @@ function renderBoard() {
 
   for (const el of boardSvg.querySelectorAll('.cell')) {
     const id = el.getAttribute('data-id');
-    el.className = 'cell';
+    el.setAttribute('class', 'cell');
     if (isStartCell(id)) el.classList.add('start');
-    if (game?.characters.some(c => positions.get(c.id) === id)) el.classList.add('occupied');
-    if (sel && positions.get(sel.id) === id) el.classList.add('selected');
+    if (game?.characters.some(c => characterPosition(c) === id)) el.classList.add('occupied');
+    if (sel && characterPosition(sel) === id) el.classList.add('selected');
     if (valid.has(id)) el.classList.add('valid');
   }
 
   if (!game) return;
   for (const char of game.characters) {
-    const pos  = positions.get(char.id);
+    const pos  = characterPosition(char);
     const cell = cells.find(c => c.id === pos);
     if (!cell) continue;
     const { cx, cy } = hexCenter(cell.q, cell.r);
     const g = document.createElementNS(svgNS, 'g');
-    g.setAttribute('class', `token side-${charSide(char)}`);
+    const isOwn = char.owner === myPlayerId;
+    const tokenClasses = ['token', `side-${charSide(char)}`];
+    if (isOwn) tokenClasses.push('own');
+    if (char.id === selectedCharId) tokenClasses.push('active');
+    g.setAttribute('class', tokenClasses.join(' '));
     g.setAttribute('transform', `translate(${cx} ${cy})`);
+    if (isOwn) {
+      g.setAttribute('role', 'button');
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('aria-label', `Выбрать: ${ROLE_NAMES[char.role]}`);
+      g.addEventListener('click', (event) => {
+        event.stopPropagation();
+        selectCharacter(char.id);
+      });
+      g.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        selectCharacter(char.id);
+      });
+    }
     const circle = document.createElementNS(svgNS, 'circle');
     circle.setAttribute('r', 13);
     const text = document.createElementNS(svgNS, 'text');
@@ -527,7 +888,7 @@ function renderCharacters() {
       <strong>${ROLE_NAMES[char.role]}</strong>
       <span class="meta">HP ${hp} · ${cards} карт</span>
     `;
-    btn.addEventListener('click', () => { selectedCharId = char.id; render(); });
+    btn.addEventListener('click', () => selectCharacter(char.id));
     charactersEl.appendChild(btn);
   }
 }
@@ -552,7 +913,10 @@ function renderInventory() {
 }
 
 function renderLog() {
-  logEl.innerHTML = eventLog.map(e => `<div class="log-entry">${e}</div>`).join('');
+  logEl.innerHTML = eventLog.map(e => {
+    const cls = e.type ? ` log-${e.type}` : '';
+    return `<div class="log-entry${cls}">${e.msg ?? e}</div>`;
+  }).join('');
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -561,19 +925,31 @@ function renderLog() {
 
 function validTargets(char) {
   const result = new Set();
-  if (!getDice()) return result;
+  if (!isMyTurn() || !getDice()) return result;
 
   if (localMode === 'teleport') {
     const inv = char.inventory ?? [];
     if (!inv.includes('Бусы телепортации')) return result;
     for (const s of STARTS) {
-      result.add(cellId(s.p1[0], s.p1[1]));
-      result.add(cellId(s.p2[0], s.p2[1]));
+      for (const [q, r] of [s.p1, s.p2]) {
+        const id = cellId(q, r);
+        const occupied = getGame()?.characters.some(
+          c => c.id !== char.id && characterPosition(c) === id,
+        );
+        if (!occupied) result.add(id);
+      }
     }
     return result;
   }
 
   if (localMode !== 'moveSum' && localMode !== 'moveDie') return result;
+  if (usesServerPositions()) {
+    const legal = getGame()?.legalTargets;
+    const targets = localMode === 'moveSum'
+      ? legal?.moveSum?.[char.id]
+      : legal?.dice?.[selectedDieIdx]?.[char.id];
+    return new Set(targets ?? []);
+  }
   const maxDist = getMoveDistance();
   const from    = positions.get(char.id);
   for (const cell of cells) {
@@ -673,7 +1049,54 @@ window.addEventListener('resize', fitBoard);
 // Лог
 // ═════════════════════════════════════════════════════════════════
 
-function addLog(text) {
-  eventLog.unshift(text);
-  if (eventLog.length > 40) eventLog.length = 40;
+function addLog(text, extra = {}) {
+  // extra: { charId, to } для ходов — нужны для восстановления позиций
+  eventLog.unshift({ msg: text, ...extra });
+  if (eventLog.length > 60) eventLog.length = 60;
+  saveLog();
+}
+
+// Сравниваем два снапшота и логируем действия противника
+function diffAndLog(prevRoom, nextRoom) {
+  const prevG = prevRoom?.game;
+  const nextG = nextRoom?.game;
+  if (!prevG || !nextG || !myPlayerId) return;
+
+  const oppPlayer = nextRoom.players.find(p => p.id !== myPlayerId);
+  if (!oppPlayer) return;
+  const oppId   = oppPlayer.id;
+  const oppName = oppPlayer.name ?? 'Противник';
+
+  const prevActive = prevG.turn.activePlayerId;
+  const nextActive = nextG.turn.activePlayerId;
+
+  for (const char of nextG.characters) {
+    const prevChar = prevG.characters.find(c => c.id === char.id);
+    if (!prevChar || prevChar.position === char.position) continue;
+    const type = char.owner === myPlayerId ? 'my' : 'opp';
+    const ownerName = char.owner === myPlayerId ? '' : `${oppName}: `;
+    addLog(`${ownerName}${ROLE_NAMES[char.role]} → ${char.position}.`, { type });
+  }
+
+  // Смена хода
+  if (prevActive !== nextActive) {
+    addLog(nextActive === myPlayerId ? 'Ваш ход.' : `Ход ${oppName}.`, { type: 'sys' });
+    return;
+  }
+
+  // Действия противника в его ход
+  if (nextActive !== myPlayerId) {
+    // Бросок кубиков
+    if (!prevG.turn.dice && nextG.turn.dice) {
+      addLog(`${oppName} бросил [${nextG.turn.dice[0]}, ${nextG.turn.dice[1]}].`, { type: 'opp' });
+    }
+    // Изменения инвентаря (добор / передача)
+    for (const char of nextG.characters.filter(c => c.owner === oppId)) {
+      const prevChar = prevG.characters.find(c => c.id === char.id);
+      if (!prevChar?.inventory || !char.inventory) continue;
+      const delta = char.inventory.length - prevChar.inventory.length;
+      if (delta > 0) addLog(`${oppName}: ${ROLE_NAMES[char.role]} добрал карту.`, { type: 'opp' });
+      if (delta < 0) addLog(`${oppName}: ${ROLE_NAMES[char.role]} передал карту.`, { type: 'opp' });
+    }
+  }
 }

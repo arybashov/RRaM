@@ -15,19 +15,25 @@ import {
   CARD_CATALOG,
   BASE_CARDS,
 } from './constants.js';
-
-const MAP_PENDING =
-  'Карта еще не подключена — движение и телепорт появятся после загрузки карты.';
+import {
+  allStartCells,
+  isEnemyIslandCell,
+  isBoardCell,
+  reachableCells,
+  startCell,
+} from './map.js';
 
 export function createGame(players) {
   const characters = [];
-  for (const player of players) {
+  for (const [playerIndex, player] of players.entries()) {
+    const side = player.side ?? (playerIndex === 0 ? 'green' : 'red');
     for (const role of ROLES) {
       characters.push({
         id: `${player.id}:${role}`,
         owner: player.id,
+        side,
         role,
-        position: null, // появится вместе с картой
+        position: startCell(side, role),
         hp: CHARACTER_HP,
         inventory: [...(BASE_CARDS[role] ?? [])],
       });
@@ -42,6 +48,7 @@ export function createGame(players) {
   return {
     over: false,
     winnerId: null,
+    mapId: 'prototype-15x10-v1',
     characters,
     deck: buildDeck(),
     discard: [],
@@ -159,16 +166,87 @@ function transfer(game, playerId, { fromId, toId, dieIndex } = {}) {
   return { transferred: { fromId, toId, count } };
 }
 
-function move(game, playerId) {
-  assertActive(game, playerId);
-  assertRolled(game);
-  throw new Error(MAP_PENDING);
+export function availableMoveTargets(game, playerId, characterId, dieIndex) {
+  const character = ownCharacter(game, playerId, characterId);
+  if (!game.turn.dice) return [];
+
+  let maxSteps;
+  if (game.turn.mode === 'moveSum') {
+    if (game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
+    maxSteps = game.turn.dice[0] + game.turn.dice[1];
+  } else if (game.turn.mode === 'split') {
+    maxSteps = dieValue(game, dieIndex);
+  } else {
+    return [];
+  }
+
+  const blocked = new Set(
+    game.characters
+      .filter((item) => item.id !== character.id && item.position)
+      .map((item) => item.position),
+  );
+  return reachableCells(character.position, maxSteps, blocked);
 }
 
-function teleport(game, playerId) {
+function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
-  throw new Error(MAP_PENDING);
+  const character = ownCharacter(game, playerId, characterId);
+  assertBoardTarget(toCell);
+
+  const target = availableMoveTargets(game, playerId, characterId, dieIndex)
+    .find((item) => item.cellId === toCell);
+  if (!target) {
+    throw new Error('Нужно выбрать другую клетку.');
+  }
+
+  const fromCell = character.position;
+  if (game.turn.mode === 'moveSum') {
+    character.position = toCell;
+    spendAllDice(game);
+  } else if (game.turn.mode === 'split') {
+    character.position = toCell;
+    spendDie(game, dieIndex);
+  } else {
+    throw new Error('Сначала выберите режим движения.');
+  }
+
+  checkMapVictory(game, playerId, character);
+  return {
+    moved: {
+      characterId,
+      fromCell,
+      toCell,
+      distance: target.distance,
+    },
+    winnerId: game.winnerId,
+  };
+}
+
+function teleport(game, playerId, { characterId, toCell } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  const character = ownCharacter(game, playerId, characterId);
+  if (!character.inventory.includes(TELEPORT_CARD)) {
+    throw new Error('У персонажа нет Бус телепортации.');
+  }
+  if (!allStartCells().includes(toCell)) {
+    throw new Error('Телепортация доступна только на стартовые клетки.');
+  }
+  if (game.characters.some((item) => item.id !== character.id && item.position === toCell)) {
+    throw new Error('Стартовая клетка занята.');
+  }
+  if (character.position === toCell) {
+    throw new Error('Персонаж уже находится на этой клетке.');
+  }
+  if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
+    throw new Error('Для телепортации нужны оба неиспользованных кубика.');
+  }
+
+  character.position = toCell;
+  spendAllDice(game);
+  checkMapVictory(game, playerId, character);
+  return { teleported: { characterId, toCell }, winnerId: game.winnerId };
 }
 
 function endTurn(game, playerId) {
@@ -244,6 +322,24 @@ function spendDie(game, dieIndex) {
     game.turn.usedDice = [false, false];
     game.turn.mode = null;
   }
+}
+
+function spendAllDice(game) {
+  game.turn.dice = null;
+  game.turn.usedDice = [false, false];
+  game.turn.mode = null;
+}
+
+function assertBoardTarget(cellId) {
+  if (!isBoardCell(cellId)) {
+    throw new Error('Клетка находится за пределами карты.');
+  }
+}
+
+function checkMapVictory(game, playerId, character) {
+  if (!isEnemyIslandCell(character.side, character.position)) return;
+  game.over = true;
+  game.winnerId = playerId;
 }
 
 function rollDie() {
