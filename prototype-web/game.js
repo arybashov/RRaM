@@ -6,7 +6,7 @@ const SERVER_URL = new URLSearchParams(location.search).get('server')
   ?? localStorage.getItem('rram_server')
   ?? (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
       ? 'ws://localhost:8787/ws'
-      : 'wss://rram-server.onrender.com/ws');
+      : 'wss://rram.com.ru/ws');
 
 const SESSION_KEY = 'rram_session';
 
