@@ -4,9 +4,7 @@
 // ── Конфигурация ──────────────────────────────────────────────────
 const SERVER_URL = new URLSearchParams(location.search).get('server')
   ?? localStorage.getItem('rram_server')
-  ?? (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-      ? 'ws://localhost:8787/ws'
-      : 'wss://rram.com.ru/ws');
+  ?? 'wss://rram.com.ru/ws';
 
 const SESSION_KEY = 'rram_session';
 
@@ -511,7 +509,7 @@ function buildSettingsOverlay() {
       <label class="lobby-label">Адрес сервера
         <input id="setServer" type="text" autocomplete="off" />
       </label>
-      <p class="lobby-label-hint">Для локального тестирования: ws://localhost:8787/ws<br>Оставьте пустым — будет облачный сервер.</p>
+      <p class="lobby-label-hint">Оставьте пустым — основной сервер rram.com.ru. Можно указать другой адрес (например, запасной).</p>
       <div class="lobby-btns">
         <button id="setSaveBtn">Сохранить</button>
         <button id="setBackBtn" class="ghost">← Назад</button>
