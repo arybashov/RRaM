@@ -314,6 +314,10 @@ function buildLobbyOverlay() {
         <p class="lobby-sub">Настольная игра онлайн</p>
         <div id="lobbyStatus" class="lobby-status"></div>
         <input id="playerName" type="text" placeholder="Ваше имя" maxlength="32" autocomplete="off" />
+        <div id="lobbyList" class="lobby-list">
+          <div class="lobby-list-title">Открытые игры</div>
+          <div id="lobbyListItems" class="lobby-list-items"></div>
+        </div>
         <div class="lobby-btns">
           <button id="createBtn">Создать партию</button>
           <button id="joinBtn" class="ghost">Войти по коду</button>
@@ -325,10 +329,6 @@ function buildLobbyOverlay() {
         <div id="joinSection" class="lobby-join hidden">
           <input id="joinCode" type="text" placeholder="Код (4 символа)" maxlength="4" autocomplete="off" />
           <button id="confirmJoinBtn">Войти</button>
-        </div>
-        <div id="lobbyList" class="lobby-list">
-          <div class="lobby-list-title">Открытые игры</div>
-          <div id="lobbyListItems" class="lobby-list-items"></div>
         </div>
         <div id="codeDisplay" class="lobby-code hidden">
           Код партии: <strong id="sharedCode"></strong>
@@ -432,7 +432,7 @@ function buildGameMenu() {
     <div class="menu-card">
       <div class="menu-title">Меню</div>
       <button id="menuResumeBtn">▶ Продолжить игру</button>
-      <button id="menuNewBtn" class="ghost">⟳ Новая партия</button>
+      <button id="menuNewBtn" class="ghost">🚪 Выйти в лобби</button>
       <button id="menuSettingsBtn" class="ghost">⚙ Настройки</button>
     </div>
   `;
@@ -442,7 +442,8 @@ function buildGameMenu() {
 
   menuEl.querySelector('#menuNewBtn').addEventListener('click', () => {
     const active = serverRoom?.game && !serverRoom.game.over;
-    if (active && !confirm('Выйти из текущей игры?\nПрогресс партии будет потерян.')) return;
+    if (active && !confirm('Выйти из игры?\nСопернику будет засчитана победа.')) return;
+    if (myRoomId) wsSend('room:leave'); // уведомить сервер и соперника
     resetToLobby();
   });
 

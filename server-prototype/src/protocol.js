@@ -5,6 +5,7 @@ export const ClientCommand = Object.freeze({
   // комната и сессия
   ROOM_CREATE: 'room:create',
   ROOM_JOIN: 'room:join',
+  ROOM_LEAVE: 'room:leave',
   SESSION_RESUME: 'session:resume',
   // публичное лобби
   LOBBY_SUBSCRIBE: 'lobby:subscribe',

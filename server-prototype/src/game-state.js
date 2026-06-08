@@ -105,6 +105,31 @@ export function createStore() {
     return list;
   }
 
+  // Игрок осознанно покидает комнату (кнопка «Выйти»).
+  // В ожидании — убираем его (и пустую комнату); в активной партии —
+  // засчитываем сдачу: победа сопернику.
+  function leaveRoom({ roomId, playerId }) {
+    const room = rooms.get(roomId);
+    if (!room) return null;
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) return { room };
+
+    if (room.status === 'waiting') {
+      room.players = room.players.filter((p) => p.id !== playerId);
+      room.revision += 1;
+      if (!room.players.some((p) => !p.isBot)) {
+        rooms.delete(room.id);
+        codes.delete(room.code);
+      }
+    } else if (room.game && !room.game.over) {
+      const opponent = room.players.find((p) => p.id !== playerId);
+      room.game.over = true;
+      room.game.winnerId = opponent ? opponent.id : null;
+      room.revision += 1;
+    }
+    return { room };
+  }
+
   function resumeSession({ roomId, sessionToken, connectionId }) {
     const room = rooms.get(roomId);
     if (!room) {
@@ -183,6 +208,7 @@ export function createStore() {
     createRoom,
     joinRoom,
     joinById,
+    leaveRoom,
     listPublicRooms,
     resumeSession,
     markDisconnected,

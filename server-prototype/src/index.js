@@ -124,6 +124,17 @@ function routeCommand(connectionId, message) {
       break;
     }
 
+    case ClientCommand.ROOM_LEAVE: {
+      if (client.roomId && client.playerId) {
+        const roomId = client.roomId;
+        store.leaveRoom({ roomId, playerId: client.playerId });
+        bindClient(client, null, null);
+        broadcastState(roomId); // соперник увидит сдачу/итог
+        broadcastLobby();
+      }
+      break;
+    }
+
     case ClientCommand.LOBBY_JOIN: {
       const { room, player } = store.joinById({
         roomId: message.payload?.roomId,
