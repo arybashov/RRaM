@@ -1,0 +1,25 @@
+name: deploy-vps
+
+# Авто-деплой на Timeweb VPS через self-hosted runner (агент на самом VPS).
+# Раннер опрашивает GitHub исходящим соединением → обходит RU-only блокировку
+# входящего трафика. На пуш в main запускает готовый deploy-web.sh.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'prototype-web/**'
+      - 'server-prototype/**'
+      - '.github/workflows/deploy-vps.yml'
+  workflow_dispatch: {}
+
+# Не запускать два деплоя параллельно; новый ждёт завершения текущего.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, rram-vps]
+    steps:
+      - name: Деплой на VPS (git pull + клиент + npm + pm2 + nginx)
+        run: bash /root/rram/server-prototype/deploy/deploy-web.sh
