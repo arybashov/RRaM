@@ -53,6 +53,7 @@ const eventLog     = []; // { msg: string, charId?: string, to?: string }
 const cells = [];
 const cols = 15, rows = 10;
 const STEP_MS = 140;                 // длительность одного шага фишки по клетке
+const WIN_PAUSE_MS = 800;            // пауза после прихода фишки перед показом итога
 const tokenDisplayPos = new Map();   // charId → клетка, где фишка показана СЕЙЧАС (во время анимации)
 const animTokens = new Map();        // charId → id текущей анимации (для отмены устаревших)
 const BASE = { hexW: 46, hexH: 53, colStep: 46, rowStep: 40, odd: 23 };
@@ -207,9 +208,9 @@ function handleMsg({ type, payload }) {
 
       render();
       if (serverRoom?.game?.over) {
-        // Если фишка ещё шагает к клетке победы — показать итог после анимации
-        if (animTokens.size > 0) pendingOver = true;
-        else revealMatchResult();
+        // Фишка должна дойти и постоять, и лишь потом — итог
+        if (animTokens.size > 0) pendingOver = true; // покажем после анимации
+        else scheduleMatchResult();                  // анимации нет — просто пауза
       } else {
         pendingOver = false;
         matchResultLogged = false;
@@ -517,8 +518,13 @@ function hideMatchResult() {
   matchResultEl?.classList.add('hidden');
 }
 
-// Показать итог партии (с записью в журнал один раз). Вызывается сразу,
-// либо после завершения анимации шага (если фишка ещё шла к клетке победы).
+// Пауза «фишка постояла» и затем итог (если партия всё ещё завершена).
+function scheduleMatchResult() {
+  setTimeout(() => { if (serverRoom?.game?.over) revealMatchResult(); }, WIN_PAUSE_MS);
+}
+
+// Показать итог партии (с записью в журнал один раз). Вызывается после паузы:
+// сразу (если хода-анимации не было) либо по завершении анимации шага.
 function revealMatchResult() {
   pendingOver = false;
   if (!serverRoom?.game?.over) return;
@@ -1103,8 +1109,8 @@ function animateMove(charId, from, to) {
       animTokens.delete(charId);
       tokenDisplayPos.delete(charId);
       renderBoard();
-      // фишка дошла — если ждали итог партии и других анимаций нет, показать
-      if (pendingOver && animTokens.size === 0) revealMatchResult();
+      // фишка дошла — пусть постоит, затем покажем итог (если ждали)
+      if (pendingOver && animTokens.size === 0) { pendingOver = false; scheduleMatchResult(); }
     }
   };
   setTimeout(step, STEP_MS);
