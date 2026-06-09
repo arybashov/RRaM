@@ -56,6 +56,7 @@ const STEP_MS = 140;                 // длительность одного ш
 const WIN_PAUSE_MS = 800;            // пауза после прихода фишки перед показом итога
 const tokenDisplayPos = new Map();   // charId → клетка, где фишка показана СЕЙЧАС (во время анимации)
 const animTokens = new Map();        // charId → id текущей анимации (для отмены устаревших)
+const teleportedChars = new Set();   // charId, чей последний сдвиг — телепорт (прыжок, без шагов)
 const BASE = { hexW: 46, hexH: 53, colStep: 46, rowStep: 40, odd: 23 };
 const GRID_W = (cols - 1) * BASE.colStep + BASE.odd + BASE.hexW;
 const GRID_H = (rows - 1) * BASE.rowStep + BASE.hexH;
@@ -783,6 +784,7 @@ function handleCellClick(targetId) {
     const inv = char.inventory ?? [];
     if (!inv.includes('Бусы телепортации') || !isStartCell(targetId)) return;
     if (usesServerPositions()) {
+      teleportedChars.add(char.id); // не анимировать шагами — это прыжок
       wsSend('action:teleport', { characterId: char.id, toCell: targetId });
       return;
     }
@@ -1082,9 +1084,11 @@ function hexPath(from, to, blocked = new Set()) {
   return [from, to];
 }
 
-// Прошагать фишку по клеткам from→to. Телепорт (далёкий прыжок на стартовую
-// клетку) не анимируем — он визуально именно мгновенный.
+// Прошагать фишку по клеткам from→to. Телепорт — прыжок (без шагов):
+// определяется по флагу teleportedChars (наш телепорт) либо по слишком
+// длинному пути (телепорт соперника). Обычный ход — всегда анимируем.
 function animateMove(charId, from, to) {
+  if (teleportedChars.has(charId)) { teleportedChars.delete(charId); return; }
   const occupied = new Set(
     (getGame()?.characters ?? [])
       .filter(c => c.id !== charId)
@@ -1092,7 +1096,7 @@ function animateMove(charId, from, to) {
   );
   const path = hexPath(from, to, occupied);
   if (path.length <= 1) return;
-  if (isStartCell(to) && path.length > 3) return; // похоже на телепорт — мгновенно
+  if (path.length > 14) return; // подозрительно длинно — вероятно телепорт соперника
 
   const token = Symbol('anim');
   animTokens.set(charId, token);
