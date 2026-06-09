@@ -230,7 +230,7 @@ h2::after {
   min-height: 0;
   position: relative;
   overflow: hidden;
-  background: var(--water-a) url("./assets/fantasy-map-background.jpg?v=20260609-3") center / cover no-repeat;
+  background: var(--water-a) url("./assets/fantasy-map-background.jpg?v=20260609-4") center / cover no-repeat;
 }
 
 /* ---------- Док действий ---------- */
