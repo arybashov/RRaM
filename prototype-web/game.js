@@ -38,6 +38,8 @@ let serverRoom    = null;   // последний state:snapshot
 let autoModeSent  = false;  // флаг: setMode уже отправлен в этом броске
 let pendingResume = false;  // флаг: ждём ответа на session:resume
 let currentRoomId = null;   // ID комнаты для которой уже инициализированы позиции
+let pendingOver   = false;  // партия завершена, но ждём конца анимации шага
+let matchResultLogged = false; // итог уже записан в журнал (чтобы не дублировать)
 
 // ── Локальное UI-состояние ────────────────────────────────────────
 const positions = new Map();  // characterId → cellId (до подключения карты)
@@ -166,9 +168,7 @@ function handleMsg({ type, payload }) {
 
     case 'state:snapshot': {
       const prevRoom   = serverRoom;
-      const prevStatus = serverRoom?.status;
       const prevDice   = serverRoom?.game?.turn?.dice;
-      const wasOver    = serverRoom?.game?.over === true;
       serverRoom = payload.room;
 
       // Сброс локального трекинга кубиков при смене состояния
@@ -207,15 +207,12 @@ function handleMsg({ type, payload }) {
 
       render();
       if (serverRoom?.game?.over) {
-        showMatchResult();
-        if (!wasOver) {
-          const won = serverRoom.game.winnerId === myPlayerId;
-          addLog(won ? 'Партия завершена: вы победили.' : 'Партия завершена: победил соперник.', {
-            type: won ? 'my' : 'opp',
-          });
-          renderLog();
-        }
+        // Если фишка ещё шагает к клетке победы — показать итог после анимации
+        if (animTokens.size > 0) pendingOver = true;
+        else revealMatchResult();
       } else {
+        pendingOver = false;
+        matchResultLogged = false;
         hideMatchResult();
       }
       break;
@@ -518,6 +515,22 @@ function showMatchResult() {
 
 function hideMatchResult() {
   matchResultEl?.classList.add('hidden');
+}
+
+// Показать итог партии (с записью в журнал один раз). Вызывается сразу,
+// либо после завершения анимации шага (если фишка ещё шла к клетке победы).
+function revealMatchResult() {
+  pendingOver = false;
+  if (!serverRoom?.game?.over) return;
+  showMatchResult();
+  if (!matchResultLogged) {
+    matchResultLogged = true;
+    const won = serverRoom.game.winnerId === myPlayerId;
+    addLog(won ? 'Партия завершена: вы победили.' : 'Партия завершена: победил соперник.', {
+      type: won ? 'my' : 'opp',
+    });
+    renderLog();
+  }
 }
 
 // ── Настройки (отдельный оверлей, не зависит от лобби) ───────────
@@ -1090,6 +1103,8 @@ function animateMove(charId, from, to) {
       animTokens.delete(charId);
       tokenDisplayPos.delete(charId);
       renderBoard();
+      // фишка дошла — если ждали итог партии и других анимаций нет, показать
+      if (pendingOver && animTokens.size === 0) revealMatchResult();
     }
   };
   setTimeout(step, STEP_MS);
