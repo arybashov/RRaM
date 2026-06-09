@@ -849,7 +849,6 @@ function renderDice() {
   const g = getGame();
   if (!g) {
     dieButtons.forEach(b => { b.textContent = '–'; b.disabled = true; b.className = 'die'; });
-    diceHintEl.textContent = 'Ожидание начала партии.';
     return;
   }
   const myTurn  = isMyTurn();
@@ -866,16 +865,6 @@ function renderDice() {
     if (dice && used[i])                                       btn.classList.add('used');
   });
 
-  if (!dice) {
-    diceHintEl.textContent = canRoll ? 'Нажмите на кубики, чтобы бросить.' : 'Броски закончились.';
-  } else if (getServMode() === 'moveSum') {
-    diceHintEl.textContent = `Движение суммой: ${dice[0] + dice[1]} бордов.`;
-  } else {
-    const v = getSelDieVal();
-    diceHintEl.textContent = v !== null
-      ? `Кубик ${selectedDieIdx + 1}: значение ${v}.`
-      : 'Оба кубика потрачены.';
-  }
 }
 
 function renderBoard() {

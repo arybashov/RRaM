@@ -248,15 +248,18 @@ h2::after {
 
 .dock-dice {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: stretch;
+  gap: 8px;
 }
 
-.dock-hint {
+.dock-dice .die { flex: none; }
+
+.dock-dice #performActionBtn,
+.dock-dice #endTurnBtn {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
-  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .dock-modes {
