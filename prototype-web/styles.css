@@ -230,7 +230,7 @@ h2::after {
   min-height: 0;
   position: relative;
   overflow: hidden;
-  background: var(--water-a) url("./assets/fantasy-map-background.jpg") center / cover no-repeat;
+  background: var(--water-a) url("./assets/fantasy-map-background.jpg?v=20260609-3") center / cover no-repeat;
 }
 
 /* ---------- Док действий ---------- */
@@ -520,11 +520,6 @@ h2::after {
 }
 
 /* ---------- Board ---------- */
-/* Затемнение по краям карты для глубины (фон/размеры — в блоке лейаута). */
-.board-wrap {
-  box-shadow: inset 0 0 70px -20px rgba(0, 0, 0, 0.6);
-}
-
 /* Поле центрируется в рамке; размер задаёт JS (fitBoard). */
 .board {
   position: absolute;
