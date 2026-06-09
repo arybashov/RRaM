@@ -56,6 +56,12 @@ const teleportedChars = new Set();   // charId, чей последний сдв
 const svgNS = 'http://www.w3.org/2000/svg';
 let scale = 1;
 let boardSvg = null;
+let boardVp  = null;                  // <g> вьюпорт: пан/зум применяются к нему
+let view = { s: 1, tx: 0, ty: 0 };    // зум и сдвиг в координатах viewBox
+const MIN_S = 1, MAX_S = 6;
+let gestureMoved = false;             // был ли drag/pinch (чтобы не считать его тапом)
+const ptrs = new Map();               // активные указатели (touch/mouse)
+let panStart = null, pinchStart = null;
 
 // ── DOM ───────────────────────────────────────────────────────────
 const boardEl        = document.querySelector('#board');
@@ -80,10 +86,14 @@ const NAME_KEY = 'rram_player_name';
 // ── Старт ─────────────────────────────────────────────────────────
 buildLobbyOverlay();
 connect();
+document.getElementById('fitBtn')?.addEventListener('click', fitAll);
+document.getElementById('focusBtn')?.addEventListener('click', focusMine);
 loadBoardMap().then(() => {
   buildBoard();
-  requestAnimationFrame(fitBoard);
-  if (serverRoom?.game) render();
+  requestAnimationFrame(() => {
+    fitBoard();
+    if (serverRoom?.game) { render(); focusMine(); }
+  });
 });
 
 // Загрузка граф-карты (статический asset, один раз).
@@ -178,6 +188,7 @@ function handleMsg({ type, payload }) {
     case 'state:snapshot': {
       const prevRoom   = serverRoom;
       const prevDice   = serverRoom?.game?.turn?.dice;
+      const prevActive = serverRoom?.game?.turn?.activePlayerId;
       serverRoom = payload.room;
 
       // Сброс локального трекинга кубиков при смене состояния
@@ -201,9 +212,15 @@ function handleMsg({ type, payload }) {
         hideLobby();
         if (currentRoomId !== myRoomId) addLog('Партия началась!', { type: 'sys' });
         autoModeSent = false;
+        requestAnimationFrame(focusMine);   // старт партии — показать свою базу
       } else if (serverRoom.status === 'active' && prevRoom?.game) {
         diffAndLog(prevRoom, serverRoom);
         animateMovesFromDiff(prevRoom, serverRoom);
+        // начало моего хода — автофокус на своих фишках
+        const nowActive = serverRoom.game?.turn?.activePlayerId;
+        if (nowActive === myPlayerId && prevActive !== myPlayerId) {
+          requestAnimationFrame(focusMine);
+        }
       }
 
       // Авто-setMode: отправляем один раз после броска кубиков
@@ -925,7 +942,7 @@ function renderBoard() {
       g.setAttribute('aria-label', `Выбрать: ${ROLE_NAMES[char.role]}`);
       g.addEventListener('click', (event) => {
         event.stopPropagation();
-        selectCharacter(char.id);
+        if (!gestureMoved) selectCharacter(char.id);
       });
       g.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -940,7 +957,7 @@ function renderBoard() {
     text.textContent = char.role;
     g.appendChild(circle);
     g.appendChild(text);
-    boardSvg.appendChild(g);
+    boardVp.appendChild(g);
   }
 }
 
@@ -1170,6 +1187,11 @@ function buildBoard() {
   boardSvg.setAttribute('viewBox', `0 0 ${VBW} ${VBH}`);
   boardSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
+  // Вьюпорт: пан/зум применяются трансформом к этой группе (арт+клетки+фишки)
+  boardVp = document.createElementNS(svgNS, 'g');
+  boardVp.setAttribute('class', 'board-vp');
+  boardSvg.appendChild(boardVp);
+
   if (art.src) {
     const img = document.createElementNS(svgNS, 'image');
     img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', artHref(art.src));
@@ -1179,7 +1201,7 @@ function buildBoard() {
     img.setAttribute('width', VBW);
     img.setAttribute('height', VBH);
     img.setAttribute('preserveAspectRatio', 'none');
-    boardSvg.appendChild(img);
+    boardVp.appendChild(img);
   }
 
   for (const c of cells) {
@@ -1187,11 +1209,139 @@ function buildBoard() {
     poly.setAttribute('class', 'cell');
     poly.setAttribute('points', hexPoints(c.cx, c.cy, HEX_R));
     poly.setAttribute('data-id', c.id);
-    poly.addEventListener('click', () => handleCellClick(c.id));
-    boardSvg.appendChild(poly);
+    poly.addEventListener('click', () => { if (!gestureMoved) handleCellClick(c.id); });
+    boardVp.appendChild(poly);
   }
 
   boardEl.appendChild(boardSvg);
+  attachBoardGestures();
+  applyView();
+}
+
+// ── Пан / зум / автофокус ─────────────────────────────────────────
+function applyView() {
+  if (boardVp) {
+    boardVp.setAttribute('transform',
+      `translate(${view.tx.toFixed(2)} ${view.ty.toFixed(2)}) scale(${view.s.toFixed(4)})`);
+  }
+}
+
+function clampView() {
+  view.s = Math.max(MIN_S, Math.min(MAX_S, view.s));
+  view.tx = Math.max(VBW - VBW * view.s, Math.min(0, view.tx));
+  view.ty = Math.max(VBH - VBH * view.s, Math.min(0, view.ty));
+}
+
+// px на единицу viewBox (учитывает текущий масштаб подгонки)
+function svgK() {
+  const rect = boardSvg.getBoundingClientRect();
+  return { rect, k: (rect.width / VBW) || 1 };
+}
+
+function attachBoardGestures() {
+  boardEl.addEventListener('pointerdown', onPtrDown);
+  boardEl.addEventListener('pointermove', onPtrMove);
+  boardEl.addEventListener('pointerup', onPtrUp);
+  boardEl.addEventListener('pointercancel', onPtrUp);
+}
+
+function onPtrDown(e) {
+  boardEl.setPointerCapture?.(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  gestureMoved = false;
+  if (ptrs.size === 1) {
+    panStart = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
+    pinchStart = null;
+  } else if (ptrs.size === 2) {
+    startPinch();
+  }
+}
+
+function startPinch() {
+  const [a, b] = [...ptrs.values()];
+  const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  const { rect, k } = svgK();
+  const vbMidX = ((a.x + b.x) / 2 - rect.left) / k;
+  const vbMidY = ((a.y + b.y) / 2 - rect.top) / k;
+  pinchStart = {
+    dist,
+    s: view.s,
+    cpX: (vbMidX - view.tx) / view.s,
+    cpY: (vbMidY - view.ty) / view.s,
+  };
+  panStart = null;
+}
+
+function onPtrMove(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (ptrs.size >= 2 && pinchStart) {
+    const [a, b] = [...ptrs.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    const { rect, k } = svgK();
+    view.s = Math.max(MIN_S, Math.min(MAX_S, pinchStart.s * (dist / pinchStart.dist)));
+    const vbMidX = ((a.x + b.x) / 2 - rect.left) / k;
+    const vbMidY = ((a.y + b.y) / 2 - rect.top) / k;
+    view.tx = vbMidX - pinchStart.cpX * view.s;
+    view.ty = vbMidY - pinchStart.cpY * view.s;
+    clampView();
+    applyView();
+    gestureMoved = true;
+  } else if (ptrs.size === 1 && panStart) {
+    const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
+    if (Math.hypot(dx, dy) > 8) gestureMoved = true;
+    const { k } = svgK();
+    view.tx = panStart.tx + dx / k;
+    view.ty = panStart.ty + dy / k;
+    clampView();
+    applyView();
+  }
+}
+
+function onPtrUp(e) {
+  ptrs.delete(e.pointerId);
+  if (ptrs.size === 1) {
+    const [p] = [...ptrs.values()];
+    panStart = { x: p.x, y: p.y, tx: view.tx, ty: view.ty };
+    pinchStart = null;
+  } else if (ptrs.size === 0) {
+    panStart = null; pinchStart = null;
+  }
+}
+
+// Кадрировать набор клеток (по id) с отступом
+function focusCells(ids, padFactor = 2.5) {
+  if (!boardVp) return;
+  const pts = ids.map(id => cellById.get(id)).filter(Boolean);
+  if (!pts.length) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.cx); maxX = Math.max(maxX, p.cx);
+    minY = Math.min(minY, p.cy); maxY = Math.max(maxY, p.cy);
+  }
+  const pad = HEX_R * padFactor;
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
+  view.s = Math.max(MIN_S, Math.min(MAX_S, Math.min(VBW / bw, VBH / bh)));
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  view.tx = VBW / 2 - cx * view.s;
+  view.ty = VBH / 2 - cy * view.s;
+  clampView();
+  applyView();
+}
+
+function focusMine() {
+  const ids = (getGame()?.characters ?? [])
+    .filter(c => c.owner === myPlayerId)
+    .map(c => characterPosition(c))
+    .filter(Boolean);
+  if (ids.length) focusCells(ids);
+}
+
+function fitAll() {
+  view = { s: MIN_S, tx: 0, ty: 0 };
+  applyView();
 }
 
 function layoutBoard() {
