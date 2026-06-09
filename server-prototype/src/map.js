@@ -1,93 +1,53 @@
-export const BOARD_COLS = 15;
-export const BOARD_ROWS = 10;
-export const MAP_ID = 'prototype-15x10-v1';
-export const MAP_LAYOUT = 'odd-r';
+// Карта поля RRaM — теперь data-driven из board-map.json (граф клеток с
+// явными соседями, экспортирован из редактора tools/board-editor).
+// Клиент тянет полную карту как статический asset; сервер использует её
+// для движения/дистанций/стартов. Интерфейс модуля сохранён.
 
-export const START_CELLS = Object.freeze({
-  green: Object.freeze({
-    K: '1:1',
-    P: '2:1',
-    V: '1:2',
-    O: '2:2',
-    S: '3:2',
-  }),
-  red: Object.freeze({
-    K: '13:8',
-    P: '12:8',
-    V: '13:7',
-    O: '12:7',
-    S: '11:7',
-  }),
-});
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-export const ISLAND_CELLS = Object.freeze({
-  green: Object.freeze(
-    Array.from({ length: 3 }, (_, r) =>
-      Array.from({ length: 4 }, (_, q) => `${q}:${r}`)).flat(),
-  ),
-  red: Object.freeze(
-    Array.from({ length: 3 }, (_, row) =>
-      Array.from({ length: 4 }, (_, col) => `${11 + col}:${7 + row}`)).flat(),
-  ),
-});
+const HERE = dirname(fileURLToPath(import.meta.url));
+const MAP = JSON.parse(readFileSync(join(HERE, 'board-map.json'), 'utf8'));
 
-export function parseCell(cellId) {
-  if (typeof cellId !== 'string') return null;
-  const match = /^(\d+):(\d+)$/.exec(cellId);
-  if (!match) return null;
-  const q = Number(match[1]);
-  const r = Number(match[2]);
-  if (q < 0 || q >= BOARD_COLS || r < 0 || r >= BOARD_ROWS) return null;
-  return { q, r };
-}
+export const MAP_ID = MAP.id;
+export const MAP_REVISION = MAP.revision ?? 1;
 
-export function isBoardCell(cellId) {
-  return parseCell(cellId) !== null;
-}
+const cellsById = new Map(MAP.cells.map((c) => [c.id, c]));
+const neighborMap = new Map(
+  MAP.cells.map((c) => [
+    c.id,
+    (c.neighbors || []).filter((n) => cellsById.has(n) && cellsById.get(n).walkable !== false),
+  ]),
+);
 
-export function cellDistance(fromId, toId) {
-  return shortestDistance(fromId, toId);
-}
+const STARTS = MAP.starts ?? { green: {}, red: {} };
 
-export function cellId(q, r) {
-  return `${q}:${r}`;
+export function isBoardCell(id) {
+  return cellsById.has(id);
 }
 
 export function neighbors(cellIdValue) {
-  const cell = parseCell(cellIdValue);
-  if (!cell) return [];
-  const evenDeltas = [
-    [-1, 0], [1, 0],
-    [-1, -1], [0, -1],
-    [-1, 1], [0, 1],
-  ];
-  const oddDeltas = [
-    [-1, 0], [1, 0],
-    [0, -1], [1, -1],
-    [0, 1], [1, 1],
-  ];
-  const deltas = cell.r % 2 === 0 ? evenDeltas : oddDeltas;
-  return deltas
-    .map(([dq, dr]) => cellId(cell.q + dq, cell.r + dr))
-    .filter(isBoardCell);
+  return neighborMap.get(cellIdValue) ?? [];
 }
 
+// BFS по графу: клетки, достижимые не более чем за maxSteps шагов.
 export function reachableCells(fromId, maxSteps, blocked = new Set()) {
   if (!isBoardCell(fromId) || maxSteps <= 0) return [];
-  const queue = [{ cellId: fromId, distance: 0 }];
   const visited = new Set([fromId]);
   const result = [];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (current.distance >= maxSteps) continue;
-    for (const next of neighbors(current.cellId)) {
-      if (visited.has(next) || blocked.has(next)) continue;
-      visited.add(next);
-      const distance = current.distance + 1;
-      result.push({ cellId: next, distance });
-      queue.push({ cellId: next, distance });
+  let frontier = [fromId];
+  for (let step = 1; step <= maxSteps && frontier.length; step += 1) {
+    const next = [];
+    for (const id of frontier) {
+      for (const nb of neighbors(id)) {
+        if (visited.has(nb) || blocked.has(nb)) continue;
+        visited.add(nb);
+        result.push({ cellId: nb, distance: step });
+        next.push(nb);
+      }
     }
+    frontier = next;
   }
   return result;
 }
@@ -95,51 +55,66 @@ export function reachableCells(fromId, maxSteps, blocked = new Set()) {
 export function shortestDistance(fromId, toId, blocked = new Set()) {
   if (!isBoardCell(fromId) || !isBoardCell(toId)) return Infinity;
   if (fromId === toId) return 0;
-  const queue = [{ cellId: fromId, distance: 0 }];
   const visited = new Set([fromId]);
-  while (queue.length > 0) {
-    const current = queue.shift();
-    for (const next of neighbors(current.cellId)) {
-      if (visited.has(next) || blocked.has(next)) continue;
-      if (next === toId) return current.distance + 1;
-      visited.add(next);
-      queue.push({ cellId: next, distance: current.distance + 1 });
+  let frontier = [fromId];
+  let dist = 0;
+  while (frontier.length) {
+    dist += 1;
+    const next = [];
+    for (const id of frontier) {
+      for (const nb of neighbors(id)) {
+        if (visited.has(nb) || blocked.has(nb)) continue;
+        if (nb === toId) return dist;
+        visited.add(nb);
+        next.push(nb);
+      }
     }
+    frontier = next;
   }
   return Infinity;
 }
 
+export function cellDistance(fromId, toId) {
+  return shortestDistance(fromId, toId);
+}
+
 export function startCell(side, role) {
-  return START_CELLS[side]?.[role] ?? null;
+  return STARTS?.[side]?.[role] ?? null;
 }
 
 export function enemySide(side) {
   return side === 'red' ? 'green' : 'red';
 }
 
-export function isEnemyStartCell(side, cellId) {
-  return Object.values(START_CELLS[enemySide(side)] ?? {}).includes(cellId);
+export function allStartCells() {
+  const out = [];
+  for (const side of Object.keys(STARTS)) {
+    for (const role of Object.keys(STARTS[side] ?? {})) {
+      if (STARTS[side][role]) out.push(STARTS[side][role]);
+    }
+  }
+  return [...new Set(out)];
 }
 
+// Цель гонки (заглушка победы): база противника — его стартовые клетки и
+// клетки вокруг них. Сами старты заняты фишками, но соседи достижимы.
 export function enemyIslandCells(side) {
-  return ISLAND_CELLS[enemySide(side)] ?? [];
+  const starts = Object.values(STARTS?.[enemySide(side)] ?? {}).filter(Boolean);
+  const zone = new Set(starts);
+  for (const s of starts) for (const nb of neighbors(s)) zone.add(nb);
+  return [...zone];
 }
 
 export function isEnemyIslandCell(side, cellId) {
   return enemyIslandCells(side).includes(cellId);
 }
 
-export function allStartCells() {
-  return [...new Set(Object.values(START_CELLS).flatMap(Object.values))];
+export function isEnemyStartCell(side, cellId) {
+  return isEnemyIslandCell(side, cellId);
 }
 
+// Лёгкий снимок: клиент берёт полную карту как статику (assets/board-map.json),
+// в снапшоте — только идентификатор и ревизия.
 export function mapSnapshot() {
-  return {
-    id: MAP_ID,
-    layout: MAP_LAYOUT,
-    cols: BOARD_COLS,
-    rows: BOARD_ROWS,
-    starts: START_CELLS,
-    islands: ISLAND_CELLS,
-  };
+  return { id: MAP_ID, revision: MAP_REVISION };
 }

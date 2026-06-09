@@ -230,7 +230,8 @@ h2::after {
   min-height: 0;
   position: relative;
   overflow: hidden;
-  background: var(--water-a) url("./assets/fantasy-map-background.jpg?v=20260609-4") center / cover no-repeat;
+  /* Арт карты рисуется внутри SVG (для выравнивания клеток); фон — вода */
+  background: linear-gradient(160deg, var(--water-a), var(--water-b));
 }
 
 /* ---------- Док действий ---------- */

@@ -12,14 +12,6 @@ const SESSION_KEY = 'rram_session';
 const ROLE_NAMES = { K: 'Кузнец', P: 'Помощник', V: 'Воин', O: 'Охотник', S: 'Шаман' };
 const ROLE_ART   = { K: 'blacksmith', P: 'assistant', V: 'warrior', O: 'hunter', S: 'shaman' };
 
-const STARTS = [
-  { role: 'K', p1: [1, 1], p2: [13, 8] },
-  { role: 'P', p1: [2, 1], p2: [12, 8] },
-  { role: 'V', p1: [1, 2], p2: [13, 7] },
-  { role: 'O', p1: [2, 2], p2: [12, 7] },
-  { role: 'S', p1: [3, 2], p2: [11, 7] },
-];
-
 // Клиентский режим → серверный режим (для setMode)
 const TO_SERVER_MODE = {
   moveSum:  'moveSum',
@@ -49,17 +41,18 @@ let localMode      = 'moveSum';
 let localUsedDice  = [false, false]; // трекинг хода до синхронизации движения с сервером
 const eventLog     = []; // { msg: string, charId?: string, to?: string }
 
-// ── Борд (геометрия) ──────────────────────────────────────────────
-const cells = [];
-const cols = 15, rows = 10;
+// ── Борд (data-driven из assets/board-map.json) ───────────────────
+const cells = [];                    // [{ id, cx, cy }] в координатах viewBox
+const cellById = new Map();          // id → { id, cx, cy, neighbors[] }
+let boardMap = null;                 // загруженная карта (cells, starts, art, hex)
+let startCellIds = new Set();        // id всех стартовых клеток
+let VBW = 1000, VBH = 750;           // размер viewBox (по пропорции арта)
+let HEX_R = 12;                      // радиус гекса в координатах viewBox
 const STEP_MS = 140;                 // длительность одного шага фишки по клетке
 const WIN_PAUSE_MS = 800;            // пауза после прихода фишки перед показом итога
 const tokenDisplayPos = new Map();   // charId → клетка, где фишка показана СЕЙЧАС (во время анимации)
 const animTokens = new Map();        // charId → id текущей анимации (для отмены устаревших)
 const teleportedChars = new Set();   // charId, чей последний сдвиг — телепорт (прыжок, без шагов)
-const BASE = { hexW: 46, hexH: 53, colStep: 46, rowStep: 40, odd: 23 };
-const GRID_W = (cols - 1) * BASE.colStep + BASE.odd + BASE.hexW;
-const GRID_H = (rows - 1) * BASE.rowStep + BASE.hexH;
 const svgNS = 'http://www.w3.org/2000/svg';
 let scale = 1;
 let boardSvg = null;
@@ -85,10 +78,24 @@ let reconnectTimer = null;
 const NAME_KEY = 'rram_player_name';
 
 // ── Старт ─────────────────────────────────────────────────────────
-buildBoard();
 buildLobbyOverlay();
-requestAnimationFrame(fitBoard);
 connect();
+loadBoardMap().then(() => {
+  buildBoard();
+  requestAnimationFrame(fitBoard);
+  if (serverRoom?.game) render();
+});
+
+// Загрузка граф-карты (статический asset, один раз).
+async function loadBoardMap() {
+  try {
+    const res = await fetch('./assets/board-map.json', { cache: 'force-cache' });
+    boardMap = await res.json();
+  } catch (e) {
+    console.error('Не удалось загрузить карту', e);
+    boardMap = { cells: [], starts: { green: {}, red: {} }, art: {}, hex: {}, editorSource: { centers: {} } };
+  }
+}
 
 // ═════════════════════════════════════════════════════════════════
 // WebSocket
@@ -288,14 +295,10 @@ function characterPosition(char) {
 // Позиции (локальные, до карты заказчика)
 // ═════════════════════════════════════════════════════════════════
 
+// Легаси (локальные позиции до серверной карты). При серверной карте не
+// вызывается; оставлено как безопасная заглушка.
 function initPositions() {
   positions.clear();
-  const green = serverRoom.players.find(p => p.side === 'green');
-  const red   = serverRoom.players.find(p => p.side === 'red');
-  for (const s of STARTS) {
-    if (green) positions.set(`${green.id}:${s.role}`, cellId(s.p1[0], s.p1[1]));
-    if (red)   positions.set(`${red.id}:${s.role}`,   cellId(s.p2[0], s.p2[1]));
-  }
   const myWarrior = getGame()?.characters.find(c => c.owner === myPlayerId && c.role === 'V');
   if (myWarrior) selectedCharId = myWarrior.id;
 }
@@ -906,9 +909,9 @@ function renderBoard() {
   if (!game) return;
   for (const char of game.characters) {
     const pos  = tokenDisplayPos.get(char.id) ?? characterPosition(char);
-    const cell = cells.find(c => c.id === pos);
-    if (!cell) continue;
-    const { cx, cy } = hexCenter(cell.q, cell.r);
+    const ctr  = cellCenter(pos);
+    if (!ctr) continue;
+    const { cx, cy } = ctr;
     const g = document.createElementNS(svgNS, 'g');
     const isOwn = char.owner === myPlayerId;
     const tokenClasses = ['token', `side-${charSide(char)}`];
@@ -931,8 +934,9 @@ function renderBoard() {
       });
     }
     const circle = document.createElementNS(svgNS, 'circle');
-    circle.setAttribute('r', 13);
+    circle.setAttribute('r', (HEX_R * 0.82).toFixed(1));
     const text = document.createElementNS(svgNS, 'text');
+    text.setAttribute('font-size', (HEX_R * 0.95).toFixed(1));
     text.textContent = char.role;
     g.appendChild(circle);
     g.appendChild(text);
@@ -999,14 +1003,11 @@ function validTargets(char) {
   if (localMode === 'teleport') {
     const inv = char.inventory ?? [];
     if (!inv.includes('Бусы телепортации')) return result;
-    for (const s of STARTS) {
-      for (const [q, r] of [s.p1, s.p2]) {
-        const id = cellId(q, r);
-        const occupied = getGame()?.characters.some(
-          c => c.id !== char.id && characterPosition(c) === id,
-        );
-        if (!occupied) result.add(id);
-      }
+    for (const id of startCellIds) {
+      const occupied = getGame()?.characters.some(
+        c => c.id !== char.id && characterPosition(c) === id,
+      );
+      if (!occupied) result.add(id);
     }
     return result;
   }
@@ -1032,34 +1033,26 @@ function validTargets(char) {
 // Борд — геометрия
 // ═════════════════════════════════════════════════════════════════
 
-function hexCenter(q, r) {
-  return {
-    cx: q * BASE.colStep + (r % 2 ? BASE.odd : 0) + BASE.hexW / 2,
-    cy: r * BASE.rowStep + BASE.hexH / 2,
-  };
+function cellCenter(id) {
+  const c = cellById.get(id);
+  return c ? { cx: c.cx, cy: c.cy } : null;
 }
 
-function hexPoints(q, r) {
-  const { cx, cy } = hexCenter(q, r);
-  const hw = BASE.hexW / 2, qh = BASE.hexH / 4, hh = BASE.hexH / 2;
-  return [
-    [cx, cy - hh], [cx + hw, cy - qh], [cx + hw, cy + qh],
-    [cx, cy + hh], [cx - hw, cy + qh], [cx - hw, cy - qh],
-  ].map(([x, y]) => `${Math.round(x * 100) / 100},${Math.round(y * 100) / 100}`).join(' ');
+// flat-top гекс вокруг центра радиусом r (в координатах viewBox)
+function hexPoints(cx, cy, r) {
+  const pts = [];
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI / 180) * (60 * i);
+    pts.push(`${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`);
+  }
+  return pts.join(' ');
 }
 
-function cellId(q, r)   { return `${q}:${r}`; }
-function isStartCell(id){ return STARTS.some(s => id === cellId(s.p1[0], s.p1[1]) || id === cellId(s.p2[0], s.p2[1])); }
+function isStartCell(id) { return startCellIds.has(id); }
 
-// Соседи гекса (odd-r) — ДОЛЖНЫ совпадать с server/map.js neighbors().
+// Соседи клетки — из графа карты (тот же источник, что и на сервере).
 function hexNeighbors(id) {
-  const [q, r] = id.split(':').map(Number);
-  const even = [[-1, 0], [1, 0], [-1, -1], [0, -1], [-1, 1], [0, 1]];
-  const odd  = [[-1, 0], [1, 0], [0, -1], [1, -1], [0, 1], [1, 1]];
-  return (r % 2 === 0 ? even : odd)
-    .map(([dq, dr]) => [q + dq, r + dr])
-    .filter(([a, b]) => a >= 0 && a < cols && b >= 0 && b < rows)
-    .map(([a, b]) => `${a}:${b}`);
+  return cellById.get(id)?.neighbors ?? [];
 }
 
 // Кратчайший путь по гексам (BFS), огибая занятые клетки. Конечную клетку
@@ -1140,44 +1133,69 @@ function cellDistance(fromId, toId) {
   return Math.abs(fq - tq) + Math.abs(fr - tr);
 }
 
+function artHref(src) {
+  return typeof src === 'string' ? src.replace(/^\//, './') : '';
+}
+
 function buildBoard() {
+  if (!boardMap) return;
   boardEl.innerHTML = '';
   cells.length = 0;
-  boardSvg = document.createElementNS(svgNS, 'svg');
-  boardSvg.setAttribute('class', 'board-svg');
-  boardSvg.setAttribute('viewBox', `0 0 ${GRID_W} ${GRID_H}`);
-  boardSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  cellById.clear();
+  startCellIds = new Set();
 
-  for (let r = 0; r < rows; r++) {
-    for (let q = 0; q < cols; q++) {
-      const id = cellId(q, r);
-      cells.push({ id, q, r });
-      const poly = document.createElementNS(svgNS, 'polygon');
-      poly.setAttribute('class', 'cell');
-      poly.setAttribute('points', hexPoints(q, r));
-      poly.setAttribute('data-id', id);
-      poly.addEventListener('click', () => handleCellClick(id));
-      boardSvg.appendChild(poly);
+  const art = boardMap.art || {};
+  const aspect = (art.width && art.height) ? art.height / art.width : 0.75;
+  VBW = 1000;
+  VBH = Math.round(VBW * aspect);
+  HEX_R = (boardMap.hex?.radius ?? 0.012) * VBW;
+
+  const centers = boardMap.editorSource?.centers ?? {};
+  for (const c of boardMap.cells) {
+    const ctr = c.center ?? centers[c.id];
+    if (!ctr) continue;
+    const cx = ctr.u * VBW, cy = ctr.v * VBH;
+    cells.push({ id: c.id, cx, cy });
+    cellById.set(c.id, { id: c.id, cx, cy, neighbors: c.neighbors || [] });
+  }
+
+  for (const side of Object.keys(boardMap.starts || {})) {
+    for (const id of Object.values(boardMap.starts[side] || {})) {
+      if (id) startCellIds.add(id);
     }
   }
 
-  for (const s of STARTS) {
-    for (const [q, r] of [s.p1, s.p2]) {
-      const { cx, cy } = hexCenter(q, r);
-      const t = document.createElementNS(svgNS, 'text');
-      t.setAttribute('class', 'start-label');
-      t.setAttribute('x', cx);
-      t.setAttribute('y', cy);
-      t.textContent = s.role;
-      boardSvg.appendChild(t);
-    }
+  boardSvg = document.createElementNS(svgNS, 'svg');
+  boardSvg.setAttribute('class', 'board-svg');
+  boardSvg.setAttribute('viewBox', `0 0 ${VBW} ${VBH}`);
+  boardSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  if (art.src) {
+    const img = document.createElementNS(svgNS, 'image');
+    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', artHref(art.src));
+    img.setAttribute('href', artHref(art.src));
+    img.setAttribute('x', 0);
+    img.setAttribute('y', 0);
+    img.setAttribute('width', VBW);
+    img.setAttribute('height', VBH);
+    img.setAttribute('preserveAspectRatio', 'none');
+    boardSvg.appendChild(img);
+  }
+
+  for (const c of cells) {
+    const poly = document.createElementNS(svgNS, 'polygon');
+    poly.setAttribute('class', 'cell');
+    poly.setAttribute('points', hexPoints(c.cx, c.cy, HEX_R));
+    poly.setAttribute('data-id', c.id);
+    poly.addEventListener('click', () => handleCellClick(c.id));
+    boardSvg.appendChild(poly);
   }
 
   boardEl.appendChild(boardSvg);
 }
 
 function layoutBoard() {
-  const w = GRID_W * scale, h = GRID_H * scale;
+  const w = VBW * scale, h = VBH * scale;
   boardEl.style.width = `${w}px`;
   boardEl.style.height = `${h}px`;
   boardSvg.setAttribute('width', w);
@@ -1185,11 +1203,12 @@ function layoutBoard() {
 }
 
 function fitBoard() {
+  if (!boardSvg) return;
   const wrap = boardEl.parentElement; if (!wrap) return;
   const cs = getComputedStyle(wrap);
   const avW = wrap.clientWidth  - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const avH = wrap.clientHeight - parseFloat(cs.paddingTop)  - parseFloat(cs.paddingBottom);
-  scale = Math.max(0.3, Math.min(avW / GRID_W, avH / GRID_H));
+  scale = Math.max(0.05, Math.min(avW / VBW, avH / VBH));
   layoutBoard();
   if (serverRoom?.game) renderBoard();
 }

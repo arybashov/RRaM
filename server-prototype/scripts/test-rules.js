@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, apply, availableMoveTargets } from '../src/rules.js';
+import { startCell } from '../src/map.js';
 
 // ── Хелперы ──────────────────────────────────────────────────────
 
@@ -281,15 +282,16 @@ test('teleport — переносит персонажа на свободную
   g.turn.dice = [1, 1];
   g.turn.mode = 'split';
   const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
-  const destinationOwner = g.characters.find(c => c.owner === 'p2' && c.role === 'K');
-  destinationOwner.position = '10:8';
+  const dest = startCell('red', 'K');          // стартовая клетка вражеского кузнеца
+  const enemyK = g.characters.find(c => c.owner === 'p2' && c.role === 'K');
+  enemyK.position = startCell('red', 'S');     // освобождаем dest
 
   apply(g, 'p1', 'action:teleport', {
     characterId: shaman.id,
-    toCell: '13:8',
+    toCell: dest,
   });
 
-  assert.equal(shaman.position, '13:8');
+  assert.equal(shaman.position, dest);
   assert.equal(g.winnerId, 'p1');
   assert.equal(g.over, true);
 });

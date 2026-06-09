@@ -16,6 +16,7 @@ import {
   BASE_CARDS,
 } from './constants.js';
 import {
+  MAP_ID,
   allStartCells,
   isEnemyIslandCell,
   isBoardCell,
@@ -48,7 +49,7 @@ export function createGame(players) {
   return {
     over: false,
     winnerId: null,
-    mapId: 'prototype-15x10-v1',
+    mapId: MAP_ID,
     characters,
     deck: buildDeck(),
     discard: [],
@@ -347,7 +348,7 @@ function rollDie() {
 }
 
 // Строит общую игровую колоду из смешанного грунта и леса.
-// Рецепты, чертежи, колода барана, красная и сказочная опушка — отдельные стеки (TODO).
+// Рецепты, чертежи, колода барана, красная, озеро и сказочная опушка — отдельные стеки (TODO).
 const GENERAL_DECKS = new Set(['mixed', 'forest', 'dark_forest']);
 
 function buildDeck() {
