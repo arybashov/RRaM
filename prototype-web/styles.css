@@ -254,7 +254,6 @@ h2::after {
 
 .dock-dice .die { flex: none; }
 
-.dock-dice #performActionBtn,
 .dock-dice #endTurnBtn {
   flex: 1;
   min-width: 0;

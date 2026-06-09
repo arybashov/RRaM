@@ -68,7 +68,6 @@ const logEl          = document.querySelector('#log');
 const turnInfoEl     = document.querySelector('#turnInfo');
 const diceHintEl     = document.querySelector('#diceHint');
 const endTurnBtn     = document.querySelector('#endTurnBtn');
-const performBtn     = document.querySelector('#performActionBtn');
 const dieButtons     = [document.querySelector('#die1'), document.querySelector('#die2')];
 
 // Лобби-DOM (создаётся динамически)
@@ -711,10 +710,13 @@ dieButtons.forEach((btn, i) => {
 
 document.querySelectorAll('.mode').forEach(btn => {
   btn.addEventListener('click', () => {
-    localMode = btn.dataset.mode;
+    const mode = btn.dataset.mode;
+    // «Взять карту» / «Передать» — прямое действие, а не переключение режима
+    if (mode === 'draw' || mode === 'transfer') { directCardAction(mode); return; }
+
+    localMode = mode;
     document.querySelectorAll('.mode').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    // Если режим draw/transfer/teleport — убедиться что сервер в split
     if (getDice() && getServMode() === null) {
       const sm = TO_SERVER_MODE[localMode];
       if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
@@ -725,23 +727,29 @@ document.querySelectorAll('.mode').forEach(btn => {
 
 endTurnBtn.addEventListener('click', () => wsSend('turn:end'));
 
-performBtn.addEventListener('click', () => {
-  if (!isMyTurn()) return;
+// Прямое карточное действие (без отдельной кнопки «Выполнить»):
+// берём выбранную фишку и свободный кубик, при необходимости переключаем сервер в split.
+function directCardAction(mode) {
+  if (!isMyTurn() || !getDice()) return;
   const char = getSelChar();
-  if (!char) return;
+  if (!char) { addLog('Сначала выберите персонажа.', { type: 'err' }); render(); return; }
 
-  if (localMode === 'draw') {
-    wsSend('action:draw', { characterId: char.id, dieIndex: selectedDieIdx });
+  const used = getGame().turn.usedDice;
+  let dieIndex = used[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
+  if (used[dieIndex]) { addLog('Оба кубика потрачены.', { type: 'err' }); render(); return; }
 
-  } else if (localMode === 'transfer') {
+  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+
+  if (mode === 'draw') {
+    wsSend('action:draw', { characterId: char.id, dieIndex });
+  } else {
     const allies = getMyChars().filter(c => c.id !== char.id);
-    if (!allies.length) { addLog('Нет союзников для передачи.', { type: 'err' }); return; }
-    // Предпочитаем союзника на той же позиции
+    if (!allies.length) { addLog('Нет союзников для передачи.', { type: 'err' }); render(); return; }
     const pos = characterPosition(char);
     const target = allies.find(c => characterPosition(c) === pos) ?? allies[0];
-    wsSend('action:transfer', { fromId: char.id, toId: target.id, dieIndex: selectedDieIdx });
+    wsSend('action:transfer', { fromId: char.id, toId: target.id, dieIndex });
   }
-});
+}
 
 // ═════════════════════════════════════════════════════════════════
 // Клики по бордам (движение — локально, сервер ждёт карту)
@@ -819,14 +827,12 @@ function renderTopbar() {
   if (!g) {
     turnInfoEl.textContent = 'Ожидание второго игрока…';
     endTurnBtn.disabled = true;
-    performBtn.disabled = true;
     return;
   }
   if (g.over) {
     const winner = serverRoom.players.find(p => p.id === g.winnerId)?.name ?? '?';
     turnInfoEl.textContent = `Партия завершена. Победитель: ${winner}`;
     endTurnBtn.disabled = true;
-    performBtn.disabled = true;
     return;
   }
   const myTurn = isMyTurn();
@@ -836,13 +842,6 @@ function renderTopbar() {
     ? `Ваш ход · Ходов: ${rolls}`
     : `Ход соперника`;
   endTurnBtn.disabled = !myTurn;
-  performBtn.disabled  = !myTurn || !canPerformAction();
-}
-
-function canPerformAction() {
-  if (localMode !== 'draw' && localMode !== 'transfer') return false;
-  if (!getSelChar()) return false;
-  return getSelDieVal() !== null;
 }
 
 function renderDice() {
