@@ -387,18 +387,28 @@ function buildLobbyOverlay() {
   const reconnectBtn = lobbyEl.querySelector('#reconnectBtn');
   reconnectBtn.addEventListener('click', () => { ws?.close(); connect(); });
 
-  // Значок соединения в topbar
+  // Значок соединения и кнопка меню — в правой части шапки
+  const tbRight = document.querySelector('.topbar .tb-right');
   connBadgeEl = document.createElement('span');
   connBadgeEl.id = 'connBadge';
-  document.querySelector('.topbar > div:first-child').appendChild(connBadgeEl);
+  tbRight.appendChild(connBadgeEl);
 
-  // Кнопка меню в topbar (видна только во время игры)
+  // Кнопка меню (видна только во время игры)
   menuBtn = document.createElement('button');
   menuBtn.id = 'menuBtn';
-  menuBtn.textContent = '☰ Меню';
+  menuBtn.textContent = '☰';
   menuBtn.classList.add('hidden', 'topbar-menu-btn');
-  document.querySelector('.topbar').appendChild(menuBtn);
+  menuBtn.setAttribute('aria-label', 'Меню');
+  tbRight.appendChild(menuBtn);
   menuBtn.addEventListener('click', showGameMenu);
+
+  // Сворачиваемая шторка «Журнал · Инвентарь»
+  const sheetHandle = document.querySelector('#sheetHandle');
+  sheetHandle?.addEventListener('click', () => {
+    const sheet = document.querySelector('#sheet');
+    const open = sheet.classList.toggle('open');
+    sheetHandle.setAttribute('aria-expanded', String(open));
+  });
 
   buildGameMenu();
   buildSettingsOverlay();
@@ -645,8 +655,11 @@ function escapeHtml(s) {
 function setConnStatus(s) {
   if (!connBadgeEl) return;
   connBadgeEl.className = `conn-badge conn-${s}`;
-  connBadgeEl.textContent = { connecting: '⟳ Подключение', connected: '● Онлайн',
-    disconnected: '○ Разрыв', error: '✕ Ошибка' }[s] ?? s;
+  // Компактно в тонкой шапке: только значок, полный текст — в подсказке.
+  connBadgeEl.textContent = { connecting: '⟳', connected: '●',
+    disconnected: '○', error: '✕' }[s] ?? s;
+  connBadgeEl.title = { connecting: 'Подключение…', connected: 'Онлайн',
+    disconnected: 'Разрыв связи', error: 'Ошибка связи' }[s] ?? s;
   const reconnectBtn = lobbyEl?.querySelector('#reconnectBtn');
   if (reconnectBtn) {
     reconnectBtn.classList.toggle('hidden', s === 'connected' || s === 'connecting');
@@ -820,8 +833,8 @@ function renderTopbar() {
   const rolls  = g.turn.rollsLeft[myPlayerId] ?? 0;
   const who    = serverRoom.players.find(p => p.id === g.turn.activePlayerId)?.name ?? '…';
   turnInfoEl.textContent = myTurn
-    ? `Ваш ход. Осталось бросков: ${rolls}`
-    : `Ход: ${who}`;
+    ? `Ваш ход · Ходов: ${rolls}`
+    : `Ход соперника`;
   endTurnBtn.disabled = !myTurn;
   performBtn.disabled  = !myTurn || !canPerformAction();
 }
