@@ -1162,16 +1162,29 @@ function buildBoard() {
   startCellIds = new Set();
 
   const art = boardMap.art || {};
+  const src = boardMap.editorSource?.art || {};
   const aspect = (art.width && art.height) ? art.height / art.width : 0.75;
   VBW = 1000;
   VBH = Math.round(VBW * aspect);
-  HEX_R = (boardMap.hex?.radius ?? 0.012) * VBW;
+
+  // Центры заданы по ИСХОДНОЙ карте (editorSource), а показываем целевой арт.
+  // Совмещаем калибровки обоих изображений (scaleX/scaleY): точка на исходной
+  // карте и на целевой совпадают, когда оба масштабированы своими scale.
+  //   cell_x = u · (srcW·srcScaleX)/(tgtW·tgtScaleX) · VBW   (аналогично по Y)
+  const useTarget = boardMap.cells.some(c => c.center);     // если есть target-центры
+  const fx = useTarget ? 1
+    : (src.width * (src.scaleX ?? 1)) / ((art.width || 1) * (art.scaleX ?? 1));
+  const fy = useTarget ? 1
+    : (src.height * (src.scaleY ?? 1)) / ((art.height || 1) * (art.scaleY ?? 1));
+
+  // Радиус гекса берём из карты и масштабируем тем же фактором (не выдумываем).
+  HEX_R = (boardMap.hex?.radius ?? 0.012) * VBW * fx;
 
   const centers = boardMap.editorSource?.centers ?? {};
   for (const c of boardMap.cells) {
     const ctr = c.center ?? centers[c.id];
     if (!ctr) continue;
-    const cx = ctr.u * VBW, cy = ctr.v * VBH;
+    const cx = ctr.u * fx * VBW, cy = ctr.v * fy * VBH;
     cells.push({ id: c.id, cx, cy });
     cellById.set(c.id, { id: c.id, cx, cy, neighbors: c.neighbors || [] });
   }
@@ -1193,6 +1206,8 @@ function buildBoard() {
   boardSvg.appendChild(boardVp);
 
   if (art.src) {
+    // Арт показываем целиком на весь viewBox; совмещение с клетками — через
+    // фактор fx/fy выше (борд масштабируется под арт, а не арт под борд).
     const img = document.createElementNS(svgNS, 'image');
     img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', artHref(art.src));
     img.setAttribute('href', artHref(art.src));
