@@ -677,6 +677,16 @@ h2::after {
   animation: attack-target-pulse 0.9s ease-in-out infinite alternate;
 }
 
+.token.in-combat:not(.attackable) circle {
+  stroke: #ff9b3d;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 7px rgba(255, 116, 30, 0.9));
+}
+
+.character-card.in-combat {
+  box-shadow: inset 0 0 0 2px #ff9b3d, 0 0 10px rgba(255, 116, 30, 0.45);
+}
+
 @keyframes attack-target-pulse {
   from { filter: drop-shadow(0 0 3px rgba(255, 50, 60, 0.7)); }
   to { filter: drop-shadow(0 0 10px rgba(255, 50, 60, 1)); }

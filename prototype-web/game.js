@@ -959,6 +959,7 @@ function renderBoard() {
     const isOwn = char.owner === myPlayerId;
     const tokenClasses = ['token', `side-${charSide(char)}`];
     if (isOwn) tokenClasses.push('own');
+    if (char.combatOpponentId) tokenClasses.push('in-combat');
     if (attackTargets.has(char.id)) tokenClasses.push('attackable');
     if (char.id === selectedCharId) tokenClasses.push('active');
     g.setAttribute('class', tokenClasses.join(' '));
@@ -1024,10 +1025,11 @@ function renderCharacters() {
     const btn    = document.createElement('button');
     btn.className = `character-card side-${side}`;
     if (char.id === selectedCharId) btn.classList.add('active');
+    if (char.combatOpponentId) btn.classList.add('in-combat');
     btn.innerHTML = `
       <img class="portrait-img" src="./assets/characters/${side}/transparent/${ROLE_ART[char.role]}.png" alt="${ROLE_NAMES[char.role]}" />
       <strong>${ROLE_NAMES[char.role]}</strong>
-      <span class="meta">HP ${hp} · ${cards} карт</span>
+      <span class="meta">HP ${hp} · ${cards} карт${char.combatOpponentId ? ' · БОЙ' : ''}</span>
     `;
     btn.addEventListener('click', () => selectCharacter(char.id));
     charactersEl.appendChild(btn);

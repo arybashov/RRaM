@@ -18,7 +18,6 @@ import {
 import {
   MAP_ID,
   allStartCells,
-  isEnemyIslandCell,
   isBoardCell,
   neighbors,
   reachableCells,
@@ -38,6 +37,7 @@ export function createGame(players) {
         position: startCell(side, role),
         hp: CHARACTER_HP,
         inventory: [...(BASE_CARDS[role] ?? [])],
+        combatOpponentId: null,
       });
     }
   }
@@ -132,6 +132,9 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
   dieValue(game, dieIndex); // только валидируем доступность; значение на добор не влияет
 
   const character = ownCharacter(game, playerId, characterId);
+  if (combatOpponent(game, character)) {
+    throw new Error('В бою персонаж не может брать карты: атакуйте, передайте карты или убегайте.');
+  }
   if (game.deck.length === 0) {
     throw new Error('Колода пуста.');
   }
@@ -178,12 +181,14 @@ function transfer(game, playerId, { fromId, toId, dieIndex } = {}) {
 export function availableMoveTargets(game, playerId, characterId, dieIndex) {
   const character = ownCharacter(game, playerId, characterId);
   if (!game.turn.dice) return [];
+  const opponent = combatOpponent(game, character);
 
   let maxSteps;
   if (game.turn.mode === 'moveSum') {
     if (game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
     maxSteps = game.turn.dice[0] + game.turn.dice[1];
   } else if (game.turn.mode === 'split') {
+    if (opponent) return [];
     maxSteps = dieValue(game, dieIndex);
   } else {
     return [];
@@ -194,7 +199,11 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
       .filter((item) => item.id !== character.id && item.position)
       .map((item) => item.position),
   );
-  return reachableCells(character.position, maxSteps, blocked);
+  const targets = reachableCells(character.position, maxSteps, blocked);
+  if (!opponent) return targets;
+
+  const opponentAdjacent = new Set(neighbors(opponent.position));
+  return targets.filter((target) => !opponentAdjacent.has(target.cellId));
 }
 
 function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
@@ -210,6 +219,7 @@ function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
   }
 
   const fromCell = character.position;
+  const escapedCombat = Boolean(combatOpponent(game, character));
   if (game.turn.mode === 'moveSum') {
     character.position = toCell;
     spendAllDice(game);
@@ -219,14 +229,15 @@ function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
   } else {
     throw new Error('Сначала выберите режим движения.');
   }
+  if (escapedCombat) clearCombat(game, character);
 
-  checkMapVictory(game, playerId, character);
   return {
     moved: {
       characterId,
       fromCell,
       toCell,
       distance: target.distance,
+      escapedCombat,
     },
     winnerId: game.winnerId,
   };
@@ -236,6 +247,9 @@ function teleport(game, playerId, { characterId, toCell } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
   const character = ownCharacter(game, playerId, characterId);
+  if (combatOpponent(game, character)) {
+    throw new Error('В бою нельзя телепортироваться: атакуйте, передайте карты или убегайте.');
+  }
   if (!character.inventory.includes(TELEPORT_CARD)) {
     throw new Error('У персонажа нет Бус телепортации.');
   }
@@ -254,19 +268,21 @@ function teleport(game, playerId, { characterId, toCell } = {}) {
 
   character.position = toCell;
   spendAllDice(game);
-  checkMapVictory(game, playerId, character);
   return { teleported: { characterId, toCell }, winnerId: game.winnerId };
 }
 
 export function availableAttackTargets(game, playerId, characterId) {
   if (!game.turn.dice || game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
   const attacker = ownCharacter(game, playerId, characterId);
+  const currentOpponent = combatOpponent(game, attacker);
   const adjacent = new Set(neighbors(attacker.position));
   return game.characters
     .filter((character) =>
       character.owner !== playerId
       && character.hp > 0
       && character.position
+      && (!currentOpponent || character.id === currentOpponent.id)
+      && (!combatOpponent(game, character) || character.combatOpponentId === attacker.id)
       && adjacent.has(character.position))
     .map((character) => character.id);
 }
@@ -287,6 +303,7 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
     throw new Error('Атаковать можно только противника на соседней клетке.');
   }
 
+  linkCombat(attacker, target);
   const damage = game.turn.dice[0] + game.turn.dice[1];
   target.hp = Math.max(0, target.hp - damage);
   const defeated = target.hp === 0;
@@ -294,6 +311,7 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   let discardedCount = 0;
 
   if (defeated) {
+    clearCombat(game, target);
     target.position = null;
     const capacity = Math.max(0, INVENTORY_LIMIT - attacker.inventory.length);
     const loot = target.inventory.splice(0, capacity);
@@ -335,13 +353,15 @@ function endTurn(game, playerId) {
   game.turn.mode = null;
   game.turn.hasRolled = false;
 
-  // Победа по гонке на остров противника появится с картой.
-  // Пока партия просто завершается, когда у обоих кончились броски.
+  let rollsReset = false;
   if (playerIds.every((id) => game.turn.rollsLeft[id] <= 0)) {
-    game.over = true;
+    for (const id of playerIds) {
+      game.turn.rollsLeft[id] = ROLLS_PER_GAME;
+    }
+    rollsReset = true;
   }
 
-  return { activePlayerId: game.turn.activePlayerId, over: game.over };
+  return { activePlayerId: game.turn.activePlayerId, over: game.over, rollsReset };
 }
 
 // --- помощники валидации ---
@@ -394,6 +414,33 @@ function ownCharacter(game, playerId, characterId) {
   return character;
 }
 
+function combatOpponent(game, character) {
+  if (!character?.combatOpponentId) return null;
+  const opponent = game.characters.find((item) => item.id === character.combatOpponentId);
+  if (
+    !opponent
+    || opponent.hp <= 0
+    || !opponent.position
+    || opponent.combatOpponentId !== character.id
+  ) {
+    return null;
+  }
+  return opponent;
+}
+
+function linkCombat(first, second) {
+  first.combatOpponentId = second.id;
+  second.combatOpponentId = first.id;
+}
+
+function clearCombat(game, character) {
+  const opponent = game.characters.find((item) => item.id === character.combatOpponentId);
+  if (opponent?.combatOpponentId === character.id) {
+    opponent.combatOpponentId = null;
+  }
+  character.combatOpponentId = null;
+}
+
 function spendDie(game, dieIndex) {
   game.turn.usedDice[dieIndex] = true;
   if (game.turn.usedDice[0] && game.turn.usedDice[1]) {
@@ -415,11 +462,6 @@ function assertBoardTarget(cellId) {
   }
 }
 
-function checkMapVictory(game, playerId, character) {
-  if (!isEnemyIslandCell(character.side, character.position)) return;
-  game.over = true;
-  game.winnerId = playerId;
-}
 
 function rollDie() {
   return Math.floor(Math.random() * 6) + 1;

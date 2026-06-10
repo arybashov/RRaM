@@ -240,6 +240,7 @@ function snapshotGame(game, forPlayerId) {
       role: c.role,
       position: c.position,
       hp: c.hp,
+      combatOpponentId: c.combatOpponentId ?? null,
       cardCount: c.inventory.length,
       // полный инвентарь — только владельцу
       inventory: c.owner === forPlayerId ? [...c.inventory] : undefined,

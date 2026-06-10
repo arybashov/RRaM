@@ -222,8 +222,13 @@ test('bot attacks an adjacent enemy with both dice before moving', () => {
   assert.match(ranked[0].reason, /damage=7/);
 });
 
-test('bot can finish a full race to the enemy island', async () => {
+test('bot advances toward the enemy island without a false map victory', async () => {
   const game = freshGame();
+  const initialPositions = new Map(
+    game.characters
+      .filter((character) => character.owner === 'bot')
+      .map((character) => [character.id, character.position]),
+  );
   const room = { id: 'room', game };
   const applyCommand = ({ playerId, type, payload }) =>
     apply(game, playerId, type, payload);
@@ -242,6 +247,11 @@ test('bot can finish a full race to the enemy island', async () => {
     });
   }
 
-  assert.equal(game.over, true);
-  assert.equal(game.winnerId, 'bot');
+  assert.ok(game.characters.some(
+    (character) =>
+      character.owner === 'bot'
+      && character.position !== initialPositions.get(character.id),
+  ));
+  assert.equal(game.over, false);
+  assert.equal(game.winnerId, null);
 });
