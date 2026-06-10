@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, apply } from '../src/rules.js';
 import { rankBotActions, runBotTurn } from '../src/bot.js';
+import { neighbors } from '../src/map.js';
 
 function freshGame() {
   return createGame([
@@ -200,6 +201,25 @@ test('bot returns no action for a spent die', () => {
   game.turn.usedDice[0] = true;
 
   assert.deepEqual(rankBotActions(game, 'bot', 0), []);
+});
+
+test('bot attacks an adjacent enemy with both dice before moving', () => {
+  const game = freshGame();
+  prepareBotTurn(game, [3, 4]);
+  const attacker = botCharacter(game);
+  const target = game.characters.find(
+    (character) => character.owner === 'p1' && character.role === 'V',
+  );
+  target.position = neighbors(attacker.position)[0];
+
+  const ranked = rankBotActions(game, 'bot', 0);
+
+  assert.equal(ranked[0].type, 'action:attack');
+  assert.deepEqual(ranked[0].payload, {
+    attackerId: attacker.id,
+    targetId: target.id,
+  });
+  assert.match(ranked[0].reason, /damage=7/);
 });
 
 test('bot can finish a full race to the enemy island', async () => {

@@ -137,6 +137,12 @@ check(
   a.lastSnapshot.game.characters.find(c => c.id === `${playerA}:V`)?.position === moveTarget,
 );
 
+// Один бросок на ход: перед вторым броском делаем полный круг ходов.
+a.send('turn:end', {});
+await a.waitFor('state:snapshot');
+b.send('turn:end', {});
+await a.waitFor('state:snapshot');
+
 a.send('turn:roll', {});
 await a.waitFor('state:snapshot');
 a.send('turn:setMode', { mode: 'split' });

@@ -92,7 +92,7 @@ loadBoardMap().then(() => {
   buildBoard();
   requestAnimationFrame(() => {
     fitBoard();
-    if (serverRoom?.game) { render(); focusMineOverview(); }
+    if (serverRoom?.game) { render(); focusMine(); }
   });
 });
 
@@ -213,15 +213,10 @@ function handleMsg({ type, payload }) {
         hideLobby();
         if (currentRoomId !== myRoomId) addLog('Партия началась!', { type: 'sys' });
         autoModeSent = false;
-        requestAnimationFrame(focusMineOverview);   // старт партии — база с окружающими путями
+        requestAnimationFrame(focusMine);   // старт партии — база с окружающими путями
       } else if (serverRoom.status === 'active' && prevRoom?.game) {
         diffAndLog(prevRoom, serverRoom);
         animateMovesFromDiff(prevRoom, serverRoom);
-        // начало моего хода — автофокус на своих фишках
-        const nowActive = serverRoom.game?.turn?.activePlayerId;
-        if (nowActive === myPlayerId && prevActive !== myPlayerId) {
-          requestAnimationFrame(focusMineOverview);
-        }
       }
 
       // Авто-setMode: отправляем один раз после броска кубиков
@@ -285,7 +280,9 @@ function getMyChars() {
 
 function getSelChar() {
   if (!selectedCharId) return null;
-  return getGame()?.characters.find(c => c.id === selectedCharId) ?? null;
+  return getGame()?.characters.find(
+    c => c.id === selectedCharId && c.hp > 0 && characterPosition(c),
+  ) ?? null;
 }
 
 function selectCharacter(charId) {
@@ -950,6 +947,9 @@ function renderBoard() {
   }
 
   if (!game) return;
+  const attackTargets = new Set(
+    sel ? (game.legalTargets?.attacks?.[sel.id] ?? []) : [],
+  );
   for (const char of game.characters) {
     const pos  = tokenDisplayPos.get(char.id) ?? characterPosition(char);
     const ctr  = cellCenter(pos);
@@ -959,6 +959,7 @@ function renderBoard() {
     const isOwn = char.owner === myPlayerId;
     const tokenClasses = ['token', `side-${charSide(char)}`];
     if (isOwn) tokenClasses.push('own');
+    if (attackTargets.has(char.id)) tokenClasses.push('attackable');
     if (char.id === selectedCharId) tokenClasses.push('active');
     g.setAttribute('class', tokenClasses.join(' '));
     g.setAttribute('transform', `translate(${cx} ${cy})`);
@@ -975,14 +976,37 @@ function renderBoard() {
         event.preventDefault();
         selectCharacter(char.id);
       });
+    } else if (attackTargets.has(char.id)) {
+      g.setAttribute('role', 'button');
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('aria-label', `Атаковать: ${ROLE_NAMES[char.role]}`);
+      const attack = (event) => {
+        event.stopPropagation();
+        if (gestureMoved) return;
+        const attacker = getSelChar();
+        if (!attacker) return;
+        wsSend('action:attack', { attackerId: attacker.id, targetId: char.id });
+      };
+      g.addEventListener('click', attack);
+      g.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        attack(event);
+      });
     }
     const circle = document.createElementNS(svgNS, 'circle');
     circle.setAttribute('r', (HEX_R * 0.82).toFixed(1));
     const text = document.createElementNS(svgNS, 'text');
     text.setAttribute('font-size', (HEX_R * 0.95).toFixed(1));
     text.textContent = char.role;
+    const hp = document.createElementNS(svgNS, 'text');
+    hp.setAttribute('class', 'token-hp');
+    hp.setAttribute('y', (HEX_R * 1.35).toFixed(1));
+    hp.setAttribute('font-size', (HEX_R * 0.52).toFixed(1));
+    hp.textContent = `${char.hp}`;
     g.appendChild(circle);
     g.appendChild(text);
+    g.appendChild(hp);
     boardVp.appendChild(g);
   }
 }
@@ -1438,15 +1462,7 @@ function focusMine() {
     .filter(c => c.owner === myPlayerId)
     .map(c => characterPosition(c))
     .filter(Boolean);
-  if (ids.length) focusCells(ids);
-}
-
-function focusMineOverview() {
-  const ids = (getGame()?.characters ?? [])
-    .filter(c => c.owner === myPlayerId)
-    .map(c => characterPosition(c))
-    .filter(Boolean);
-  if (ids.length) focusCells(ids, 4, 2.2);
+  if (ids.length) focusCells(ids, 4, 2.5);
 }
 
 function fitAll() {
@@ -1502,7 +1518,20 @@ function diffAndLog(prevRoom, nextRoom) {
 
   for (const char of nextG.characters) {
     const prevChar = prevG.characters.find(c => c.id === char.id);
+    if (prevChar && char.hp < prevChar.hp) {
+      const damage = prevChar.hp - char.hp;
+      const owner = nextRoom.players.find(p => p.id === char.owner);
+      const prefix = char.owner === myPlayerId ? '' : `${owner?.name ?? 'Противник'}: `;
+      addLog(
+        `${prefix}${ROLE_NAMES[char.role]} получает ${damage} урона. HP: ${char.hp}.`,
+        { type: char.owner === myPlayerId ? 'my' : 'opp' },
+      );
+      if (char.hp === 0) {
+        addLog(`${prefix}${ROLE_NAMES[char.role]} выбыл из игры.`, { type: 'sys' });
+      }
+    }
     if (!prevChar || prevChar.position === char.position) continue;
+    if (!char.position) continue;
     const type = char.owner === myPlayerId ? 'my' : 'opp';
     const ownerName = char.owner === myPlayerId ? '' : `${oppName}: `;
     addLog(`${ownerName}${ROLE_NAMES[char.role]} → ${char.position}.`, { type });

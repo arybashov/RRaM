@@ -4,8 +4,13 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, apply, availableMoveTargets } from '../src/rules.js';
-import { startCell } from '../src/map.js';
+import {
+  createGame,
+  apply,
+  availableAttackTargets,
+  availableMoveTargets,
+} from '../src/rules.js';
+import { neighbors, startCell } from '../src/map.js';
 
 // ── Хелперы ──────────────────────────────────────────────────────
 
@@ -320,6 +325,102 @@ test('teleport — переносит персонажа на свободную
   assert.equal(shaman.position, dest);
   assert.equal(g.winnerId, 'p1');
   assert.equal(g.over, true);
+});
+
+// ── Бой игрок против игрока ──────────────────────────────────────
+
+function prepareAdjacentCombat(game) {
+  const attacker = game.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  const target = game.characters.find(c => c.owner === 'p2' && c.role === 'V');
+  target.position = neighbors(attacker.position)[0];
+  game.turn.dice = [3, 4];
+  game.turn.mode = 'moveSum';
+  game.turn.hasRolled = true;
+  return { attacker, target };
+}
+
+test('attack — соседний противник получает урон на сумму двух кубиков', () => {
+  const g = freshGame();
+  const { attacker, target } = prepareAdjacentCombat(g);
+
+  assert.deepEqual(availableAttackTargets(g, 'p1', attacker.id), [target.id]);
+  const result = apply(g, 'p1', 'action:attack', {
+    attackerId: attacker.id,
+    targetId: target.id,
+  });
+
+  assert.equal(result.attacked.damage, 7);
+  assert.equal(target.hp, 93);
+  assert.equal(g.turn.dice, null);
+});
+
+test('attack — нельзя атаковать несоседнего противника', () => {
+  const g = freshGame();
+  g.turn.dice = [3, 4];
+  g.turn.mode = 'moveSum';
+  const attacker = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  const target = g.characters.find(c => c.owner === 'p2' && c.role === 'V');
+
+  assert.throws(
+    () => apply(g, 'p1', 'action:attack', {
+      attackerId: attacker.id,
+      targetId: target.id,
+    }),
+    /соседней клетке/i,
+  );
+});
+
+test('attack — для атаки нужны оба свободных кубика', () => {
+  const g = freshGame();
+  const { attacker, target } = prepareAdjacentCombat(g);
+  g.turn.usedDice[0] = true;
+
+  assert.throws(
+    () => apply(g, 'p1', 'action:attack', {
+      attackerId: attacker.id,
+      targetId: target.id,
+    }),
+    /оба неиспользованных кубика/i,
+  );
+});
+
+test('attack — погибший снимается с поля, а его карты переходят победителю', () => {
+  const g = freshGame();
+  const { attacker, target } = prepareAdjacentCombat(g);
+  target.hp = 7;
+  attacker.inventory = Array(8).fill('attacker-card');
+  target.inventory = ['loot-1', 'loot-2', 'overflow'];
+
+  const result = apply(g, 'p1', 'action:attack', {
+    attackerId: attacker.id,
+    targetId: target.id,
+  });
+
+  assert.equal(result.attacked.defeated, true);
+  assert.equal(target.position, null);
+  assert.equal(target.inventory.length, 0);
+  assert.equal(attacker.inventory.length, 10);
+  assert.equal(result.attacked.lootCount, 2);
+  assert.equal(result.attacked.discardedCount, 1);
+  assert.ok(g.discard.includes('overflow'));
+});
+
+test('attack — уничтожение последнего персонажа завершает партию', () => {
+  const g = freshGame();
+  const { attacker, target } = prepareAdjacentCombat(g);
+  for (const character of g.characters.filter(c => c.owner === 'p2' && c.id !== target.id)) {
+    character.hp = 0;
+    character.position = null;
+  }
+  target.hp = 7;
+
+  apply(g, 'p1', 'action:attack', {
+    attackerId: attacker.id,
+    targetId: target.id,
+  });
+
+  assert.equal(g.over, true);
+  assert.equal(g.winnerId, 'p1');
 });
 
 // ── Завершение хода ──────────────────────────────────────────────

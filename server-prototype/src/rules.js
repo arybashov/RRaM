@@ -20,6 +20,7 @@ import {
   allStartCells,
   isEnemyIslandCell,
   isBoardCell,
+  neighbors,
   reachableCells,
   startCell,
 } from './map.js';
@@ -80,6 +81,8 @@ export function apply(game, playerId, type, payload = {}) {
       return move(game, playerId, payload);
     case 'action:teleport':
       return teleport(game, playerId, payload);
+    case 'action:attack':
+      return attack(game, playerId, payload);
     default:
       throw new Error(`Команда недоступна в игре: ${type}`);
   }
@@ -255,6 +258,72 @@ function teleport(game, playerId, { characterId, toCell } = {}) {
   return { teleported: { characterId, toCell }, winnerId: game.winnerId };
 }
 
+export function availableAttackTargets(game, playerId, characterId) {
+  if (!game.turn.dice || game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
+  const attacker = ownCharacter(game, playerId, characterId);
+  const adjacent = new Set(neighbors(attacker.position));
+  return game.characters
+    .filter((character) =>
+      character.owner !== playerId
+      && character.hp > 0
+      && character.position
+      && adjacent.has(character.position))
+    .map((character) => character.id);
+}
+
+function attack(game, playerId, { attackerId, targetId } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
+    throw new Error('Для атаки нужны оба неиспользованных кубика.');
+  }
+
+  const attacker = ownCharacter(game, playerId, attackerId);
+  const target = game.characters.find((character) => character.id === targetId);
+  if (!target || target.owner === playerId || target.hp <= 0 || !target.position) {
+    throw new Error('Цель атаки недоступна.');
+  }
+  if (!availableAttackTargets(game, playerId, attackerId).includes(targetId)) {
+    throw new Error('Атаковать можно только противника на соседней клетке.');
+  }
+
+  const damage = game.turn.dice[0] + game.turn.dice[1];
+  target.hp = Math.max(0, target.hp - damage);
+  const defeated = target.hp === 0;
+  let lootCount = 0;
+  let discardedCount = 0;
+
+  if (defeated) {
+    target.position = null;
+    const capacity = Math.max(0, INVENTORY_LIMIT - attacker.inventory.length);
+    const loot = target.inventory.splice(0, capacity);
+    const overflow = target.inventory.splice(0);
+    attacker.inventory.push(...loot);
+    game.discard.push(...overflow);
+    lootCount = loot.length;
+    discardedCount = overflow.length;
+
+    if (!game.characters.some((character) => character.owner === target.owner && character.hp > 0)) {
+      game.over = true;
+      game.winnerId = playerId;
+    }
+  }
+
+  spendAllDice(game);
+  return {
+    attacked: {
+      attackerId,
+      targetId,
+      damage,
+      targetHp: target.hp,
+      defeated,
+      lootCount,
+      discardedCount,
+    },
+    winnerId: game.winnerId,
+  };
+}
+
 function endTurn(game, playerId) {
   assertActive(game, playerId);
 
@@ -318,6 +387,9 @@ function ownCharacter(game, playerId, characterId) {
   }
   if (character.owner !== playerId) {
     throw new Error('Это не ваш персонаж.');
+  }
+  if (character.hp <= 0 || !character.position) {
+    throw new Error('Персонаж выбыл из игры.');
   }
   return character;
 }

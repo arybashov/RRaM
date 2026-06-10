@@ -1,5 +1,5 @@
 import { INVENTORY_LIMIT } from './constants.js';
-import { availableMoveTargets } from './rules.js';
+import { availableAttackTargets, availableMoveTargets } from './rules.js';
 import { enemyIslandCells, shortestDistance } from './map.js';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -201,6 +201,39 @@ function collectTransferActions({ game, botPlayerId, dieIndex }) {
   return actions;
 }
 
+function collectAttackActions({ game, botPlayerId }) {
+  if (game.turn.usedDice?.some(Boolean)) return [];
+
+  const damage = (game.turn.dice ?? []).reduce((total, value) => total + value, 0);
+  if (!Number.isInteger(damage) || damage <= 0) return [];
+
+  const actions = [];
+  for (const attacker of ownCharacters(game, botPlayerId)) {
+    if (attacker.hp <= 0 || !attacker.position) continue;
+
+    for (const targetId of availableAttackTargets(
+      game,
+      botPlayerId,
+      attacker.id,
+    )) {
+      const target = game.characters.find((character) => character.id === targetId);
+      if (!target) continue;
+
+      actions.push({
+        type: 'action:attack',
+        payload: { attackerId: attacker.id, targetId },
+        facts: {
+          attacker,
+          target,
+          damage,
+          lethal: target.hp <= damage,
+        },
+      });
+    }
+  }
+  return actions;
+}
+
 function collectMoveActions({ game, botPlayerId, dieIndex, state }) {
   const dieValue = game.turn.dice?.[dieIndex];
   if (!Number.isInteger(dieValue) || dieValue <= 0) return [];
@@ -285,12 +318,24 @@ function collectMoveActions({ game, botPlayerId, dieIndex, state }) {
 }
 
 const ACTION_GENERATORS = Object.freeze([
+  collectAttackActions,
   collectDrawActions,
   collectTransferActions,
   collectMoveActions,
 ]);
 
 const DEFAULT_GOALS = Object.freeze([
+  {
+    id: 'attack-adjacent',
+    evaluate(action) {
+      if (action.type !== 'action:attack') return null;
+      const { target, damage, lethal } = action.facts;
+      return {
+        score: 10000 + damage * 10 + (lethal ? 5000 : 0) - target.hp,
+        reason: `attack:${target.id}:damage=${damage}${lethal ? ':lethal' : ''}`,
+      };
+    },
+  },
   {
     id: 'gain-cards',
     evaluate(action, context) {

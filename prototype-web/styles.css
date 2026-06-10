@@ -634,6 +634,11 @@ h2::after {
   pointer-events: auto;
 }
 
+.token.attackable {
+  cursor: crosshair;
+  pointer-events: auto;
+}
+
 .token circle {
   stroke: #fff;
   stroke-width: 2;
@@ -655,6 +660,26 @@ h2::after {
   text-anchor: middle;
   dominant-baseline: central;
   pointer-events: none;
+}
+
+.token .token-hp {
+  paint-order: stroke;
+  stroke: rgba(5, 10, 18, 0.9);
+  stroke-width: 2.5px;
+  fill: #fff;
+  font-weight: 900;
+}
+
+.token.attackable circle {
+  stroke: #ff4d55;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 8px rgba(255, 50, 60, 0.95));
+  animation: attack-target-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes attack-target-pulse {
+  from { filter: drop-shadow(0 0 3px rgba(255, 50, 60, 0.7)); }
+  to { filter: drop-shadow(0 0 10px rgba(255, 50, 60, 1)); }
 }
 
 .token.own:hover circle,

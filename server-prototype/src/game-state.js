@@ -249,7 +249,7 @@ function snapshotGame(game, forPlayerId) {
 }
 
 function snapshotLegalTargets(game, forPlayerId) {
-  const empty = { moveSum: {}, dice: [{}, {}] };
+  const empty = { moveSum: {}, dice: [{}, {}], attacks: {} };
   if (
     !forPlayerId
     || game.over
@@ -259,7 +259,15 @@ function snapshotLegalTargets(game, forPlayerId) {
     return empty;
   }
 
-  const characters = game.characters.filter((character) => character.owner === forPlayerId);
+  const characters = game.characters.filter((character) =>
+    character.owner === forPlayerId && character.hp > 0 && character.position);
+  for (const character of characters) {
+    empty.attacks[character.id] = rules.availableAttackTargets(
+      game,
+      forPlayerId,
+      character.id,
+    );
+  }
   if (game.turn.mode === 'moveSum') {
     for (const character of characters) {
       empty.moveSum[character.id] = rules

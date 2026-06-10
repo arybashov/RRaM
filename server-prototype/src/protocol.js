@@ -20,6 +20,7 @@ export const ClientCommand = Object.freeze({
   ACTION_TRANSFER: 'action:transfer',
   ACTION_MOVE: 'action:move',
   ACTION_TELEPORT: 'action:teleport',
+  ACTION_ATTACK: 'action:attack',
 });
 
 // Команды, которые обрабатывает движок правил, а не транспорт.
@@ -32,6 +33,7 @@ export const GAME_COMMANDS = Object.freeze(
     ClientCommand.ACTION_TRANSFER,
     ClientCommand.ACTION_MOVE,
     ClientCommand.ACTION_TELEPORT,
+    ClientCommand.ACTION_ATTACK,
   ]),
 );
 
