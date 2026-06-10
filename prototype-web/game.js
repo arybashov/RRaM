@@ -1372,7 +1372,7 @@ function attachBoardGestures() {
 }
 
 function onPtrDown(e) {
-  boardEl.setPointerCapture?.(e.pointerId);
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   gestureMoved = false;
   if (ptrs.size === 1) {
@@ -1403,6 +1403,7 @@ function onPtrMove(e) {
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
   if (ptrs.size >= 2 && pinchStart) {
+    boardEl.setPointerCapture?.(e.pointerId);
     const [a, b] = [...ptrs.values()];
     const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
     const { rect, k } = svgK();
@@ -1416,7 +1417,9 @@ function onPtrMove(e) {
     gestureMoved = true;
   } else if (ptrs.size === 1 && panStart) {
     const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
-    if (Math.hypot(dx, dy) > 8) gestureMoved = true;
+    if (!gestureMoved && Math.hypot(dx, dy) <= 8) return;
+    gestureMoved = true;
+    boardEl.setPointerCapture?.(e.pointerId);
     const { k } = svgK();
     view.tx = panStart.tx + dx / k;
     view.ty = panStart.ty + dy / k;
@@ -1426,6 +1429,9 @@ function onPtrMove(e) {
 }
 
 function onPtrUp(e) {
+  if (boardEl.hasPointerCapture?.(e.pointerId)) {
+    boardEl.releasePointerCapture(e.pointerId);
+  }
   ptrs.delete(e.pointerId);
   if (ptrs.size === 1) {
     const [p] = [...ptrs.values()];
