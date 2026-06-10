@@ -94,6 +94,32 @@ test('roll — нельзя бросить дважды подряд', () => {
   assert.throws(() => apply(g, 'p1', 'turn:roll'), /уже брошены/i);
 });
 
+test('roll — нельзя бросить повторно после расходования кубиков в том же ходу', () => {
+  const g = freshGame();
+  g.turn.dice = [1, 1];
+  g.turn.mode = 'moveSum';
+  g.turn.hasRolled = true;
+  const character = g.characters.find(c => c.owner === 'p1');
+  const target = availableMoveTargets(g, 'p1', character.id)[0];
+
+  apply(g, 'p1', 'action:move', {
+    characterId: character.id,
+    toCell: target.cellId,
+  });
+
+  assert.equal(g.turn.dice, null);
+  assert.throws(() => apply(g, 'p1', 'turn:roll'), /в этом ходу/i);
+});
+
+test('roll — снова доступен после передачи хода и возврата к игроку', () => {
+  const g = freshGame();
+  apply(g, 'p1', 'turn:roll');
+  apply(g, 'p1', 'turn:end');
+  apply(g, 'p2', 'turn:end');
+
+  assert.doesNotThrow(() => apply(g, 'p1', 'turn:roll'));
+});
+
 test('roll — нельзя бросить в чужой ход', () => {
   const g = freshGame();
   assert.throws(() => apply(g, 'p2', 'turn:roll'), /ход другого игрока/i);

@@ -917,7 +917,10 @@ function renderDice() {
   const myTurn  = isMyTurn();
   const dice    = getDice();
   const used    = g.turn.usedDice;
-  const canRoll = myTurn && !dice && (g.turn.rollsLeft[myPlayerId] ?? 0) > 0;
+  const canRoll = myTurn
+    && !dice
+    && !g.turn.hasRolled
+    && (g.turn.rollsLeft[myPlayerId] ?? 0) > 0;
 
   dieButtons.forEach((btn, i) => {
     btn.textContent = dice ? dice[i] : '🎲';

@@ -59,6 +59,7 @@ export function createGame(players) {
       dice: null,
       usedDice: [false, false],
       mode: null, // 'moveSum' | 'split'
+      hasRolled: false,
     },
   };
 }
@@ -89,6 +90,9 @@ function roll(game, playerId) {
   if (game.turn.dice) {
     throw new Error('Кубики уже брошены — потратьте их или завершите ход.');
   }
+  if (game.turn.hasRolled) {
+    throw new Error('В этом ходу кубики уже бросали — завершите ход.');
+  }
   if (game.turn.rollsLeft[playerId] <= 0) {
     throw new Error('Броски закончились — завершите ход.');
   }
@@ -97,6 +101,7 @@ function roll(game, playerId) {
   game.turn.dice = dice;
   game.turn.usedDice = [false, false];
   game.turn.mode = null;
+  game.turn.hasRolled = true;
   game.turn.rollsLeft[playerId] -= 1;
 
   return {
@@ -259,6 +264,7 @@ function endTurn(game, playerId) {
   game.turn.dice = null;
   game.turn.usedDice = [false, false];
   game.turn.mode = null;
+  game.turn.hasRolled = false;
 
   // Победа по гонке на остров противника появится с картой.
   // Пока партия просто завершается, когда у обоих кончились броски.

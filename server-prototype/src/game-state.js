@@ -232,6 +232,7 @@ function snapshotGame(game, forPlayerId) {
       dice: game.turn.dice,
       usedDice: game.turn.usedDice,
       mode: game.turn.mode,
+      hasRolled: Boolean(game.turn.hasRolled),
     },
     characters: game.characters.map((c) => ({
       id: c.id,
