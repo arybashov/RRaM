@@ -16,7 +16,9 @@ export const ROLLS_PER_GAME = 10;
 export const INVENTORY_LIMIT = 10;
 export const CHARACTER_HP = 100;
 
-export const TELEPORT_CARD = 'Бусы телепортации';
+// Идентификатор карты телепортации (см. BASE_CARD_CATALOG). Карты в инвентаре
+// и колодах хранятся как id; человекочитаемое имя резолвится через CARD_BY_ID.
+export const TELEPORT_CARD = 'teleport_beads';
 
 // Карты сгруппированы по колодам. Каждый объект: { id, deck, type, copies }
 // type: 'ingredient' | 'weapon' | 'armor' | 'beast' | 'blueprint' | 'recipe' | 'special' | 'provocation'
@@ -33,6 +35,8 @@ export const DECKS = Object.freeze({
   SHEEP: 'sheep',
   // Красные точки — агрессия/звери
   RED: 'red',
+  // Озеро (самоцветы, жабы, заклинания)
+  LAKE: 'lake',
   // Только шаман
   RECIPES: 'recipes',
   // Только кузнец
@@ -74,6 +78,10 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'task_irikon',   deck: 'red',         type: 'special',     copies: 1, name: 'Задание на молот Ирикон' },
   { id: 'irikon',        deck: 'red',         type: 'weapon',      copies: 1, name: 'Ирикон' },
 
+  // --- Озеро ---
+  { id: 'lake_frog',     deck: 'lake',        type: 'special',     copies: 1, name: 'Озёрная лягушка' },
+  { id: 'raw_ruby',      deck: 'lake',        type: 'ingredient',  copies: 1, name: 'Необработанный рубин' },
+
   // --- Рецепты (только шаман) ---
   { id: 'recipe_armor',  deck: 'recipes',     type: 'recipe',      copies: 2, name: 'Рецепт на жест' },
   { id: 'armor_zhest',   deck: 'recipes',     type: 'armor',       copies: 2, name: 'Жест' },
@@ -91,11 +99,56 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'phoenix_2',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к кузнецу врага)' },
 ]);
 
-// Базовые карты по ролям — выдаются при старте, не входят в колоды
+// Базовые (стартовые) карты персонажей. Не входят в общие колоды — выдаются
+// при создании партии. Печатаются в 2 экземплярах (по одному на игрока).
+// Поле `locked: true` — карта-результат крафта (открывается чертежом/рецептом);
+// механика крафта пока не реализована, карта выдаётся, но эффекта не несёт.
+export const BASE_CARD_CATALOG = Object.freeze([
+  // Универсальная — есть у каждого персонажа
+  { id: 'teleport_beads',   role: '*', type: 'special',    copies: 1, name: 'Бусы телепортации',
+    desc: 'Одноразовая. Бросьте один кубик не менее 2 раз — телепортируетесь на старт своей партии. Перезарядка — у шамана.' },
+
+  // Кузнец
+  { id: 'bp_hammer_base',   role: 'K', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на молоток',
+    desc: 'Материалы: смешанная руда + игла зверя. Кубик 2 раза не менее 3. До 4 попыток. Открывает Молоток.' },
+  { id: 'hammer',           role: 'K', type: 'tool',       copies: 1, name: 'Молоток', locked: true,
+    desc: 'Класс: кузнец. На точке добычи — взять 2 карты вне зависимости от кубика.' },
+
+  // Помощник кузнеца
+  { id: 'sack',             role: 'P', type: 'tool',       copies: 1, name: 'Мешок',
+    desc: 'На точке добычи — взять 2 карты вне зависимости от кубика.' },
+  { id: 'recipe_sack',      role: 'P', type: 'recipe',     copies: 1, name: 'Рецепт на мешок',
+    desc: 'Материалы: клубок + сшивная игла. Кубик 2 раза не менее 3. Открывает Мешок.' },
+
+  // Воин
+  { id: 'bp_club_base',     role: 'V', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на дубину',
+    desc: 'Материалы: убить кабана, медведя или волка. Открывает Дубину.' },
+  { id: 'club',             role: 'V', type: 'weapon',     copies: 1, name: 'Дубина', locked: true,
+    desc: 'Класс: воин. Каждое начало хода враг теряет 10 HP без учёта брони.' },
+
+  // Охотник
+  { id: 'eagle',            role: 'O', type: 'companion',  copies: 1, name: 'Орёл',
+    desc: 'HP 10. Атака по персонажу: 2 → 20, 3 → 25, 4 → 30 урона.' },
+
+  // Шаман
+  { id: 'recipe_yarn_base', role: 'S', type: 'recipe',     copies: 1, name: 'Базовый рецепт на клубок',
+    desc: 'Материалы: шерсть барана. Кубик 1 раз не менее 3. Открывает Клубок.' },
+
+  // Ингредиент — у нескольких ролей (кузнец, помощник, шаман)
+  { id: 'yarn',             role: 'K,P,S', type: 'ingredient', copies: 1, name: 'Клубок',
+    desc: 'Ингредиент обрядов и изделий. Каждое начало хода шаман получает +2 HP.' },
+]);
+
+// Базовые карты по ролям — id, выдаются при старте.
 export const BASE_CARDS = Object.freeze({
-  K: ['Базовый чертёж на дубину', TELEPORT_CARD],
-  P: ['Мешок', TELEPORT_CARD],
-  V: ['Базовый чертёж на дубину', TELEPORT_CARD],
-  O: [TELEPORT_CARD],
-  S: [TELEPORT_CARD],
+  K: ['bp_hammer_base', 'hammer', 'yarn', 'teleport_beads'],
+  P: ['sack', 'recipe_sack', 'yarn', 'teleport_beads'],
+  V: ['bp_club_base', 'club', 'teleport_beads'],
+  O: ['eagle', 'teleport_beads'],
+  S: ['recipe_yarn_base', 'yarn', 'teleport_beads'],
 });
+
+// Сводный справочник: id → описание карты (общие колоды + базовые).
+export const CARD_BY_ID = Object.freeze(Object.fromEntries(
+  [...CARD_CATALOG, ...BASE_CARD_CATALOG].map((card) => [card.id, card]),
+));

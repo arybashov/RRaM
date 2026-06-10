@@ -52,7 +52,7 @@ test('createGame — каждый персонаж имеет 100 HP', () => {
 test('createGame — у кузнеца есть базовые карты', () => {
   const g = freshGame();
   const smith = g.characters.find(c => c.owner === 'p1' && c.role === 'K');
-  assert.ok(smith.inventory.includes('Бусы телепортации'));
+  assert.ok(smith.inventory.includes('teleport_beads'));
 });
 
 test('createGame — колода перетасована и непустая', () => {

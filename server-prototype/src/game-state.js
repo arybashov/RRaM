@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PLAYER_LIMIT } from './constants.js';
+import { PLAYER_LIMIT, CARD_BY_ID } from './constants.js';
 import * as rules from './rules.js';
 import { mapSnapshot } from './map.js';
 
@@ -218,6 +218,14 @@ export function createStore() {
   };
 }
 
+// id карты → представление для клиента. Неизвестный id (легаси) показываем как есть.
+function cardView(id) {
+  const card = CARD_BY_ID[id];
+  return card
+    ? { id, name: card.name, type: card.type, locked: card.locked ?? false }
+    : { id, name: id, type: 'unknown', locked: false };
+}
+
 function snapshotGame(game, forPlayerId) {
   return {
     over: game.over,
@@ -242,8 +250,8 @@ function snapshotGame(game, forPlayerId) {
       hp: c.hp,
       combatOpponentId: c.combatOpponentId ?? null,
       cardCount: c.inventory.length,
-      // полный инвентарь — только владельцу
-      inventory: c.owner === forPlayerId ? [...c.inventory] : undefined,
+      // полный инвентарь — только владельцу; id резолвим в карточку для UI
+      inventory: c.owner === forPlayerId ? c.inventory.map(cardView) : undefined,
     })),
     legalTargets: snapshotLegalTargets(game, forPlayerId),
   };

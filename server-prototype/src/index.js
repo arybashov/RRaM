@@ -81,6 +81,12 @@ function routeCommand(connectionId, message) {
   }
 
   switch (message.type) {
+    case 'ping': {
+      // keepalive: клиент проверяет живость сокета (нужно без входа в комнату)
+      send(client.socket, 'pong', {});
+      break;
+    }
+
     case ClientCommand.ROOM_CREATE: {
       const vsBot = message.payload?.vsBot === true;
       const isPublic = message.payload?.public === true;

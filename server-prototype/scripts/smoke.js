@@ -155,20 +155,20 @@ a.send('action:draw', { characterId: blacksmithA, dieIndex: 0 });
 await a.waitFor('state:snapshot');
 // K стартует с 2 базовыми картами (чертёж + бусы), после добора — 3
 const myK = a.lastSnapshot.game.characters.find((c) => c.id === blacksmithA);
-check('кузнец A добрал карту (стало 3)', myK.cardCount === 3 && Array.isArray(myK.inventory) && myK.inventory.length === 3);
+check('кузнец A добрал карту (4 базовых + 1 = 5)', myK.cardCount === 5 && Array.isArray(myK.inventory) && myK.inventory.length === 5);
 check('колода уменьшилась (41-1=40)', a.lastSnapshot.game.deckCount === 40);
 
 // --- Скрытие чужих карт (ждем тот же снимок у B) ---
 const bSnap = await snapshotAtLeast(b, a.lastSnapshot.revision);
 const bSeesA = bSnap.game.characters.find((c) => c.id === blacksmithA);
-check('B видит счетчик карт A (3)', bSeesA.cardCount === 3);
+check('B видит счетчик карт A (5)', bSeesA.cardCount === 5);
 check('B НЕ видит инвентарь A', bSeesA.inventory === undefined);
 const bSeesOwnShaman = bSnap.game.characters.find((c) => c.id === `${playerB}:S`);
-check('B видит свой инвентарь (Бусы у шамана)', Array.isArray(bSeesOwnShaman.inventory) && bSeesOwnShaman.inventory.includes('Бусы телепортации'));
+check('B видит свой инвентарь (Бусы у шамана)', Array.isArray(bSeesOwnShaman.inventory) && bSeesOwnShaman.inventory.some((c) => c.id === 'teleport_beads'));
 
 // --- Передача вторым кубиком ---
-const kBefore = myK.cardCount; // 3
-const pBefore = a.lastSnapshot.game.characters.find((c) => c.id === `${playerA}:P`).cardCount; // 2
+const kBefore = myK.cardCount; // 5
+const pBefore = a.lastSnapshot.game.characters.find((c) => c.id === `${playerA}:P`).cardCount; // 4
 a.send('action:transfer', { fromId: blacksmithA, toId: `${playerA}:P`, dieIndex: 1 });
 await a.waitFor('state:snapshot');
 const kAfter = a.lastSnapshot.game.characters.find((c) => c.id === blacksmithA);

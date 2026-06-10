@@ -10,6 +10,7 @@ const SESSION_KEY = 'rram_session';
 
 // ── Константы ─────────────────────────────────────────────────────
 const ROLE_NAMES = { K: 'Кузнец', P: 'Помощник', V: 'Воин', O: 'Охотник', S: 'Шаман' };
+const TELEPORT_ID = 'teleport_beads'; // id карты «Бусы телепортации» (сервер шлёт инвентарь как {id,name,type})
 const ROLE_ART   = { K: 'blacksmith', P: 'assistant', V: 'warrior', O: 'hunter', S: 'shaman' };
 
 // Клиентский режим → серверный режим (для setMode)
@@ -80,10 +81,16 @@ let settingsEl = null;
 let matchResultEl = null;
 let settingsReturnTo = 'lobby';
 let reconnectTimer = null;
+let heartbeatTimer = null;
+let lastServerMsgAt = 0;
+const HEARTBEAT_MS = 12000; // как часто шлём ping
+const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
+const APP_VERSION = '20260610-10'; // единый источник; держать в синхроне с ?v= в index.html
 
 // ── Старт ─────────────────────────────────────────────────────────
+showAppVersion();
 buildLobbyOverlay();
 connect();
 document.getElementById('fitBtn')?.addEventListener('click', fitAll);
@@ -95,6 +102,15 @@ loadBoardMap().then(() => {
     if (serverRoom?.game) { render(); focusMine(); }
   });
 });
+
+// Версия в углу мелким шрифтом (для отладки «какая сборка у игрока»).
+function showAppVersion() {
+  const el = document.createElement('div');
+  el.className = 'app-version';
+  el.setAttribute('aria-hidden', 'true');
+  el.textContent = `v${APP_VERSION}`;
+  document.body.appendChild(el);
+}
 
 // Загрузка граф-карты (статический asset, один раз).
 async function loadBoardMap() {
@@ -124,16 +140,51 @@ function connect() {
 
   ws.onopen = () => {
     setConnStatus('connected');
+    startHeartbeat();
     const saved = loadSession();
     if (saved) { pendingResume = true; wsSend('session:resume', saved); }
   };
-  ws.onmessage = (e) => { try { handleMsg(JSON.parse(e.data)); } catch {} };
+  ws.onmessage = (e) => {
+    lastServerMsgAt = Date.now(); // любое сообщение (вкл. pong) = сокет жив
+    try { handleMsg(JSON.parse(e.data)); } catch {}
+  };
   ws.onclose   = () => {
     if (ws === sock) { ws = null; }
+    stopHeartbeat();
     setConnStatus('disconnected');
     scheduleReconnect();
   };
   ws.onerror   = () => setConnStatus('error');
+}
+
+// Heartbeat: шлём ping; если от сервера давно тишина — сокет «полуоткрытый»
+// (onclose не выстрелил), форсим переподключение вручную.
+function startHeartbeat() {
+  stopHeartbeat();
+  lastServerMsgAt = Date.now();
+  heartbeatTimer = setInterval(() => {
+    if (ws?.readyState !== WebSocket.OPEN) return;
+    if (Date.now() - lastServerMsgAt > STALE_MS) {
+      forceReconnect();
+      return;
+    }
+    wsSend('ping');
+  }, HEARTBEAT_MS);
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+
+// Принудительный разрыв и переподключение (мёртвый сокет / ручная кнопка).
+// session:resume уйдёт автоматически в onopen, партия восстановится.
+function forceReconnect() {
+  stopHeartbeat();
+  const sock = ws;
+  ws = null;
+  if (sock) { try { sock.onclose = null; sock.close(); } catch {} }
+  setConnStatus('connecting');
+  connect();
 }
 
 function scheduleReconnect() {
@@ -150,6 +201,9 @@ function wsSend(type, payload = {}) {
 
 function handleMsg({ type, payload }) {
   switch (type) {
+
+    case 'pong': // keepalive-ответ, живость уже отмечена в onmessage
+      break;
 
     case 'server:connected':
       showLobby();
@@ -405,7 +459,7 @@ function buildLobbyOverlay() {
   lobbyEl.querySelector('#settingsBtn').addEventListener('click', () => openSettings('lobby'));
 
   const reconnectBtn = lobbyEl.querySelector('#reconnectBtn');
-  reconnectBtn.addEventListener('click', () => { ws?.close(); connect(); });
+  reconnectBtn.addEventListener('click', forceReconnect);
 
   // Значок соединения и кнопка меню — в правой части шапки
   const tbRight = document.querySelector('.topbar .tb-right');
@@ -466,6 +520,7 @@ function buildGameMenu() {
     <div class="menu-card">
       <div class="menu-title">Меню</div>
       <button id="menuResumeBtn">▶ Продолжить игру</button>
+      <button id="menuReconnectBtn" class="ghost">⟳ Переподключиться</button>
       <button id="menuNewBtn" class="ghost">🚪 Выйти в лобби</button>
       <button id="menuSettingsBtn" class="ghost">⚙ Настройки</button>
     </div>
@@ -473,6 +528,12 @@ function buildGameMenu() {
   document.body.appendChild(menuEl);
 
   menuEl.querySelector('#menuResumeBtn').addEventListener('click', hideGameMenu);
+
+  // Ручное восстановление, если у игрока всё «подвисло» (мёртвый сокет/стейт)
+  menuEl.querySelector('#menuReconnectBtn').addEventListener('click', () => {
+    hideGameMenu();
+    forceReconnect();
+  });
 
   menuEl.querySelector('#menuNewBtn').addEventListener('click', () => {
     const active = serverRoom?.game && !serverRoom.game.over;
@@ -649,6 +710,7 @@ function cancelWaitingRoom() {
   selectedCharId = null;
   resetLobby();
 
+  stopHeartbeat();
   const socket = ws;
   ws = null;
   if (socket) {
@@ -822,7 +884,7 @@ function handleCellClick(targetId) {
 
   if (localMode === 'teleport') {
     const inv = char.inventory ?? [];
-    if (!inv.includes('Бусы телепортации') || !isStartCell(targetId)) return;
+    if (!inv.some(c => c.id === TELEPORT_ID) || !isStartCell(targetId)) return;
     if (usesServerPositions()) {
       teleportedChars.add(char.id); // не анимировать шагами — это прыжок
       wsSend('action:teleport', { characterId: char.id, toCell: targetId });
@@ -1051,8 +1113,26 @@ function renderInventory() {
   }
   inventoryEl.className = inv.length ? 'inventory' : 'inventory empty';
   inventoryEl.innerHTML = inv.length
-    ? inv.map(c => `<div class="card">${c}</div>`).join('')
+    ? inv.map(renderCard).join('')
     : 'Инвентарь пуст.';
+}
+
+const CARD_TYPE_LABELS = {
+  weapon: 'оружие', armor: 'броня', tool: 'инструмент', ingredient: 'ингредиент',
+  blueprint: 'чертёж', recipe: 'рецепт', companion: 'спутник', beast: 'зверь',
+  special: 'особая', provocation: 'провокация',
+};
+
+function renderCard(c) {
+  // c = { id, name, type, locked }; легаси-строку (если придёт) тоже покажем
+  if (typeof c === 'string') return `<div class="card">${escapeHtml(c)}</div>`;
+  const type = CARD_TYPE_LABELS[c.type] ?? '';
+  const locked = c.locked ? '<span class="card-lock" title="Откроется после крафта">🔒</span>' : '';
+  return `<div class="card card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}">`
+    + `<span class="card-name">${escapeHtml(c.name)}</span>`
+    + (type ? `<span class="card-type">${type}</span>` : '')
+    + locked
+    + `</div>`;
 }
 
 function renderLog() {
@@ -1072,7 +1152,7 @@ function validTargets(char) {
 
   if (localMode === 'teleport') {
     const inv = char.inventory ?? [];
-    if (!inv.includes('Бусы телепортации')) return result;
+    if (!inv.some(c => c.id === TELEPORT_ID)) return result;
     for (const id of startCellIds) {
       const occupied = getGame()?.characters.some(
         c => c.id !== char.id && characterPosition(c) === id,
@@ -1371,6 +1451,25 @@ function attachBoardGestures() {
   boardEl.addEventListener('pointermove', onPtrMove);
   boardEl.addEventListener('pointerup', onPtrUp);
   boardEl.addEventListener('pointercancel', onPtrUp);
+  boardEl.addEventListener('wheel', onWheel, { passive: false });
+}
+
+// Зум колесом мыши вокруг курсора (десктоп)
+function onWheel(e) {
+  e.preventDefault();
+  const { rect, k } = svgK();
+  const vbX = (e.clientX - rect.left) / k;
+  const vbY = (e.clientY - rect.top) / k;
+  // мировая точка под курсором (до зума)
+  const cpX = (vbX - view.tx) / view.s;
+  const cpY = (vbY - view.ty) / view.s;
+  const factor = Math.exp(-e.deltaY * 0.0015);
+  view.s = Math.max(MIN_S, Math.min(MAX_S, view.s * factor));
+  // держим ту же точку под курсором
+  view.tx = vbX - cpX * view.s;
+  view.ty = vbY - cpY * view.s;
+  clampView();
+  applyView();
 }
 
 function onPtrDown(e) {

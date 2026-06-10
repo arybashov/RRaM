@@ -86,6 +86,21 @@ button:disabled {
   overflow: hidden;
 }
 
+/* Версия сборки — мелким шрифтом в углу, не мешает кликам */
+.app-version {
+  position: fixed;
+  right: 6px;
+  bottom: 4px;
+  z-index: 50;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+  opacity: 0.45;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
 /* ---------- Topbar (тонкая) ---------- */
 .topbar {
   display: flex;
@@ -373,6 +388,35 @@ h2::after {
 .sheet.open .sheet-body { display: block; }
 .sheet-body .log { max-height: none; }
 .sheet-body h2:first-child { margin-top: 4px; }
+
+/* ---------- Десктоп: борд слева, рельс (док + шторка) справа ---------- */
+@media (min-width: 900px) {
+  .app {
+    display: grid;
+    grid-template-columns: 1fr clamp(320px, 26vw, 400px);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "topbar topbar"
+      "board  dock"
+      "board  sheet";
+  }
+  .topbar { grid-area: topbar; }
+  .board-wrap { grid-area: board; min-width: 0; }
+  .dock {
+    grid-area: dock;
+    border-top: none;
+    border-left: 1px solid var(--line);
+  }
+  .sheet {
+    grid-area: sheet;
+    min-height: 0;
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+  }
+  /* На десктопе шторка не сворачивается — журнал и инвентарь всегда видны */
+  .sheet-handle { display: none; }
+  .sheet-body { display: block; flex: 1; min-height: 0; max-height: none; padding-top: 12px; }
+}
 
 #endTurnBtn {
   border-color: transparent;
@@ -717,6 +761,9 @@ h2::after {
 
 .card {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 10px 12px 10px 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
@@ -724,6 +771,22 @@ h2::after {
   font-size: 13px;
   font-weight: 600;
 }
+
+.card-name { flex: 1; min-width: 0; }
+
+.card-type {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+.card-lock { flex: none; font-size: 12px; }
+
+.card-locked .card-name { color: var(--muted); }
 
 .card::before {
   content: "";
@@ -733,8 +796,18 @@ h2::after {
   bottom: 8px;
   width: 3px;
   border-radius: 3px;
-  background: var(--gold);
+  background: var(--card-accent, var(--gold));
 }
+
+/* Цвет акцент-полоски по типу карты */
+.card-weapon     { --card-accent: #e0563f; }
+.card-armor      { --card-accent: #5b9bd5; }
+.card-tool       { --card-accent: #d8a13a; }
+.card-ingredient { --card-accent: #7fae54; }
+.card-blueprint  { --card-accent: #c08a4a; }
+.card-recipe     { --card-accent: #b06fb8; }
+.card-companion  { --card-accent: #d8a13a; }
+.card-special    { --card-accent: #6fc3c0; }
 
 .empty {
   color: var(--muted);
