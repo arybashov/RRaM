@@ -92,7 +92,7 @@ loadBoardMap().then(() => {
   buildBoard();
   requestAnimationFrame(() => {
     fitBoard();
-    if (serverRoom?.game) { render(); focusMine(); }
+    if (serverRoom?.game) { render(); focusMineOverview(); }
   });
 });
 
@@ -213,14 +213,14 @@ function handleMsg({ type, payload }) {
         hideLobby();
         if (currentRoomId !== myRoomId) addLog('Партия началась!', { type: 'sys' });
         autoModeSent = false;
-        requestAnimationFrame(focusMine);   // старт партии — показать свою базу
+        requestAnimationFrame(focusMineOverview);   // старт партии — база с окружающими путями
       } else if (serverRoom.status === 'active' && prevRoom?.game) {
         diffAndLog(prevRoom, serverRoom);
         animateMovesFromDiff(prevRoom, serverRoom);
         // начало моего хода — автофокус на своих фишках
         const nowActive = serverRoom.game?.turn?.activePlayerId;
         if (nowActive === myPlayerId && prevActive !== myPlayerId) {
-          requestAnimationFrame(focusMine);
+          requestAnimationFrame(focusMineOverview);
         }
       }
 
@@ -1410,7 +1410,7 @@ function onPtrUp(e) {
 }
 
 // Кадрировать набор клеток (по id) с отступом
-function focusCells(ids, padFactor = 2.5) {
+function focusCells(ids, padFactor = 2.5, maxScale = MAX_S) {
   if (!boardVp) return;
   const pts = ids.map(id => cellById.get(id)).filter(Boolean);
   if (!pts.length) return;
@@ -1422,7 +1422,7 @@ function focusCells(ids, padFactor = 2.5) {
   const pad = HEX_R * padFactor;
   minX -= pad; minY -= pad; maxX += pad; maxY += pad;
   const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
-  view.s = Math.max(MIN_S, Math.min(MAX_S, Math.min(VBW / bw, VBH / bh)));
+  view.s = Math.max(MIN_S, Math.min(maxScale, Math.min(VBW / bw, VBH / bh)));
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   view.tx = VBW / 2 - cx * view.s;
   view.ty = VBH / 2 - cy * view.s;
@@ -1436,6 +1436,14 @@ function focusMine() {
     .map(c => characterPosition(c))
     .filter(Boolean);
   if (ids.length) focusCells(ids);
+}
+
+function focusMineOverview() {
+  const ids = (getGame()?.characters ?? [])
+    .filter(c => c.owner === myPlayerId)
+    .map(c => characterPosition(c))
+    .filter(Boolean);
+  if (ids.length) focusCells(ids, 4, 2.2);
 }
 
 function fitAll() {
