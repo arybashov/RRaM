@@ -290,13 +290,7 @@ h2::after {
 
 .dock-modes {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
-  gap: 6px;
-}
-
-.dock-chars {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -319,6 +313,21 @@ h2::after {
   white-space: nowrap;
 }
 .dock-modes .mode::before { display: none; }
+
+@media (max-width: 620px) {
+  .dock {
+    padding: 8px 6px;
+  }
+
+  .dock-modes {
+    gap: 4px;
+  }
+
+  .dock-modes .mode {
+    padding-inline: 3px;
+    font-size: 11px;
+  }
+}
 
 /* ---------- Шторка: инвентарь + журнал ---------- */
 .sheet {

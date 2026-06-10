@@ -230,7 +230,11 @@ function handleMsg({ type, payload }) {
         const sm = TO_SERVER_MODE[localMode];
         if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
       }
-      if (!g?.turn.dice) autoModeSent = false;
+      if (!g?.turn.dice) {
+        autoModeSent = false;
+        localMode = 'moveSum';
+        selectedDieIdx = 0;
+      }
 
       render();
       if (serverRoom?.game?.over) {
@@ -743,7 +747,14 @@ dieButtons.forEach((btn, i) => {
     if (!getDice()) {
       wsSend('turn:roll');
     } else if (!getGame().turn.usedDice[i]) {
-      selectedDieIdx = i;
+      const used = getGame().turn.usedDice;
+      const canChangeMode = !used[0] && !used[1];
+      if (localMode === 'moveDie' && selectedDieIdx === i && canChangeMode) {
+        setLocalMode('moveSum');
+      } else {
+        selectedDieIdx = i;
+        setLocalMode('moveDie');
+      }
       render();
     }
   });
@@ -755,18 +766,29 @@ document.querySelectorAll('.mode').forEach(btn => {
     // «Взять карту» / «Передать» — прямое действие, а не переключение режима
     if (mode === 'draw' || mode === 'transfer') { directCardAction(mode); return; }
 
-    localMode = mode;
-    document.querySelectorAll('.mode').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    if (getDice() && getServMode() === null) {
-      const sm = TO_SERVER_MODE[localMode];
-      if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
-    }
+    setLocalMode(mode);
     render();
   });
 });
 
 endTurnBtn.addEventListener('click', () => wsSend('turn:end'));
+
+function setLocalMode(mode) {
+  localMode = mode;
+  document.querySelectorAll('.mode').forEach((button) => {
+    button.classList.toggle('active', button.dataset.mode === mode);
+  });
+
+  const game = getGame();
+  if (!game?.turn.dice || !isMyTurn()) return;
+  if (game.turn.usedDice[0] || game.turn.usedDice[1]) return;
+
+  const serverMode = TO_SERVER_MODE[mode];
+  if (serverMode && getServMode() !== serverMode) {
+    autoModeSent = true;
+    wsSend('turn:setMode', { mode: serverMode });
+  }
+}
 
 // Прямое карточное действие (без отдельной кнопки «Выполнить»):
 // берём выбранную фишку и свободный кубик, при необходимости переключаем сервер в split.
@@ -963,6 +985,7 @@ function renderBoard() {
 }
 
 function renderCharacters() {
+  if (!charactersEl) return;
   charactersEl.innerHTML = '';
   const game = getGame();
   if (!game) return;
