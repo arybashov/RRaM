@@ -28,6 +28,43 @@
     "size": 1.78,
     "assetRoot": "/assets/cards/backs/markers"
   },
+  "display": {
+    "cellOpacity": 0.29,
+    "coloredCellOpacity": 0.8,
+    "cellStrokeColor": "#1d161c",
+    "cellStrokeOpacity": 0.5,
+    "colors": {
+      "points": {
+        "green_deck": "#20c56b",
+        "battle": "#f44336",
+        "teleport": "#a933e8",
+        "dwarf_border": "#ffd928"
+      },
+      "decks": {
+        "mixed": "#ffd66b",
+        "forest": "#4caf50",
+        "dark_forest": "#1b5e20",
+        "sheep": "#8bc34a",
+        "red": "#f44336",
+        "lake": "#29b6f6",
+        "recipes": "#9c27b0",
+        "blueprints": "#2196f3",
+        "fairy_glade": "#e91e63"
+      },
+      "sides": {
+        "green": "#35c77b",
+        "red": "#ef554f"
+      },
+      "terrain": {
+        "start": "#f4c95d",
+        "event": "#9b5de5",
+        "teleport": "#24c7d9",
+        "resource": "#ff9f43",
+        "blocked": "#6b7280",
+        "path": "#dbe8f7"
+      }
+    }
+  },
   "starts": {
     "green": {
       "K": "H007",

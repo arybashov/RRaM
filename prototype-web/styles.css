@@ -290,6 +290,8 @@ h2::after {
 
 .dock-modes {
   display: grid;
+  width: 100%;
+  min-width: 0;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
@@ -303,6 +305,8 @@ h2::after {
 
 /* Компактные кнопки режимов в доке: по центру, без переноса, без крупной иконки */
 .dock-modes .mode {
+  width: 100%;
+  min-width: 0;
   justify-content: center;
   gap: 0;
   padding: 9px 6px;
@@ -311,6 +315,8 @@ h2::after {
   font-weight: 700;
   overflow-wrap: normal;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .dock-modes .mode::before { display: none; }
 
@@ -573,9 +579,10 @@ h2::after {
 
 /* Гекс — прозрачная заливка (для клика) + серая векторная обводка. */
 .cell {
-  fill: transparent;
-  stroke: #aab6cf;
-  stroke-opacity: 0.75;
+  fill: var(--cell-fill, transparent);
+  fill-opacity: var(--cell-fill-opacity, 0);
+  stroke: var(--cell-stroke, #aab6cf);
+  stroke-opacity: var(--cell-stroke-opacity, 0.75);
   stroke-width: 1.2;
   stroke-linejoin: round;
   cursor: pointer;
@@ -586,43 +593,26 @@ h2::after {
   fill: rgba(214, 230, 245, 0.16);
 }
 
-.cell.point-green-deck {
-  fill: rgba(24, 190, 91, 0.78);
-  stroke: rgba(7, 75, 34, 0.9);
-}
-
-.cell.point-battle {
-  fill: rgba(238, 38, 45, 0.82);
-  stroke: rgba(105, 5, 10, 0.92);
-}
-
-.cell.point-teleport {
-  fill: rgba(159, 54, 224, 0.82);
-  stroke: rgba(70, 15, 112, 0.92);
-}
-
-.cell.point-dwarf-border {
-  fill: rgba(255, 218, 40, 0.86);
-  stroke: rgba(112, 82, 0, 0.94);
-}
-
 .cell.start {
-  fill: rgba(244, 201, 93, 0.85);
-  stroke: #7a5a16;
+  fill: var(--cell-fill, #f4c95d);
 }
 
 .cell.valid {
   fill: rgba(244, 201, 93, 0.92);
+  fill-opacity: 1;
   stroke: #fff3cf;
+  stroke-opacity: 1;
   stroke-width: 1.6;
 }
 
 .cell.occupied {
   fill: rgba(235, 244, 252, 0.5);
+  fill-opacity: 1;
 }
 
 .cell.selected {
   stroke: var(--accent);
+  stroke-opacity: 1;
   stroke-width: 2.6;
 }
 

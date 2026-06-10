@@ -1212,6 +1212,8 @@ function buildBoard() {
       neighbors: c.neighbors || [],
       terrain: c.terrain || null,
       pointClass: c.pointClass || null,
+      deck: c.deck || null,
+      side: c.side || null,
     };
     cells.push(cell);
     cellById.set(c.id, cell);
@@ -1252,6 +1254,7 @@ function buildBoard() {
     poly.setAttribute('class', cellClassName(c));
     poly.setAttribute('points', hexPoints(c.cx, c.cy, HEX_R));
     poly.setAttribute('data-id', c.id);
+    applyCellDisplay(poly, c);
     poly.addEventListener('click', () => { if (!gestureMoved) handleCellClick(c.id); });
     boardVp.appendChild(poly);
   }
@@ -1292,6 +1295,27 @@ function cellClassName(cell) {
   if (cell?.terrain) classes.push(`terrain-${cell.terrain}`);
   if (cell?.pointClass) classes.push(`point-${cell.pointClass.replaceAll('_', '-')}`);
   return classes.join(' ');
+}
+
+function applyCellDisplay(poly, cell) {
+  const display = boardMap.display || {};
+  const colors = display.colors || {};
+  const fill = colors.points?.[cell.pointClass]
+    || colors.decks?.[cell.deck]
+    || colors.sides?.[cell.side]
+    || colors.terrain?.[cell.terrain]
+    || '#dbe8f7';
+  const colored = Boolean(
+    cell.pointClass || cell.deck || cell.side || (cell.terrain && cell.terrain !== 'path'),
+  );
+
+  poly.style.setProperty('--cell-fill', fill);
+  poly.style.setProperty(
+    '--cell-fill-opacity',
+    String(colored ? (display.coloredCellOpacity ?? 0.45) : (display.cellOpacity ?? 0.22)),
+  );
+  poly.style.setProperty('--cell-stroke', display.cellStrokeColor || '#e8f0ff');
+  poly.style.setProperty('--cell-stroke-opacity', String(display.cellStrokeOpacity ?? 1));
 }
 
 function applyView() {
