@@ -577,6 +577,26 @@ h2::after {
   fill: rgba(214, 230, 245, 0.16);
 }
 
+.cell.point-green-deck {
+  fill: rgba(24, 190, 91, 0.78);
+  stroke: rgba(7, 75, 34, 0.9);
+}
+
+.cell.point-battle {
+  fill: rgba(238, 38, 45, 0.82);
+  stroke: rgba(105, 5, 10, 0.92);
+}
+
+.cell.point-teleport {
+  fill: rgba(159, 54, 224, 0.82);
+  stroke: rgba(70, 15, 112, 0.92);
+}
+
+.cell.point-dwarf-border {
+  fill: rgba(255, 218, 40, 0.86);
+  stroke: rgba(112, 82, 0, 0.94);
+}
+
 .cell.start {
   fill: rgba(244, 201, 93, 0.85);
   stroke: #7a5a16;

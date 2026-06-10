@@ -1,6 +1,6 @@
 {
   "format": "rram-game-map",
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "id": "rram-main-map-v1",
   "revision": 1,
   "art": {
@@ -23,6 +23,10 @@
   "hex": {
     "orientation": "flat",
     "radius": 0.012086
+  },
+  "deckMarkers": {
+    "size": 1.78,
+    "assetRoot": "/assets/cards/backs/markers"
   },
   "starts": {
     "green": {
@@ -50,11 +54,13 @@
         "H010"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H002",
@@ -65,11 +71,13 @@
         "H006"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H003",
@@ -83,11 +91,13 @@
         "H010"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "green",
       "role": "O",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H004",
@@ -100,11 +110,13 @@
         "H010"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "green",
       "role": "S",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H005",
@@ -118,11 +130,13 @@
         "H011"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H006",
@@ -134,11 +148,13 @@
         "H011"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "green",
       "role": "P",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H007",
@@ -149,11 +165,13 @@
         "H014"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "green",
       "role": "K",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H008",
@@ -167,11 +185,13 @@
         "H014"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H009",
@@ -184,11 +204,13 @@
         "H013"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "green",
       "role": "V",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H010",
@@ -199,11 +221,19 @@
         "H004"
       ],
       "terrain": "resource",
+      "pointClass": null,
       "deck": "blueprints",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "blueprints",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H011",
@@ -214,11 +244,19 @@
         "H009"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "forest",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "forest",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H012",
@@ -230,11 +268,13 @@
         "H016"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H013",
@@ -247,11 +287,13 @@
         "H015"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H014",
@@ -262,11 +304,19 @@
         "H013"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "mixed",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "mixed",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H015",
@@ -278,11 +328,13 @@
         "H017"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H016",
@@ -294,11 +346,13 @@
         "H018"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H017",
@@ -311,11 +365,13 @@
         "H020"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H018",
@@ -327,11 +383,13 @@
         "H270"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H019",
@@ -344,11 +402,13 @@
         "H270"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H020",
@@ -360,11 +420,13 @@
         "H022"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H021",
@@ -376,11 +438,13 @@
         "H023"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H022",
@@ -392,11 +456,13 @@
         "H024"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H023",
@@ -408,11 +474,13 @@
         "H025"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H024",
@@ -424,11 +492,13 @@
         "H026"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H025",
@@ -439,11 +509,13 @@
         "H026"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H026",
@@ -455,11 +527,13 @@
         "H028"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H027",
@@ -470,11 +544,13 @@
         "H029"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H028",
@@ -486,11 +562,13 @@
         "H030"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H029",
@@ -502,11 +580,13 @@
         "H031"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H030",
@@ -518,11 +598,13 @@
         "H032"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H031",
@@ -534,11 +616,13 @@
         "H033"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H032",
@@ -550,11 +634,13 @@
         "H034"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H033",
@@ -566,11 +652,13 @@
         "H035"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H034",
@@ -582,11 +670,13 @@
         "H036"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H035",
@@ -597,11 +687,13 @@
         "H036"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H036",
@@ -613,11 +705,13 @@
         "H038"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H037",
@@ -629,11 +723,13 @@
         "H180"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H038",
@@ -645,11 +741,13 @@
         "H180"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H039",
@@ -661,11 +759,13 @@
         "H042"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H040",
@@ -676,11 +776,13 @@
         "H043"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H041",
@@ -693,11 +795,13 @@
         "H044"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H042",
@@ -707,11 +811,19 @@
         "H041"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "lake",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "lake",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H043",
@@ -722,11 +834,13 @@
         "H044"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H044",
@@ -738,11 +852,13 @@
         "H046"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H045",
@@ -753,11 +869,13 @@
         "H048"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H046",
@@ -769,11 +887,13 @@
         "H048"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H047",
@@ -785,11 +905,13 @@
         "H050"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H048",
@@ -801,11 +923,13 @@
         "H049"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H049",
@@ -818,11 +942,13 @@
         "H052"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H050",
@@ -834,11 +960,13 @@
         "H053"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H051",
@@ -850,11 +978,13 @@
         "H062"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H052",
@@ -867,11 +997,13 @@
         "H062"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H053",
@@ -883,11 +1015,13 @@
         "H055"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H054",
@@ -898,11 +1032,13 @@
         "H056"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H055",
@@ -914,11 +1050,13 @@
         "H058"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H056",
@@ -930,11 +1068,13 @@
         "H058"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H057",
@@ -946,11 +1086,13 @@
         "H060"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H058",
@@ -962,11 +1104,13 @@
         "H059"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H059",
@@ -978,11 +1122,13 @@
         "H272"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H060",
@@ -993,11 +1139,13 @@
         "H272"
       ],
       "terrain": "resource",
-      "deck": "recipes",
+      "pointClass": "teleport",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H061",
@@ -1008,11 +1156,13 @@
         "H064"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H062",
@@ -1025,11 +1175,13 @@
         "H064"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H063",
@@ -1040,11 +1192,13 @@
         "H065"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H064",
@@ -1056,11 +1210,13 @@
         "H065"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H065",
@@ -1072,11 +1228,13 @@
         "H067"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H066",
@@ -1089,11 +1247,13 @@
         "H071"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H067",
@@ -1105,11 +1265,13 @@
         "H069"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H068",
@@ -1120,11 +1282,13 @@
         "H073"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H069",
@@ -1138,11 +1302,13 @@
         "H074"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H070",
@@ -1155,11 +1321,13 @@
         "H074"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H071",
@@ -1171,11 +1339,13 @@
         "H142"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H072",
@@ -1187,11 +1357,13 @@
         "H143"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H073",
@@ -1204,11 +1376,13 @@
         "H076"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H074",
@@ -1220,11 +1394,13 @@
         "H075"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H075",
@@ -1237,11 +1413,13 @@
         "H078"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H076",
@@ -1252,11 +1430,13 @@
         "H077"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H077",
@@ -1268,11 +1448,13 @@
         "H079"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H078",
@@ -1283,11 +1465,13 @@
         "H079"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H079",
@@ -1299,11 +1483,13 @@
         "H081"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H080",
@@ -1314,11 +1500,13 @@
         "H082"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H081",
@@ -1330,11 +1518,13 @@
         "H083"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H082",
@@ -1346,11 +1536,13 @@
         "H084"
       ],
       "terrain": "resource",
-      "deck": "mixed",
+      "pointClass": "dwarf_border",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H083",
@@ -1362,11 +1554,13 @@
         "H085"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H084",
@@ -1379,11 +1573,13 @@
         "H087"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H085",
@@ -1395,11 +1591,13 @@
         "H090"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H086",
@@ -1413,11 +1611,13 @@
         "H090"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H087",
@@ -1428,11 +1628,13 @@
         "H088"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H088",
@@ -1444,11 +1646,13 @@
         "H094"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H089",
@@ -1462,11 +1666,13 @@
         "H094"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H090",
@@ -1479,11 +1685,13 @@
         "H092"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H091",
@@ -1494,11 +1702,13 @@
         "H106"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H092",
@@ -1512,11 +1722,13 @@
         "H106"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H093",
@@ -1530,11 +1742,13 @@
         "H105"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H094",
@@ -1546,11 +1760,13 @@
         "H095"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H095",
@@ -1562,11 +1778,13 @@
         "H097"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H096",
@@ -1580,11 +1798,13 @@
         "H105"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H097",
@@ -1596,11 +1816,13 @@
         "H099"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H098",
@@ -1612,11 +1834,13 @@
         "H101"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H099",
@@ -1630,11 +1854,13 @@
         "H104"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H100",
@@ -1647,11 +1873,13 @@
         "H103"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H101",
@@ -1661,11 +1889,19 @@
         "H100"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "dark_forest",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "dark_forest",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H102",
@@ -1675,11 +1911,13 @@
         "H103"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H103",
@@ -1692,11 +1930,13 @@
         "H109"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H104",
@@ -1710,11 +1950,13 @@
         "H109"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H105",
@@ -1728,11 +1970,13 @@
         "H108"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H106",
@@ -1745,11 +1989,13 @@
         "H108"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H107",
@@ -1761,11 +2007,13 @@
         "H111"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H108",
@@ -1779,11 +2027,13 @@
         "H110"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H109",
@@ -1795,11 +2045,13 @@
         "H110"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H110",
@@ -1812,11 +2064,13 @@
         "H112"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H111",
@@ -1828,11 +2082,13 @@
         "H113"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H112",
@@ -1843,11 +2099,13 @@
         "H113"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H113",
@@ -1859,11 +2117,13 @@
         "H115"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H114",
@@ -1874,11 +2134,13 @@
         "H116"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H115",
@@ -1890,11 +2152,13 @@
         "H117"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H116",
@@ -1906,11 +2170,13 @@
         "H118"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H117",
@@ -1922,11 +2188,13 @@
         "H119"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H118",
@@ -1939,11 +2207,13 @@
         "H121"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H119",
@@ -1954,11 +2224,13 @@
         "H120"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H120",
@@ -1970,11 +2242,13 @@
         "H122"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H121",
@@ -1985,11 +2259,13 @@
         "H122"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H122",
@@ -2001,11 +2277,13 @@
         "H124"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H123",
@@ -2016,11 +2294,13 @@
         "H125"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H124",
@@ -2032,11 +2312,13 @@
         "H126"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H125",
@@ -2048,11 +2330,13 @@
         "H127"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H126",
@@ -2064,11 +2348,13 @@
         "H128"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H127",
@@ -2079,11 +2365,13 @@
         "H128"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H128",
@@ -2095,11 +2383,13 @@
         "H130"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H129",
@@ -2110,11 +2400,13 @@
         "H131"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H130",
@@ -2126,11 +2418,13 @@
         "H132"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H131",
@@ -2141,11 +2435,13 @@
         "H132"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H132",
@@ -2157,11 +2453,13 @@
         "H134"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H133",
@@ -2173,11 +2471,13 @@
         "H136"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H134",
@@ -2189,11 +2489,13 @@
         "H141"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H135",
@@ -2206,11 +2508,13 @@
         "H141"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H136",
@@ -2222,11 +2526,13 @@
         "H138"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H137",
@@ -2237,11 +2543,13 @@
         "H138"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H138",
@@ -2253,11 +2561,13 @@
         "H140"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H139",
@@ -2267,11 +2577,13 @@
         "H140"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H140",
@@ -2281,11 +2593,13 @@
         "H139"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H141",
@@ -2295,11 +2609,19 @@
         "H135"
       ],
       "terrain": "event",
+      "pointClass": null,
       "deck": "fairy_glade",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "fairy_glade",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H142",
@@ -2311,11 +2633,13 @@
         "H144"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H143",
@@ -2327,11 +2651,13 @@
         "H145"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H144",
@@ -2342,11 +2668,13 @@
         "H145"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H145",
@@ -2358,11 +2686,13 @@
         "H147"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H146",
@@ -2374,11 +2704,13 @@
         "H149"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H147",
@@ -2389,11 +2721,13 @@
         "H148"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H148",
@@ -2404,11 +2738,13 @@
         "H149"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H149",
@@ -2420,11 +2756,13 @@
         "H151"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H150",
@@ -2435,11 +2773,13 @@
         "H152"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H151",
@@ -2451,11 +2791,13 @@
         "H153"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H152",
@@ -2468,11 +2810,13 @@
         "H155"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H153",
@@ -2483,11 +2827,13 @@
         "H154"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H154",
@@ -2499,11 +2845,13 @@
         "H156"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H155",
@@ -2514,11 +2862,13 @@
         "H156"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H156",
@@ -2530,11 +2880,13 @@
         "H158"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H157",
@@ -2545,11 +2897,13 @@
         "H159"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H158",
@@ -2561,11 +2915,13 @@
         "H160"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H159",
@@ -2576,11 +2932,13 @@
         "H160"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H160",
@@ -2592,11 +2950,13 @@
         "H162"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H161",
@@ -2607,11 +2967,13 @@
         "H163"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H162",
@@ -2622,11 +2984,13 @@
         "H163"
       ],
       "terrain": "resource",
-      "deck": "recipes",
+      "pointClass": "teleport",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H163",
@@ -2638,11 +3002,13 @@
         "H165"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H164",
@@ -2653,11 +3019,13 @@
         "H166"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H165",
@@ -2669,11 +3037,13 @@
         "H273"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H166",
@@ -2686,11 +3056,13 @@
         "H273"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H167",
@@ -2703,11 +3075,13 @@
         "H273"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H168",
@@ -2718,11 +3092,13 @@
         "H170"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H169",
@@ -2734,11 +3110,13 @@
         "H172"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H170",
@@ -2751,11 +3129,13 @@
         "H188"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H171",
@@ -2769,11 +3149,13 @@
         "H236"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H172",
@@ -2785,11 +3167,13 @@
         "H174"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H173",
@@ -2801,11 +3185,13 @@
         "H236"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H174",
@@ -2816,11 +3202,13 @@
         "H175"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H175",
@@ -2831,11 +3219,13 @@
         "H184"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H176",
@@ -2847,11 +3237,13 @@
         "H184"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H177",
@@ -2863,11 +3255,13 @@
         "H183"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H178",
@@ -2879,11 +3273,13 @@
         "H182"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H179",
@@ -2895,11 +3291,13 @@
         "H181"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H180",
@@ -2911,11 +3309,13 @@
         "H181"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H181",
@@ -2926,11 +3326,13 @@
         "H180"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H182",
@@ -2941,11 +3343,13 @@
         "H183"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H183",
@@ -2957,11 +3361,13 @@
         "H184"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H184",
@@ -2973,11 +3379,13 @@
         "H185"
       ],
       "terrain": "resource",
-      "deck": "mixed",
+      "pointClass": "dwarf_border",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H185",
@@ -2989,11 +3397,13 @@
         "H269"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H186",
@@ -3004,11 +3414,13 @@
         "H269"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H187",
@@ -3020,11 +3432,13 @@
         "H269"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H188",
@@ -3037,11 +3451,13 @@
         "H237"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H189",
@@ -3054,11 +3470,13 @@
         "H239"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H190",
@@ -3069,11 +3487,13 @@
         "H239"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H191",
@@ -3085,11 +3505,13 @@
         "H239"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H192",
@@ -3100,11 +3522,13 @@
         "H194"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H193",
@@ -3115,11 +3539,13 @@
         "H194"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H194",
@@ -3131,11 +3557,13 @@
         "H196"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H195",
@@ -3146,11 +3574,13 @@
         "H197"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H196",
@@ -3162,11 +3592,13 @@
         "H198"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H197",
@@ -3178,11 +3610,13 @@
         "H199"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H198",
@@ -3194,11 +3628,13 @@
         "H200"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H199",
@@ -3210,11 +3646,13 @@
         "H201"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H200",
@@ -3226,11 +3664,13 @@
         "H202"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H201",
@@ -3242,11 +3682,13 @@
         "H203"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H202",
@@ -3258,11 +3700,13 @@
         "H204"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H203",
@@ -3274,11 +3718,13 @@
         "H205"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H204",
@@ -3289,11 +3735,13 @@
         "H205"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H205",
@@ -3305,11 +3753,13 @@
         "H207"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H206",
@@ -3320,11 +3770,13 @@
         "H208"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H207",
@@ -3335,11 +3787,13 @@
         "H208"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H208",
@@ -3351,11 +3805,13 @@
         "H210"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H209",
@@ -3366,11 +3822,13 @@
         "H211"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H210",
@@ -3382,11 +3840,13 @@
         "H212"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H211",
@@ -3398,11 +3858,13 @@
         "H213"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H212",
@@ -3414,11 +3876,13 @@
         "H214"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H213",
@@ -3430,11 +3894,13 @@
         "H215"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H214",
@@ -3446,11 +3912,13 @@
         "H216"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H215",
@@ -3462,11 +3930,13 @@
         "H229"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H216",
@@ -3479,11 +3949,13 @@
         "H229"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H217",
@@ -3496,11 +3968,13 @@
         "H228"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H218",
@@ -3510,11 +3984,19 @@
         "H219"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "forest",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "forest",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H219",
@@ -3527,11 +4009,13 @@
         "H227"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H220",
@@ -3543,11 +4027,13 @@
         "H226"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H221",
@@ -3558,11 +4044,13 @@
         "H225"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H222",
@@ -3573,11 +4061,13 @@
         "H225"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H223",
@@ -3589,11 +4079,13 @@
         "H234"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H224",
@@ -3607,11 +4099,13 @@
         "H234"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "red",
       "role": "P",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H225",
@@ -3625,11 +4119,13 @@
         "H226"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "red",
       "role": "O",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H226",
@@ -3643,11 +4139,13 @@
         "H231"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H227",
@@ -3661,11 +4159,13 @@
         "H231"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "red",
       "role": "V",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H228",
@@ -3678,11 +4178,13 @@
         "H230"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H229",
@@ -3693,11 +4195,19 @@
         "H228"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "recipes",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "recipes",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H230",
@@ -3709,11 +4219,13 @@
         "H232"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "red",
       "role": "S",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H231",
@@ -3727,11 +4239,13 @@
         "H233"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H232",
@@ -3743,11 +4257,13 @@
         "H235"
       ],
       "terrain": "start",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": "red",
       "role": "K",
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H233",
@@ -3760,11 +4276,13 @@
         "H235"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H234",
@@ -3775,11 +4293,19 @@
         "H233"
       ],
       "terrain": "resource",
+      "pointClass": null,
       "deck": "blueprints",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "blueprints",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H235",
@@ -3789,11 +4315,19 @@
         "H233"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "mixed",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "mixed",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H236",
@@ -3805,11 +4339,13 @@
         "H237"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H237",
@@ -3821,11 +4357,13 @@
         "H238"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H238",
@@ -3837,11 +4375,13 @@
         "H240"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H239",
@@ -3854,11 +4394,13 @@
         "H240"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H240",
@@ -3870,11 +4412,13 @@
         "H242"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H241",
@@ -3885,11 +4429,13 @@
         "H243"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H242",
@@ -3901,11 +4447,13 @@
         "H244"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H243",
@@ -3917,11 +4465,13 @@
         "H245"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H244",
@@ -3933,11 +4483,13 @@
         "H246"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H245",
@@ -3949,11 +4501,13 @@
         "H248"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H246",
@@ -3965,11 +4519,13 @@
         "H248"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H247",
@@ -3979,11 +4535,13 @@
         "H248"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H248",
@@ -3994,11 +4552,13 @@
         "H247"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H249",
@@ -4011,11 +4571,13 @@
         "H268"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H250",
@@ -4026,11 +4588,13 @@
         "H253"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H251",
@@ -4041,11 +4605,13 @@
         "H253"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H252",
@@ -4056,11 +4622,13 @@
         "H254"
       ],
       "terrain": "resource",
-      "deck": "forest",
+      "pointClass": "green_deck",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H253",
@@ -4074,11 +4642,13 @@
         "H267"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H254",
@@ -4091,11 +4661,13 @@
         "H267"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H255",
@@ -4107,11 +4679,13 @@
         "H271"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H256",
@@ -4123,11 +4697,13 @@
         "H271"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H257",
@@ -4140,11 +4716,13 @@
         "H266"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H258",
@@ -4155,11 +4733,13 @@
         "H264"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H259",
@@ -4170,11 +4750,13 @@
         "H264"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H260",
@@ -4187,11 +4769,13 @@
         "H264"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H261",
@@ -4201,11 +4785,13 @@
         "H262"
       ],
       "terrain": "event",
-      "deck": "red",
+      "pointClass": "battle",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H262",
@@ -4218,11 +4804,13 @@
         "H269"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H263",
@@ -4236,11 +4824,13 @@
         "H269"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H264",
@@ -4254,11 +4844,13 @@
         "H265"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H265",
@@ -4272,11 +4864,13 @@
         "H268"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H266",
@@ -4290,11 +4884,13 @@
         "H267"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H267",
@@ -4308,11 +4904,13 @@
         "H268"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H268",
@@ -4326,11 +4924,13 @@
         "H269"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H269",
@@ -4344,11 +4944,13 @@
         "H268"
       ],
       "terrain": "path",
+      "pointClass": null,
       "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": null
     },
     {
       "id": "H270",
@@ -4358,11 +4960,19 @@
         "H019"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "recipes",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "recipes",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H271",
@@ -4372,11 +4982,19 @@
         "H256"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "dark_forest",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "dark_forest",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H272",
@@ -4386,11 +5004,19 @@
         "H060"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "recipes",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "recipes",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     },
     {
       "id": "H273",
@@ -4401,11 +5027,19 @@
         "H167"
       ],
       "terrain": "path",
-      "deck": null,
+      "pointClass": null,
+      "deck": "lake",
       "walkable": true,
       "side": null,
       "role": null,
-      "label": null
+      "label": null,
+      "marker": {
+        "class": "lake",
+        "offset": {
+          "x": 0,
+          "y": 0
+        }
+      }
     }
   ],
   "editorSource": {
@@ -4454,7 +5088,7 @@
         "v": 0.49114
       },
       "H010": {
-        "u": 0.102979,
+        "u": 0.102978,
         "v": 0.441429
       },
       "H011": {
@@ -5508,6 +6142,64 @@
       "H273": {
         "u": 0.511539,
         "v": 0.39172
+      }
+    },
+    "markerOffsets": {
+      "H010": {
+        "x": 0.056082,
+        "y": -1.289891
+      },
+      "H011": {
+        "x": -0.044708,
+        "y": 1.564794
+      },
+      "H014": {
+        "x": 1.184772,
+        "y": -0.894168
+      },
+      "H042": {
+        "x": 0.983585,
+        "y": -0.760043
+      },
+      "H101": {
+        "x": 0.550807,
+        "y": 0.926358
+      },
+      "H141": {
+        "x": 0.981439,
+        "y": 0.364534
+      },
+      "H218": {
+        "x": -1.128909,
+        "y": -0.431269
+      },
+      "H229": {
+        "x": 0.875222,
+        "y": -0.735694
+      },
+      "H234": {
+        "x": 0.862537,
+        "y": 1.01475
+      },
+      "H235": {
+        "x": 0.761062,
+        "y": -0.304425
+      },
+      "H270": {
+        "x": 0.50474,
+        "y": 0.953398
+      },
+      "H271": {
+        "x": 0.223542,
+        "y": -1.341252
+      },
+      "H272": {
+        "x": 0.386102,
+        "y": 1.153405
+      },
+      "H273": {
+        "x": -0.581209,
+        "y": 0.983585
       }
     }
   }

@@ -99,7 +99,8 @@ loadBoardMap().then(() => {
 // Загрузка граф-карты (статический asset, один раз).
 async function loadBoardMap() {
   try {
-    const res = await fetch('./assets/board-map.json', { cache: 'force-cache' });
+    const res = await fetch('./assets/board-map.json', { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     boardMap = await res.json();
   } catch (e) {
     console.error('Не удалось загрузить карту', e);
@@ -916,7 +917,7 @@ function renderBoard() {
 
   for (const el of boardSvg.querySelectorAll('.cell')) {
     const id = el.getAttribute('data-id');
-    el.setAttribute('class', 'cell');
+    el.setAttribute('class', cellClassName(cellById.get(id)));
     if (isStartCell(id)) el.classList.add('start');
     if (game?.characters.some(c => characterPosition(c) === id)) el.classList.add('occupied');
     if (sel && characterPosition(sel) === id) el.classList.add('selected');
@@ -1163,30 +1164,34 @@ function buildBoard() {
 
   const art = boardMap.art || {};
   const src = boardMap.editorSource?.art || {};
-  const aspect = (art.width && art.height) ? art.height / art.width : 0.75;
+  // viewBox — в пропорции ИСХОДНОЙ карты (центры нормированы к ней). Арт (target)
+  // растягивается в это пространство и масштабируется scaleX/scaleY от (0,0) —
+  // как backdrop в редакторе; так калибровка scaleX/scaleY сходится один-в-один.
+  const srcAspect = (src.width && src.height) ? src.height / src.width
+    : (art.width && art.height ? art.height / art.width : 0.75);
   VBW = 1000;
-  VBH = Math.round(VBW * aspect);
+  VBH = Math.round(VBW * srcAspect);
 
-  // Центры заданы по ИСХОДНОЙ карте (editorSource), а показываем целевой арт.
-  // Совмещаем калибровки обоих изображений (scaleX/scaleY): точка на исходной
-  // карте и на целевой совпадают, когда оба масштабированы своими scale.
-  //   cell_x = u · (srcW·srcScaleX)/(tgtW·tgtScaleX) · VBW   (аналогично по Y)
-  const useTarget = boardMap.cells.some(c => c.center);     // если есть target-центры
-  const fx = useTarget ? 1
-    : (src.width * (src.scaleX ?? 1)) / ((art.width || 1) * (art.scaleX ?? 1));
-  const fy = useTarget ? 1
-    : (src.height * (src.scaleY ?? 1)) / ((art.height || 1) * (art.scaleY ?? 1));
-
-  // Радиус гекса берём из карты и масштабируем тем же фактором (не выдумываем).
-  HEX_R = (boardMap.hex?.radius ?? 0.012) * VBW * fx;
+  // Радиус гекса из карты (нормирован к max целевой карты) → в долю исходной ширины
+  const tgtMax = Math.max(art.width || 1, art.height || 1);
+  const srcW = src.width || art.width || 1;
+  HEX_R = (boardMap.hex?.radius ?? 0.012) * (tgtMax / srcW) * VBW;
 
   const centers = boardMap.editorSource?.centers ?? {};
   for (const c of boardMap.cells) {
     const ctr = c.center ?? centers[c.id];
     if (!ctr) continue;
-    const cx = ctr.u * fx * VBW, cy = ctr.v * fy * VBH;
-    cells.push({ id: c.id, cx, cy });
-    cellById.set(c.id, { id: c.id, cx, cy, neighbors: c.neighbors || [] });
+    const cx = ctr.u * VBW, cy = ctr.v * VBH;
+    const cell = {
+      id: c.id,
+      cx,
+      cy,
+      neighbors: c.neighbors || [],
+      terrain: c.terrain || null,
+      pointClass: c.pointClass || null,
+    };
+    cells.push(cell);
+    cellById.set(c.id, cell);
   }
 
   for (const side of Object.keys(boardMap.starts || {})) {
@@ -1206,26 +1211,51 @@ function buildBoard() {
   boardSvg.appendChild(boardVp);
 
   if (art.src) {
-    // Арт показываем целиком на весь viewBox; совмещение с клетками — через
-    // фактор fx/fy выше (борд масштабируется под арт, а не арт под борд).
+    // Арт растягивается в source-пространство и масштабируется scaleX/scaleY
+    // от левого-верхнего угла (повторяет backdrop редактора).
     const img = document.createElementNS(svgNS, 'image');
     img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', artHref(art.src));
     img.setAttribute('href', artHref(art.src));
     img.setAttribute('x', 0);
     img.setAttribute('y', 0);
-    img.setAttribute('width', VBW);
-    img.setAttribute('height', VBH);
+    img.setAttribute('width', VBW * (art.scaleX ?? 1));
+    img.setAttribute('height', VBH * (art.scaleY ?? 1));
     img.setAttribute('preserveAspectRatio', 'none');
     boardVp.appendChild(img);
   }
 
   for (const c of cells) {
     const poly = document.createElementNS(svgNS, 'polygon');
-    poly.setAttribute('class', 'cell');
+    poly.setAttribute('class', cellClassName(c));
     poly.setAttribute('points', hexPoints(c.cx, c.cy, HEX_R));
     poly.setAttribute('data-id', c.id);
     poly.addEventListener('click', () => { if (!gestureMoved) handleCellClick(c.id); });
     boardVp.appendChild(poly);
+  }
+
+  // Иконки колод (deckMarkers): картинка на клетке; размер = радиус·2·size,
+  // оффсет — в долях радиуса. Поверх клеток, под фишками.
+  const dm = boardMap.deckMarkers || {};
+  const markerSize = HEX_R * 2 * (dm.size ?? 1.6);
+  const markerOffsets = boardMap.editorSource?.markerOffsets ?? {};
+  const assetRoot = artHref(dm.assetRoot || '/assets/cards/backs/markers');
+  for (const c of boardMap.cells) {
+    if (!c.marker?.class) continue;
+    const ctr = cellById.get(c.id);
+    if (!ctr) continue;
+    const off = markerOffsets[c.id] ?? c.marker.offset ?? { x: 0, y: 0 };
+    const href = `${assetRoot}/${c.marker.class}.png`;
+    const mk = document.createElementNS(svgNS, 'image');
+    mk.setAttribute('class', `deck-marker deck-marker--${c.marker.class}`);
+    mk.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
+    mk.setAttribute('href', href);
+    mk.setAttribute('x', (ctr.cx + (off.x || 0) * HEX_R - markerSize / 2).toFixed(2));
+    mk.setAttribute('y', (ctr.cy + (off.y || 0) * HEX_R - markerSize / 2).toFixed(2));
+    mk.setAttribute('width', markerSize.toFixed(2));
+    mk.setAttribute('height', markerSize.toFixed(2));
+    mk.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    mk.setAttribute('pointer-events', 'none');
+    boardVp.appendChild(mk);
   }
 
   boardEl.appendChild(boardSvg);
@@ -1234,6 +1264,13 @@ function buildBoard() {
 }
 
 // ── Пан / зум / автофокус ─────────────────────────────────────────
+function cellClassName(cell) {
+  const classes = ['cell'];
+  if (cell?.terrain) classes.push(`terrain-${cell.terrain}`);
+  if (cell?.pointClass) classes.push(`point-${cell.pointClass.replaceAll('_', '-')}`);
+  return classes.join(' ');
+}
+
 function applyView() {
   if (boardVp) {
     boardVp.setAttribute('transform',
