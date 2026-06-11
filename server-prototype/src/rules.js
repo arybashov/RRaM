@@ -329,23 +329,17 @@ function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
   };
 }
 
-// Снимает верхнюю карту красной колоды на красной клетке: зверь нападает на
-// персонажа, остальные карты достаются ему (нет места — в сброс). Пустая
-// колода — события нет.
+// Красная клетка — ВСЕГДА бой со зверем (решение 11.06: без находок).
+// Колода зверей: верхняя карта; опустела — перетасовываем зверей заново,
+// чтобы каждая красная клетка гарантированно давала встречу.
 function drawRedEvent(game, character) {
-  if (game.redDeck.length === 0) return { empty: true };
+  if (game.redDeck.length === 0) {
+    game.redDeck = buildRedDeck();
+  }
   const cardId = game.redDeck.shift();
   const card = CARD_BY_ID[cardId];
-  if (card?.type === 'beast') {
-    character.beastFight = { cardId, successes: 0 };
-    return { cardId, name: card.name, type: card.type, desc: card.desc, beast: true };
-  }
-  if (character.inventory.length < INVENTORY_LIMIT) {
-    character.inventory.push(cardId);
-    return { cardId, name: card?.name, type: card?.type, desc: card?.desc, beast: false, toInventory: true };
-  }
-  game.discard.push(cardId);
-  return { cardId, name: card?.name, type: card?.type, desc: card?.desc, beast: false, discarded: true };
+  character.beastFight = { cardId, successes: 0 };
+  return { cardId, name: card?.name, type: card?.type, desc: card?.desc, beast: true };
 }
 
 // Схватка со зверем: один кубик за попытку. killOn и выше — мгновенное
@@ -732,11 +726,12 @@ function buildDeck() {
   return shuffle(deck);
 }
 
-// Красная колода (встречи на красных клетках) — отдельный стек.
+// Красная колода — ТОЛЬКО звери (красные клетки = бой, без находок).
+// Шкуры/оружие красной колоды приходят как трофеи и добыча, не с клеток.
 function buildRedDeck() {
   const deck = [];
   for (const card of CARD_CATALOG) {
-    if (card.deck !== 'red') continue;
+    if (card.deck !== 'red' || card.type !== 'beast') continue;
     for (let i = 0; i < card.copies; i += 1) {
       deck.push(card.id);
     }
