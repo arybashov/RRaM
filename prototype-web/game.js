@@ -258,16 +258,14 @@ function handleMsg({ type, payload }) {
       break;
 
     case 'chat:history':
-      renderLobbyChat(payload?.messages ?? []);
+      // История чата больше не используется (чат только в игре)
       break;
 
     case 'chat:message':
+      // Чат только в игре (room scope) — в журнал
       if (payload?.scope === 'room') {
-        // Игровой чат — прямо в журнал (текст экранируем: журнал рисуется innerHTML)
         addLog(`💬 ${escapeHtml(payload.name ?? 'Игрок')}: ${escapeHtml(payload.text ?? '')}`, { type: 'chat' });
         renderLog();
-      } else {
-        appendLobbyChat(payload);
       }
       break;
 
@@ -477,14 +475,6 @@ function buildLobbyOverlay() {
           <span class="lobby-code-hint">Ожидание второго игрока — партия видна в списке</span>
           <button id="cancelWaitBtn" class="lobby-cancel-btn">Отменить ожидание</button>
         </div>
-        <div id="lobbyChat" class="lobby-chat">
-          <div class="lobby-list-title">Чат</div>
-          <div id="lobbyChatMsgs" class="lobby-chat-msgs"></div>
-          <div class="chat-input-row">
-            <input id="lobbyChatInput" type="text" placeholder="Сообщение…" maxlength="200" autocomplete="off" />
-            <button id="lobbyChatSend" aria-label="Отправить">➤</button>
-          </div>
-        </div>
         <div class="lobby-bottom-row">
           <button id="settingsBtn" class="lobby-link-btn">⚙ Настройки</button>
           <button id="reconnectBtn" class="lobby-link-btn hidden">⟳ Переподключиться</button>
@@ -514,28 +504,6 @@ function buildLobbyOverlay() {
     wsSend('room:create', { playerName: name(), vsBot: true });
   });
   lobbyEl.querySelector('#cancelWaitBtn').addEventListener('click', cancelWaitingRoom);
-
-  // Лобби-чат: общий канал для всех, кто в лобби/ожидании
-  const lobbyChatInput = lobbyEl.querySelector('#lobbyChatInput');
-  const lobbyChatSendBtn = lobbyEl.querySelector('#lobbyChatSend');
-  const sendLobbyChat = () => {
-    const text = lobbyChatInput.value.trim();
-    if (!text) return;
-    wsSend('chat:send', { text, name: name() });
-    lobbyChatInput.value = '';
-    lobbyChatSendBtn.classList.remove('visible');
-  };
-  lobbyChatSendBtn.addEventListener('click', sendLobbyChat);
-  lobbyChatInput.addEventListener('input', () => {
-    if (lobbyChatInput.value.trim()) {
-      lobbyChatSendBtn.classList.add('visible');
-    } else {
-      lobbyChatSendBtn.classList.remove('visible');
-    }
-  });
-  lobbyChatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); sendLobbyChat(); }
-  });
 
   // Настройки — открывают отдельный оверлей
   lobbyEl.querySelector('#settingsBtn').addEventListener('click', () => openSettings('lobby'));
@@ -772,26 +740,6 @@ function hideLobby()  {
   lobbyEl.classList.add('hidden');
   menuBtn?.classList.remove('hidden');
   wsSend('lobby:unsubscribe');
-}
-
-// ── Чат ───────────────────────────────────────────────────────────
-
-function appendLobbyChat(m) {
-  const box = document.querySelector('#lobbyChatMsgs');
-  if (!box) return;
-  const div = document.createElement('div');
-  div.className = 'lobby-chat-msg';
-  div.innerHTML = `<b>${escapeHtml(m?.name || 'Гость')}:</b> ${escapeHtml(m?.text || '')}`;
-  box.appendChild(div);
-  while (box.children.length > 60) box.firstChild.remove();
-  box.scrollTop = box.scrollHeight;
-}
-
-function renderLobbyChat(messages) {
-  const box = document.querySelector('#lobbyChatMsgs');
-  if (!box) return;
-  box.innerHTML = '';
-  for (const m of messages) appendLobbyChat(m);
 }
 
 // Режим ожидания второго игрока (вход — только из списка открытых игр)
