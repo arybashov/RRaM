@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>RRaM</title>
-    <link rel="stylesheet" href="./styles.css?v=20260611-20" />
+    <link rel="stylesheet" href="./styles.css?v=20260611-23" />
   </head>
   <body>
     <main class="app">
@@ -51,11 +51,15 @@
           <h2>Инвентарь</h2>
           <div id="inventory" class="inventory empty">Выберите персонажа.</div>
           <h2>Журнал</h2>
+          <div class="chat-input-row sheet-chat">
+            <input id="gameChatInput" type="text" placeholder="Сообщение сопернику…" maxlength="200" autocomplete="off" />
+            <button id="gameChatSend" aria-label="Отправить">➤</button>
+          </div>
           <div id="log" class="log" aria-live="polite"></div>
         </div>
       </section>
     </main>
 
-    <script src="./game.js?v=20260611-20"></script>
+    <script src="./game.js?v=20260611-23"></script>
   </body>
 </html>
