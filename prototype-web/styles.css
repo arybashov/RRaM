@@ -1977,3 +1977,77 @@ h2::after {
   animation: end-turn-pulse 1.4s ease-in-out infinite;
 }
 
+
+/* Версия сборки в лобби — под логотипом */
+.lobby-version {
+  margin-top: -6px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ---------- Чат (лобби + журнал) ---------- */
+.lobby-chat { margin-top: 14px; text-align: left; }
+
+.lobby-chat-msgs {
+  max-height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 13px;
+}
+.lobby-chat-msgs:empty::before {
+  content: "Пока тихо — напишите первым";
+  color: var(--muted);
+  opacity: 0.7;
+  font-size: 12px;
+}
+.lobby-chat-msg b { color: var(--accent); font-weight: 700; }
+
+.chat-input-row {
+  position: relative;
+  margin-top: 8px;
+}
+.chat-input-row input {
+  width: 100%;
+  padding-right: 44px; /* место для кнопки */
+}
+.chat-input-row button {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 15px;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #04231b;
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.chat-input-row button.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sheet-chat { margin: 0 0 10px; }
+
+/* Сообщения чата в журнале */
+.log-entry.log-chat { color: var(--accent); font-weight: 600; }

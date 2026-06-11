@@ -116,13 +116,22 @@ inventoryEl?.addEventListener('click', onInventoryClick);
 // Игровой чат — поле в шторке журнала
 {
   const gameChatInput = document.querySelector('#gameChatInput');
+  const gameChatSendBtn = document.querySelector('#gameChatSend');
   const sendGameChat = () => {
     const text = gameChatInput?.value.trim();
     if (!text) return;
     wsSend('chat:send', { text, name: name() });
     gameChatInput.value = '';
+    gameChatSendBtn?.classList.remove('visible');
   };
-  document.querySelector('#gameChatSend')?.addEventListener('click', sendGameChat);
+  gameChatSendBtn?.addEventListener('click', sendGameChat);
+  gameChatInput?.addEventListener('input', () => {
+    if (gameChatInput.value.trim()) {
+      gameChatSendBtn?.classList.add('visible');
+    } else {
+      gameChatSendBtn?.classList.remove('visible');
+    }
+  });
   gameChatInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); sendGameChat(); }
   });
@@ -508,13 +517,22 @@ function buildLobbyOverlay() {
 
   // Лобби-чат: общий канал для всех, кто в лобби/ожидании
   const lobbyChatInput = lobbyEl.querySelector('#lobbyChatInput');
+  const lobbyChatSendBtn = lobbyEl.querySelector('#lobbyChatSend');
   const sendLobbyChat = () => {
     const text = lobbyChatInput.value.trim();
     if (!text) return;
     wsSend('chat:send', { text, name: name() });
     lobbyChatInput.value = '';
+    lobbyChatSendBtn.classList.remove('visible');
   };
-  lobbyEl.querySelector('#lobbyChatSend').addEventListener('click', sendLobbyChat);
+  lobbyChatSendBtn.addEventListener('click', sendLobbyChat);
+  lobbyChatInput.addEventListener('input', () => {
+    if (lobbyChatInput.value.trim()) {
+      lobbyChatSendBtn.classList.add('visible');
+    } else {
+      lobbyChatSendBtn.classList.remove('visible');
+    }
+  });
   lobbyChatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); sendLobbyChat(); }
   });
