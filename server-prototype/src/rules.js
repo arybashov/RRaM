@@ -207,9 +207,6 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
   const from = ownCharacter(game, playerId, fromId);
   const to = ownCharacter(game, playerId, toId);
 
-  if (!charactersAdjacent(from, to)) {
-    throw new Error('Передавать карты можно только персонажу рядом — на соседней клетке.');
-  }
   if (from.inventory.length === 0) {
     throw new Error('У персонажа нет карт для передачи.');
   }
@@ -227,13 +224,10 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
 }
 
 // Переносит одну карту по индексу между персонажами игрока (для передачи из ящика).
-// Передача возможна только персонажу рядом — на соседней клетке (или той же).
+// Расстояние не ограничено — передавать можно любому своему персонажу.
 function moveOneCard(game, playerId, fromId, toId, cardIndex) {
   const from = ownCharacter(game, playerId, fromId);
   const to = ownCharacter(game, playerId, toId);
-  if (!charactersAdjacent(from, to)) {
-    throw new Error('Передавать карты можно только персонажу рядом — на соседней клетке.');
-  }
   if (INVENTORY_LIMIT - to.inventory.length <= 0) {
     throw new Error('У получателя нет места в инвентаре.');
   }
@@ -664,13 +658,6 @@ function combatOpponent(game, character) {
     return null;
   }
   return opponent;
-}
-
-// Рядом = на той же клетке или на соседней (для передачи карт)
-function charactersAdjacent(first, second) {
-  if (!first.position || !second.position) return false;
-  if (first.position === second.position) return true;
-  return neighbors(first.position).includes(second.position);
 }
 
 function linkCombat(first, second) {

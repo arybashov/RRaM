@@ -1,6 +1,6 @@
 import { INVENTORY_LIMIT } from './constants.js';
 import { availableAttackTargets, availableMoveTargets } from './rules.js';
-import { enemyIslandCells, neighbors, shortestDistance } from './map.js';
+import { enemyIslandCells, shortestDistance } from './map.js';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -190,8 +190,6 @@ function collectTransferActions({ game, botPlayerId, dieIndex }) {
   for (const from of characters) {
     for (const to of characters) {
       if (from.id === to.id || from.inventory.length === 0) continue;
-      // Передача только персонажу рядом — на соседней клетке
-      if (!neighbors(from.position ?? '').includes(to.position)) continue;
       const capacity = INVENTORY_LIMIT - to.inventory.length;
       const imbalance = from.inventory.length - to.inventory.length;
       if (capacity <= 0 || imbalance < 3) continue;

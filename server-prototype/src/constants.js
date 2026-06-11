@@ -37,6 +37,9 @@ export const BEAST_TROPHIES = Object.freeze(['boar_red', 'boar_forest', 'wolf', 
 // Дубина: враг в бою теряет 10 HP каждое начало хода владельца (без учёта брони)
 export const CLUB_DAMAGE = 10;
 
+// Туман войны: вражеские персонажи видны только в радиусе N клеток от своих
+export const FOG_RADIUS = 5;
+
 // Карты сгруппированы по колодам. Каждый объект: { id, deck, type, copies }
 // type: 'ingredient' | 'weapon' | 'armor' | 'beast' | 'blueprint' | 'recipe' | 'special' | 'provocation'
 // Базовые карты персонажей НЕ входят в общие колоды — они выдаются при старте.

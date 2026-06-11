@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { PLAYER_LIMIT, CARD_BY_ID, BEASTS } from './constants.js';
+import { PLAYER_LIMIT, CARD_BY_ID, BEASTS, FOG_RADIUS } from './constants.js';
 import * as rules from './rules.js';
-import { mapSnapshot } from './map.js';
+import { mapSnapshot, reachableCells } from './map.js';
 
 // Хранилище комнат, игроков и сессий. Игровую логику не знает —
 // делегирует движку правил (rules.js) и отдает персональные снимки.
@@ -242,7 +242,22 @@ function beastFightView(beastFight) {
   };
 }
 
+// Туман войны: клетки в радиусе FOG_RADIUS от живых персонажей игрока.
+// Вражеские персонажи вне этой зоны скрываются из снапшота (position: null).
+function fogVisibleCells(game, forPlayerId) {
+  const seen = new Set();
+  for (const c of game.characters) {
+    if (c.owner !== forPlayerId || c.hp <= 0 || !c.position) continue;
+    seen.add(c.position);
+    for (const t of reachableCells(c.position, FOG_RADIUS, new Set())) {
+      seen.add(t.cellId);
+    }
+  }
+  return seen;
+}
+
 function snapshotGame(game, forPlayerId) {
+  const visible = forPlayerId ? fogVisibleCells(game, forPlayerId) : null;
   return {
     over: game.over,
     winnerId: game.winnerId,
@@ -262,19 +277,27 @@ function snapshotGame(game, forPlayerId) {
       movedCharacterId: game.turn.movedCharacterId ?? null,
       drawnThisTurn: Boolean(game.turn.drawnThisTurn),
     },
-    characters: game.characters.map((c) => ({
-      id: c.id,
-      owner: c.owner,
-      role: c.role,
-      position: c.position,
-      hp: c.hp,
-      combatOpponentId: c.combatOpponentId ?? null,
-      // схватка со зверем публична — видна обоим игрокам
-      beastFight: beastFightView(c.beastFight),
-      cardCount: c.inventory.length,
-      // полный инвентарь — только владельцу; id резолвим в карточку для UI
-      inventory: c.owner === forPlayerId ? c.inventory.map((id) => cardView(id, c)) : undefined,
-    })),
+    characters: game.characters.map((c) => {
+      // Враг вне радиуса тумана — позицию скрываем (фишка не рисуется)
+      const fogged = visible
+        && c.owner !== forPlayerId
+        && c.position
+        && !visible.has(c.position);
+      return {
+        id: c.id,
+        owner: c.owner,
+        role: c.role,
+        position: fogged ? null : c.position,
+        hidden: Boolean(fogged),
+        hp: c.hp,
+        combatOpponentId: c.combatOpponentId ?? null,
+        // схватка со зверем публична — видна обоим игрокам
+        beastFight: beastFightView(c.beastFight),
+        cardCount: c.inventory.length,
+        // полный инвентарь — только владельцу; id резолвим в карточку для UI
+        inventory: c.owner === forPlayerId ? c.inventory.map((id) => cardView(id, c)) : undefined,
+      };
+    }),
     legalTargets: snapshotLegalTargets(game, forPlayerId),
   };
 }
