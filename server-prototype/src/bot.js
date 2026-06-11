@@ -1,6 +1,6 @@
 import { INVENTORY_LIMIT } from './constants.js';
 import { availableAttackTargets, availableMoveTargets } from './rules.js';
-import { enemyIslandCells, shortestDistance } from './map.js';
+import { enemyIslandCells, neighbors, shortestDistance } from './map.js';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -12,9 +12,15 @@ const TARGET_COLLECTION_KEYS = Object.freeze([
   'targetCells',
 ]);
 
+// Только ЖИВЫЕ на доске: collectors/goals выше предполагают, что персонаж может
+// ходить/атаковать/брать. Мёртвый (hp=0, position=null) ломает availableMoveTargets
+// и т.п. (ownCharacter() бросает «Персонаж выбыл из игры»), из-за чего после
+// первой потери бот переставал ходить.
 function ownCharacters(game, botPlayerId) {
   return (game.characters ?? []).filter(
-    (character) => character.owner === botPlayerId,
+    (character) => character.owner === botPlayerId
+      && character.hp > 0
+      && character.position,
   );
 }
 
@@ -159,9 +165,11 @@ function roleRotationBonus(role, game, botPlayerId, dieIndex) {
 
 function collectDrawActions({ game, botPlayerId, dieIndex }) {
   if ((game.deck?.length ?? 0) === 0) return [];
+  if (game.turn.drawnThisTurn) return []; // добор — раз за бросок
 
   return ownCharacters(game, botPlayerId)
-    .filter((character) => character.inventory.length < INVENTORY_LIMIT)
+    .filter((character) => character.inventory.length < INVENTORY_LIMIT
+      && !character.beastFight) // в схватке со зверем добор запрещён
     .map((character) => ({
       type: 'action:draw',
       payload: { characterId: character.id, dieIndex },
@@ -182,6 +190,8 @@ function collectTransferActions({ game, botPlayerId, dieIndex }) {
   for (const from of characters) {
     for (const to of characters) {
       if (from.id === to.id || from.inventory.length === 0) continue;
+      // Передача только персонажу рядом — на соседней клетке
+      if (!neighbors(from.position ?? '').includes(to.position)) continue;
       const capacity = INVENTORY_LIMIT - to.inventory.length;
       const imbalance = from.inventory.length - to.inventory.length;
       if (capacity <= 0 || imbalance < 3) continue;
@@ -317,7 +327,22 @@ function collectMoveActions({ game, botPlayerId, dieIndex, state }) {
   return actions;
 }
 
+// Схватка со зверем: бьём зверя доступным кубиком (режим split).
+function collectFightBeastActions({ game, botPlayerId, dieIndex }) {
+  const value = game.turn.dice?.[dieIndex];
+  if (!Number.isFinite(value)) return [];
+
+  return ownCharacters(game, botPlayerId)
+    .filter((character) => character.beastFight && character.hp > 0 && character.position)
+    .map((character) => ({
+      type: 'action:fightBeast',
+      payload: { characterId: character.id, dieIndex },
+      facts: { character, value },
+    }));
+}
+
 const ACTION_GENERATORS = Object.freeze([
+  collectFightBeastActions,
   collectAttackActions,
   collectDrawActions,
   collectTransferActions,
@@ -325,6 +350,19 @@ const ACTION_GENERATORS = Object.freeze([
 ]);
 
 const DEFAULT_GOALS = Object.freeze([
+  {
+    // Зверя нельзя игнорировать — он кусает каждый ход, поэтому
+    // схватка важнее добора, передачи и движения.
+    id: 'fight-beast',
+    evaluate(action) {
+      if (action.type !== 'action:fightBeast') return null;
+      const { character, value } = action.facts;
+      return {
+        score: 5000 + value * 10,
+        reason: `fightBeast:${character.role}:value=${value}`,
+      };
+    },
+  },
   {
     id: 'attack-adjacent',
     evaluate(action) {
@@ -401,7 +439,10 @@ export function rankBotActions(
   if (dieIndex !== 0 && dieIndex !== 1) return [];
 
   const context = { game, state, botPlayerId, dieIndex };
-  const actions = ACTION_GENERATORS.flatMap((generator) => generator(context))
+  // Каждый генератор — в try/catch, чтобы одна осечка не сваливала весь список
+  const actions = ACTION_GENERATORS.flatMap((generator) => {
+    try { return generator(context); } catch { return []; }
+  })
     .map((action) => scoreAction(action, context, goals))
     .filter(Boolean)
     .map(({ facts, ...action }) => action);
@@ -474,8 +515,18 @@ export async function runBotTurn({
   // moveSum: одно перемещение на сумму кубиков за ход (а не два раздельных).
   // Карты победы пока не реализованы, поэтому бот использует сумму кубиков
   // для движения к территории противника или побега из боя.
+  // Исключение — схватка со зверем: переходим в split, чтобы бить зверя
+  // кубиками (action:fightBeast доступен только в split).
+  const inBeastFight = (getRoom(roomId)?.game?.characters ?? []).some(
+    (character) =>
+      character.owner === botPlayerId
+      && character.hp > 0
+      && character.position
+      && character.beastFight,
+  );
+
   await wait(350);
-  if (!simple('turn:setMode', { mode: 'moveSum' })) {
+  if (!simple('turn:setMode', { mode: inBeastFight ? 'split' : 'moveSum' })) {
     simple('turn:end');
     return;
   }
@@ -489,6 +540,19 @@ export async function runBotTurn({
     botPlayerId,
     dieIndex: 0,
   });
+
+  if (inBeastFight) {
+    // Второй кубик — ещё одна попытка добить зверя (или другое действие).
+    await wait(300);
+    performBestAction({
+      applyCommand,
+      getRoom,
+      broadcast,
+      roomId,
+      botPlayerId,
+      dieIndex: 1,
+    });
+  }
 
   await wait(450);
   simple('turn:end');

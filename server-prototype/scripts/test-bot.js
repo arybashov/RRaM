@@ -74,6 +74,7 @@ test('bot balances inventories by transfer when the deck is empty', () => {
   const characters = game.characters.filter((character) => character.owner === 'bot');
   const from = botCharacter(game, 'K');
   const to = botCharacter(game, 'S');
+  to.position = neighbors(from.position)[0]; // получатель рядом — на соседней клетке
   for (const character of characters) {
     while (character.inventory.length < 5) character.inventory.push('card');
   }
@@ -254,4 +255,34 @@ test('bot advances toward the enemy island without a false map victory', async (
   ));
   assert.equal(game.over, false);
   assert.equal(game.winnerId, null);
+});
+
+test('бот находит действия даже когда один из его персонажей убит', () => {
+  const game = freshGame();
+  // Убиваем одного персонажа бота: hp=0, position=null, inventory пуст
+  const killed = botCharacter(game, 'V');
+  killed.hp = 0;
+  killed.position = null;
+  killed.inventory = [];
+  prepareBotTurn(game, [3, 4]);
+  // Не должно бросать и должен быть хотя бы один кандидат — иначе бот зависает
+  const ranked = rankBotActions(game, 'bot', 0);
+  assert.ok(ranked.length > 0, 'у бота должны быть кандидаты после потери персонажа');
+  // ни одна payload не должна ссылаться на убитого
+  const usesDead = ranked.some(a =>
+    a.payload?.characterId === killed.id
+    || a.payload?.attackerId === killed.id
+    || a.payload?.fromId === killed.id
+    || a.payload?.toId === killed.id);
+  assert.equal(usesDead, false, 'бот не должен пытаться действовать убитым персонажем');
+});
+
+test('бот ходит за все 4 кубика подряд после потери персонажа (без зависания)', () => {
+  const game = freshGame();
+  const killed = botCharacter(game, 'V');
+  killed.hp = 0; killed.position = null; killed.inventory = [];
+  prepareBotTurn(game, [4, 3]);
+  // Каждый ранк не пустой для обоих кубиков
+  assert.ok(rankBotActions(game, 'bot', 0).length > 0);
+  assert.ok(rankBotActions(game, 'bot', 1).length > 0);
 });

@@ -303,6 +303,22 @@ h2::after {
   white-space: nowrap;
 }
 
+/* Кнопка боя со зверем (создаётся из JS, видна только во время боя) */
+.dock-dice #fightBeastBtn {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  white-space: nowrap;
+  border-color: transparent;
+  background: linear-gradient(135deg, #a91529 0%, #5e0b18 100%);
+  color: #ffe9ec;
+  box-shadow: 0 10px 22px -12px rgba(169, 21, 41, 0.9);
+}
+
+.dock-dice #fightBeastBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #c91c33 0%, #7a0f20 100%);
+}
+
 .dock-modes {
   display: grid;
   width: 100%;
@@ -641,12 +657,24 @@ h2::after {
   fill: var(--cell-fill, #f4c95d);
 }
 
+/* Подсветка валидных клеток.
+   Обычные клетки (path) — насыщенная жёлтая заливка.
+   Цветные (event/resource/старты/колоды/опушка) — НЕ перекрашиваем, чтобы
+   их собственный цвет (красные события и т.п.) оставался виден; только
+   жёлтую обводку даём заметно толще. */
 .cell.valid {
-  fill: rgba(244, 201, 93, 0.92);
+  fill: rgba(244, 201, 93, 0.7);
   fill-opacity: 1;
   stroke: #fff3cf;
   stroke-opacity: 1;
-  stroke-width: 1.6;
+  stroke-width: 2.2;
+}
+
+.cell.valid.colored {
+  fill: var(--cell-fill, #dbe8f7);
+  fill-opacity: var(--cell-fill-opacity, 0.45);
+  stroke: #ffd866;
+  stroke-width: 3.4;
 }
 
 .cell.occupied {
@@ -736,6 +764,25 @@ h2::after {
   to { filter: drop-shadow(0 0 10px rgba(255, 50, 60, 1)); }
 }
 
+/* Персонаж в бою со зверем (красная клетка): тёмно-красное пульсирующее свечение.
+   Бой с игроком (.in-combat) и цель атаки (.attackable) приоритетнее. */
+.token.beast-fight:not(.attackable):not(.in-combat) circle {
+  stroke: #b3122a;
+  stroke-width: 4;
+  animation: beast-fight-pulse 1.3s ease-in-out infinite alternate;
+}
+
+@keyframes beast-fight-pulse {
+  from {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 4px rgba(179, 18, 42, 0.65));
+  }
+  to {
+    stroke-opacity: 0.6;
+    filter: drop-shadow(0 0 10px rgba(179, 18, 42, 1));
+  }
+}
+
 .token.own:hover circle,
 .token.own:focus-visible circle {
   stroke: var(--gold);
@@ -759,11 +806,20 @@ h2::after {
   gap: 9px;
 }
 
+/* Сводка боя со зверем — первым блоком над картами инвентаря */
+.beast-info {
+  padding: 10px 12px 10px 14px;
+  border: 1px solid rgba(179, 18, 42, 0.5);
+  border-left: 4px solid #b3122a;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(179, 18, 42, 0.16), rgba(179, 18, 42, 0.05));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 .card {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   padding: 10px 12px 10px 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
@@ -772,7 +828,28 @@ h2::after {
   font-weight: 600;
 }
 
+.card[role="button"] { cursor: pointer; }
+.card.expanded { background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)); }
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .card-name { flex: 1; min-width: 0; }
+
+.card-caret { flex: none; font-size: 11px; color: var(--muted); }
+
+.card-desc {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--muted);
+}
 
 .card-type {
   flex: none;
@@ -866,6 +943,19 @@ h2::after {
   background: rgba(255,255,255,0.04);
   color: var(--muted);
 }
+
+/* Счётчик RTT до сервера */
+.conn-rtt {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.conn-rtt:empty { display: none; }
+.conn-rtt.rtt-good { color: var(--accent); }
+.conn-rtt.rtt-mid  { color: var(--gold); }
+.conn-rtt.rtt-bad  { color: #e0563f; }
 
 .conn-connected    { color: var(--accent); border-color: rgba(70,194,160,0.4); background: rgba(70,194,160,0.08); }
 .conn-connecting   { color: var(--gold);   border-color: rgba(244,201,93,0.35); }
@@ -1342,4 +1432,547 @@ h2::after {
   .lobby-logo {
     font-size: 34px;
   }
+}
+
+/* ---------- «Ящик» карт команды (drag-and-drop передача) ---------- */
+.cardbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(7, 11, 19, 0.72);
+  backdrop-filter: blur(4px);
+}
+.cardbox-overlay.hidden { display: none; }
+
+.cardbox {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 100%);
+  max-height: calc(100dvh - 24px);
+  background: var(--panel-solid);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cardbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.cardbox-title { font-weight: 700; }
+.cardbox-close {
+  width: 34px; height: 34px; padding: 0;
+  font-size: 16px; line-height: 1;
+  background: transparent; border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm); color: var(--ink);
+}
+
+.cardbox-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.cbx-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.cbx-row.drop-target {
+  border-color: var(--accent);
+  background: rgba(70, 194, 160, 0.12);
+}
+
+.cbx-portrait {
+  flex: none;
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.cbx-portrait img {
+  width: 52px; height: 52px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+.cbx-portrait.side-red  { color: #e98f7a; }
+.cbx-portrait.side-green { color: #9ec97a; }
+
+.cbx-slots {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+}
+.cbx-empty { color: var(--muted); font-size: 12px; align-self: center; opacity: 0.7; }
+
+.cbx-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 150px;
+  padding: 7px 9px 7px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  font-size: 12px;
+  font-weight: 600;
+  touch-action: none; /* перетаскивание не должно скроллить список */
+}
+.cardbox.can-transfer .cbx-card,
+.cardbox-overlay.can-transfer .cbx-card { cursor: grab; }
+.cbx-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 6px; bottom: 6px;
+  width: 3px; border-radius: 3px;
+  background: var(--card-accent, var(--gold));
+}
+.cbx-card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cbx-card.card-locked .cbx-card-name { color: var(--muted); }
+.cbx-lock { flex: none; font-size: 11px; }
+.cbx-card.dragging { opacity: 0.35; }
+
+.cbx-ghost {
+  position: fixed;
+  z-index: 90;
+  margin: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-3deg);
+  box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.7);
+  opacity: 0.95;
+}
+
+.cardbox-hint {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- Сцена боя ---------- */
+.combat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70; /* ниже ящика (80) — подвоз открывается поверх */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(7, 11, 19, 0.78);
+  backdrop-filter: blur(5px);
+}
+.combat-overlay.hidden { display: none; }
+
+/* ---------- Event Overlay (Found Card) ---------- */
+.event-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in 0.2s ease-out;
+}
+
+.event-overlay.hidden { display: none; }
+
+.event-card-reveal {
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 320px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+  animation: card-pop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.event-title {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.event-card-display {
+  margin-bottom: 24px;
+}
+
+.event-card-display .card {
+  display: block;
+  margin: 0 auto;
+  text-align: left;
+  transform: scale(1.1);
+}
+
+.event-ok-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes card-pop {
+  from { transform: scale(0.8) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.combat {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  max-height: calc(100dvh - 24px);
+  background: var(--panel-solid);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.combat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.combat-title { font-weight: 700; }
+.combat-min {
+  padding: 6px 10px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+}
+
+.combat-zone { padding: 12px 14px; overflow-y: auto; }
+.combat-enemy { background: rgba(224, 86, 63, 0.08); border-bottom: 1px solid var(--line); }
+.combat-mine  { background: rgba(70, 194, 160, 0.07); border-top: 1px solid var(--line); }
+
+.cb-char { display: flex; align-items: center; gap: 10px; }
+.cb-char img {
+  width: 46px; height: 46px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+}
+.cb-char-info { flex: 1; min-width: 0; }
+.cb-name { font-size: 13px; font-weight: 700; }
+.cb-hp { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+
+.cb-hpbar {
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.cb-hpbar > div { height: 100%; background: #e0563f; transition: width 0.4s ease; }
+.cb-hpbar.mine > div { background: var(--accent); }
+
+.cb-cards { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.combat-mine .cb-cards { margin: 0 0 10px; }
+
+.cb-back {
+  width: 34px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0 4px, rgba(255,255,255,0.02) 4px 8px);
+}
+
+.cb-card {
+  position: relative;
+  max-width: 140px;
+  padding: 7px 9px 7px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cb-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 6px; bottom: 6px;
+  width: 3px; border-radius: 3px;
+  background: var(--card-accent, var(--gold));
+}
+.cb-card.card-locked { color: var(--muted); }
+.cb-none { font-size: 12px; color: var(--muted); opacity: 0.8; }
+
+.combat-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 14px;
+}
+.cb-dice { display: flex; gap: 10px; }
+.cb-die {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.cb-die.used { opacity: 0.35; text-decoration: line-through; }
+.cb-damage { font-size: 13px; color: var(--muted); min-height: 18px; }
+.cb-damage b { color: var(--ink); font-size: 15px; }
+
+.cb-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.cb-actions button { font-weight: 700; }
+.cb-actions #cbAttackBtn {
+  border-color: transparent;
+  background: linear-gradient(135deg, #e0563f 0%, #b3122a 100%);
+  color: #fff;
+}
+.cb-actions #cbAttackBtn:disabled { opacity: 0.4; }
+
+.topbar-combat-btn {
+  padding: 5px 11px;
+  font-size: 15px;
+  border: 1px solid rgba(224, 86, 63, 0.55);
+  border-radius: var(--radius-sm);
+  background: rgba(224, 86, 63, 0.14);
+  color: var(--ink);
+  animation: combat-btn-pulse 1.6s ease-in-out infinite;
+}
+@keyframes combat-btn-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 86, 63, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(224, 86, 63, 0); }
+}
+
+/* Зверь в сцене боя */
+.cb-beast-icon {
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px;
+  border-radius: var(--radius-sm);
+  background: rgba(224, 86, 63, 0.12);
+  border: 1px solid rgba(224, 86, 63, 0.4);
+}
+.cb-beast-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.cb-hpbar.beast > div { background: var(--gold); }
+.cb-actions #cbHitBtn {
+  border-color: transparent;
+  background: linear-gradient(135deg, #e0563f 0%, #b3122a 100%);
+  color: #fff;
+  font-weight: 700;
+}
+.cb-actions #cbHitBtn:disabled { opacity: 0.4; }
+
+/* Бросок и конец хода в сцене боя */
+.cb-dice #cbRollBtn {
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 700;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #06241c;
+}
+.cb-dice #cbEndBtn {
+  padding: 11px 20px;
+  font-weight: 700;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent-2) 0%, var(--accent-2-deep) 100%);
+  color: #2a0f02;
+}
+
+/* Кнопка «⚔ В бою» с подписью */
+.topbar-combat-btn { font-size: 13px; font-weight: 700; white-space: nowrap; }
+
+/* Подсказка крафта в инвентаре */
+.craft-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid rgba(244, 201, 93, 0.45);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius-sm);
+  background: rgba(244, 201, 93, 0.08);
+  font-size: 12px;
+  font-weight: 600;
+}
+.craft-info button {
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--gold) 0%, #d8a13a 100%);
+  color: #2a1c02;
+}
+.craft-info button:disabled { opacity: 0.5; }
+
+/* Подсветка «Конец хода», когда кубики потрачены и действий не осталось */
+#endTurnBtn.attention { animation: end-turn-pulse 1.4s ease-in-out infinite; }
+@keyframes end-turn-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 136, 74, 0.45); }
+  50% { box-shadow: 0 0 0 7px rgba(240, 136, 74, 0); }
+}
+
+/* Фиксированный слот «Бусы телепортации» справа в ряду персонажа (как в физ. ящике) */
+.cbx-tele-slot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+  margin-left: 6px;
+  border-left: 1px dashed var(--line-strong);
+}
+.cbx-tele-slot .cbx-card {
+  background: linear-gradient(135deg, rgba(111, 195, 192, 0.18), rgba(111, 195, 192, 0.05));
+  border-color: rgba(111, 195, 192, 0.5);
+}
+.cbx-tele-empty {
+  width: 64px;
+  padding: 7px 4px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  opacity: 0.6;
+}
+
+/* Передача через ящик: подсветка запрета (разные клетки) и метка клетки */
+.cbx-row.drop-blocked {
+  border-color: #e0563f;
+  background: rgba(224, 86, 63, 0.12);
+}
+.cbx-cell {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+/* ---------- Toasts ---------- */
+.toast-container {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 10px 20px;
+  border-radius: 30px;
+  background: rgba(23, 33, 51, 0.9);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  animation: toast-in 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28),
+             toast-out 0.3s 2.7s forwards;
+  pointer-events: auto;
+}
+
+.toast-success { border-color: var(--accent); color: var(--accent); }
+.toast-error { border-color: var(--danger); color: var(--danger); }
+.toast-info { border-color: var(--gold); color: var(--gold); }
+
+@keyframes toast-in {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes toast-out {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-20px); opacity: 0; }
+}
+
+/* Тост события красной клетки — заметно, по центру под шапкой */
+.event-toast {
+  position: fixed;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 65; /* ниже сцены боя (70) */
+  max-width: min(520px, calc(100vw - 24px));
+  padding: 12px 18px;
+  border: 1px solid rgba(224, 86, 63, 0.65);
+  border-left: 5px solid #e0563f;
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  box-shadow: 0 14px 34px -14px rgba(224, 86, 63, 0.55);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  animation: event-toast-in 0.25s ease-out;
+}
+.event-toast.hidden { display: none; }
+.event-toast b { color: var(--gold); }
+@keyframes event-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* «Конец хода» в сцене боя: акцент, когда кубики потрачены */
+.cb-actions #cbEndTurnBtn.attention {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent-2) 0%, var(--accent-2-deep) 100%);
+  color: #2a0f02;
+  font-weight: 700;
+  animation: end-turn-pulse 1.4s ease-in-out infinite;
 }

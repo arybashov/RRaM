@@ -20,6 +20,23 @@ export const CHARACTER_HP = 100;
 // и колодах хранятся как id; человекочитаемое имя резолвится через CARD_BY_ID.
 export const TELEPORT_CARD = 'teleport_beads';
 
+// Параметры зверей (встречи на красных клетках и в лесу).
+// damage — урон персонажу в начале каждого хода владельца, пока зверь не убит;
+// killOn — значение кубика для мгновенного убийства;
+// successOn/needed — меньшие значения копят успехи, needed успехов убивают зверя.
+export const BEASTS = Object.freeze({
+  boar_red:    { damage: 5,  killOn: 4, successOn: 2, needed: 3 },
+  boar_forest: { damage: 5,  killOn: 4, successOn: 2, needed: 3 },
+  wolf:        { damage: 5,  killOn: 5, successOn: 2, needed: 3 },
+  beast_bear:  { damage: 10, killOn: 5, successOn: 5, needed: 3 },
+});
+
+// Трофеи убитых зверей — материал для базового чертежа на дубину
+// (по правилам: «убить кабана, медведя или волка»).
+export const BEAST_TROPHIES = Object.freeze(['boar_red', 'boar_forest', 'wolf', 'beast_bear']);
+// Дубина: враг в бою теряет 10 HP каждое начало хода владельца (без учёта брони)
+export const CLUB_DAMAGE = 10;
+
 // Карты сгруппированы по колодам. Каждый объект: { id, deck, type, copies }
 // type: 'ingredient' | 'weapon' | 'armor' | 'beast' | 'blueprint' | 'recipe' | 'special' | 'provocation'
 // Базовые карты персонажей НЕ входят в общие колоды — они выдаются при старте.
@@ -126,8 +143,8 @@ export const BASE_CARD_CATALOG = Object.freeze([
   { id: 'club',             role: 'V', type: 'weapon',     copies: 1, name: 'Дубина', locked: true,
     desc: 'Класс: воин. Каждое начало хода враг теряет 10 HP без учёта брони.' },
 
-  // Охотник
-  { id: 'eagle',            role: 'O', type: 'companion',  copies: 1, name: 'Орёл',
+  // Охотник (в исходном дизайн-доке — «Орёл», переименован в «Гриффон» по требованию заказчика)
+  { id: 'griffin',          role: 'O', type: 'companion',  copies: 1, name: 'Гриффон',
     desc: 'HP 10. Атака по персонажу: 2 → 20, 3 → 25, 4 → 30 урона.' },
 
   // Шаман
@@ -144,7 +161,7 @@ export const BASE_CARDS = Object.freeze({
   K: ['bp_hammer_base', 'hammer', 'yarn', 'teleport_beads'],
   P: ['sack', 'recipe_sack', 'yarn', 'teleport_beads'],
   V: ['bp_club_base', 'club', 'teleport_beads'],
-  O: ['eagle', 'teleport_beads'],
+  O: ['griffin', 'teleport_beads'],
   S: ['recipe_yarn_base', 'yarn', 'teleport_beads'],
 });
 

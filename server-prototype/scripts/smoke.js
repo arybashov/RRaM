@@ -166,16 +166,21 @@ check('B НЕ видит инвентарь A', bSeesA.inventory === undefined);
 const bSeesOwnShaman = bSnap.game.characters.find((c) => c.id === `${playerB}:S`);
 check('B видит свой инвентарь (Бусы у шамана)', Array.isArray(bSeesOwnShaman.inventory) && bSeesOwnShaman.inventory.some((c) => c.id === 'teleport_beads'));
 
-// --- Передача вторым кубиком ---
-const kBefore = myK.cardCount; // 5
-const pBefore = a.lastSnapshot.game.characters.find((c) => c.id === `${playerA}:P`).cardCount; // 4
+// --- Передача отклонена: персонажи на разных клетках (правило) ---
 a.send('action:transfer', { fromId: blacksmithA, toId: `${playerA}:P`, dieIndex: 1 });
+const transferErr = await a.waitFor('server:error');
+check('передача между разными клетками отклонена', /соседней клетке/i.test(transferErr.payload.message ?? ''));
+
+// --- Второй добор за бросок отклонён (правило: 1 карта за бросок) ---
+a.send('action:draw', { characterId: `${playerA}:P`, dieIndex: 1 });
+const drawErr = await a.waitFor('server:error');
+check('второй добор за бросок отклонён', /один раз за бросок/i.test(drawErr.payload.message ?? ''));
+
+// Тратим второй кубик движением кузнеца
+const kMove = a.lastSnapshot.game.legalTargets.dice[1][blacksmithA]?.[0];
+check('есть цель движения вторым кубиком', typeof kMove === 'string');
+a.send('action:move', { characterId: blacksmithA, toCell: kMove, dieIndex: 1 });
 await a.waitFor('state:snapshot');
-const kAfter = a.lastSnapshot.game.characters.find((c) => c.id === blacksmithA);
-const pAfter = a.lastSnapshot.game.characters.find((c) => c.id === `${playerA}:P`);
-const transferred = kBefore - kAfter.cardCount;
-check('кузнец передал хотя бы 1 карту', transferred >= 1);
-check('помощник получил столько же карт', pAfter.cardCount === pBefore + transferred);
 check('оба кубика потрачены — стол очищен', a.lastSnapshot.game.turn.dice === null);
 
 // --- Конец хода ---

@@ -31,6 +31,11 @@ export function neighbors(cellIdValue) {
   return neighborMap.get(cellIdValue) ?? [];
 }
 
+// Тип местности клетки: 'path' | 'resource' | 'event' | 'start' | null.
+export function cellTerrain(id) {
+  return cellsById.get(id)?.terrain ?? null;
+}
+
 // BFS по графу: клетки, достижимые не более чем за maxSteps шагов.
 export function reachableCells(fromId, maxSteps, blocked = new Set()) {
   if (!isBoardCell(fromId) || maxSteps <= 0) return [];

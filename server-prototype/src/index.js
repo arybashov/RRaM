@@ -192,17 +192,20 @@ function routeCommand(connectionId, message) {
         throw new Error(`Неизвестная команда: ${message.type}`);
       }
       assertJoined(client);
-      store.applyCommand({
+      const { result } = store.applyCommand({
         roomId: client.roomId,
         playerId: client.playerId,
         type: message.type,
         payload: message.payload,
       });
+      if (result) {
+        send(client.socket, 'action:result', result);
+      }
       broadcastState(client.roomId);
-    }
-  }
-}
-
+      break;
+      }
+      }
+      }
 function bindClient(client, roomId, playerId) {
   client.roomId = roomId;
   client.playerId = playerId;

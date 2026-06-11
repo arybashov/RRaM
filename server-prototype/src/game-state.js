@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PLAYER_LIMIT, CARD_BY_ID } from './constants.js';
+import { PLAYER_LIMIT, CARD_BY_ID, BEASTS } from './constants.js';
 import * as rules from './rules.js';
 import { mapSnapshot } from './map.js';
 
@@ -219,11 +219,27 @@ export function createStore() {
 }
 
 // id карты → представление для клиента. Неизвестный id (легаси) показываем как есть.
-function cardView(id) {
+// Карта-результат крафта показывается открытой, если персонаж её скрафтил.
+function cardView(id, character) {
   const card = CARD_BY_ID[id];
-  return card
-    ? { id, name: card.name, type: card.type, locked: card.locked ?? false }
-    : { id, name: id, type: 'unknown', locked: false };
+  if (!card) return { id, name: id, type: 'unknown', locked: false, desc: '' };
+  const locked = (card.locked ?? false) && !character?.crafted?.includes(id);
+  return { id, name: card.name, type: card.type, locked, desc: card.desc ?? '' };
+}
+
+// Схватка со зверем → представление для клиента: имя и параметры зверя.
+function beastFightView(beastFight) {
+  if (!beastFight) return null;
+  const beast = BEASTS[beastFight.cardId] ?? {};
+  return {
+    cardId: beastFight.cardId,
+    name: CARD_BY_ID[beastFight.cardId]?.name ?? beastFight.cardId,
+    damage: beast.damage ?? 0,
+    successes: beastFight.successes ?? 0,
+    needed: beast.needed ?? 0,
+    killOn: beast.killOn ?? 0,
+    successOn: beast.successOn ?? 0,
+  };
 }
 
 function snapshotGame(game, forPlayerId) {
@@ -233,6 +249,7 @@ function snapshotGame(game, forPlayerId) {
     positionAuthority: 'server-v1',
     map: mapSnapshot(),
     deckCount: game.deck.length,
+    redDeckCount: game.redDeck?.length ?? 0,
     discardCount: game.discard.length,
     turn: {
       activePlayerId: game.turn.activePlayerId,
@@ -241,6 +258,9 @@ function snapshotGame(game, forPlayerId) {
       usedDice: game.turn.usedDice,
       mode: game.turn.mode,
       hasRolled: Boolean(game.turn.hasRolled),
+      transferRemaining: game.turn.transferRemaining ?? 0,
+      movedCharacterId: game.turn.movedCharacterId ?? null,
+      drawnThisTurn: Boolean(game.turn.drawnThisTurn),
     },
     characters: game.characters.map((c) => ({
       id: c.id,
@@ -249,9 +269,11 @@ function snapshotGame(game, forPlayerId) {
       position: c.position,
       hp: c.hp,
       combatOpponentId: c.combatOpponentId ?? null,
+      // схватка со зверем публична — видна обоим игрокам
+      beastFight: beastFightView(c.beastFight),
       cardCount: c.inventory.length,
       // полный инвентарь — только владельцу; id резолвим в карточку для UI
-      inventory: c.owner === forPlayerId ? c.inventory.map(cardView) : undefined,
+      inventory: c.owner === forPlayerId ? c.inventory.map((id) => cardView(id, c)) : undefined,
     })),
     legalTargets: snapshotLegalTargets(game, forPlayerId),
   };
