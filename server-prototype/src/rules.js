@@ -15,8 +15,12 @@ import {
   CARD_CATALOG,
   CARD_BY_ID,
   BASE_CARDS,
+  ROLE_NAMES,
   BEASTS,
-  BEAST_TROPHIES,
+  BEAST_HIDE_DROP,
+  RAW_HIDE_TO_CLEAN,
+  HIDE_CLEAN_MIN,
+  CRAFT_RECIPES,
   CLUB_DAMAGE,
 } from './constants.js';
 import {
@@ -83,6 +87,8 @@ export function apply(game, playerId, type, payload = {}) {
       return roll(game, playerId);
     case 'turn:setMode':
       return setMode(game, playerId, payload);
+    case 'turn:resetMove':
+      return resetMove(game, playerId, payload);
     case 'turn:end':
       return endTurn(game, playerId);
     case 'action:draw':
@@ -97,6 +103,8 @@ export function apply(game, playerId, type, payload = {}) {
       return attack(game, playerId, payload);
     case 'action:fightBeast':
       return fightBeast(game, playerId, payload);
+    case 'action:processHide':
+      return processHide(game, playerId, payload);
     case 'action:craft':
       return craft(game, playerId, payload);
     default:
@@ -150,6 +158,59 @@ function setMode(game, playerId, { mode } = {}) {
   return { mode };
 }
 
+// Откат текущей «ноги» движения: вернуть фишку к началу ноги и освободить её
+// кубик. Доступно, пока ход не зафиксирован жёстко (красная клетка / выход из
+// боя / трата кубика на другое действие). Откат второй ноги снова делает
+// активной первую — так клик по кубику работает как пошаговая отмена.
+function resetMove(game, playerId, { characterId } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  const area = game.turn.movementArea;
+  if (!area) {
+    throw new Error('Нет хода для отмены.');
+  }
+  if (area.locked) {
+    throw new Error('Этот ход уже нельзя отменить.');
+  }
+  const character = ownCharacter(game, playerId, characterId);
+  if (area.characterId !== character.id) {
+    throw new Error('Это не ваш ход движения.');
+  }
+
+  character.position = area.origin;
+  if (area.mode === 'moveSum') {
+    game.turn.usedDice = [false, false];
+    game.turn.movementArea = null;
+    game.turn.movedCharacterId = null;
+  } else {
+    game.turn.usedDice[area.dieIndex] = false;
+    if (area.prev) {
+      // Была вторая нога — снова активируем первую (фишка уже на её конце).
+      game.turn.movementArea = {
+        characterId,
+        origin: area.prev.origin,
+        mode: 'split',
+        dieIndex: area.prev.dieIndex,
+        maxSteps: area.prev.maxSteps,
+        locked: false,
+        prev: null,
+      };
+    } else {
+      game.turn.movementArea = null;
+      game.turn.movedCharacterId = null;
+    }
+  }
+  return { reset: { characterId, position: character.position } };
+}
+
+// Зафиксировать незавершённое движение: после этого откат/смену кубика нельзя.
+// Зовётся, когда второй кубик тратится на другое действие (карта/передача/бой).
+function lockMovement(game) {
+  if (game.turn.movementArea) {
+    game.turn.movementArea.locked = true;
+  }
+}
+
 function draw(game, playerId, { characterId, dieIndex } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
@@ -176,6 +237,7 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
   const cardId = game.deck.shift();
   character.inventory.push(cardId);
   game.turn.drawnThisTurn = true;
+  lockMovement(game); // движение в этот бросок зафиксировано — откат недоступен
   spendDie(game, dieIndex);
 
   const card = CARD_BY_ID[cardId];
@@ -201,6 +263,7 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
     requireSplit(game);
     const value = dieValue(game, dieIndex); // валидирует доступность кубика
     const cardId = moveOneCard(game, playerId, fromId, toId, cardIndex);
+    lockMovement(game);                     // фиксируем незавершённое движение
     spendDie(game, dieIndex);               // кубик тратится сразу, остаток значения — в бюджет
     game.turn.transferRemaining = value - 1;
     return { transferred: { fromId, toId, count: 1, cardId, name: CARD_BY_ID[cardId]?.name, remaining: game.turn.transferRemaining } };
@@ -224,6 +287,7 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
   const count = Math.min(limit, from.inventory.length, capacity);
   const cards = from.inventory.splice(0, count);
   to.inventory.push(...cards);
+  lockMovement(game);
   spendDie(game, dieIndex);
 
   return { transferred: { fromId, toId, count } };
@@ -255,9 +319,16 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
   let origin = character.position;
   if (movementArea) {
     if (movementArea.characterId !== character.id || character.beastFight) return [];
-    if (movementArea.mode === 'split' && dieIndex !== movementArea.dieIndex) return [];
-    maxSteps = movementArea.maxSteps;
-    origin = movementArea.origin;
+    if (movementArea.mode === 'split' && dieIndex !== movementArea.dieIndex) {
+      // Вторая «нога»: ходим другим свободным кубиком от ТЕКУЩЕЙ клетки.
+      // Недоступно после жёсткого коммита (красная клетка / выход из боя / другое действие).
+      if (movementArea.locked || game.turn.usedDice[dieIndex]) return [];
+      maxSteps = dieValue(game, dieIndex);
+      origin = character.position;
+    } else {
+      maxSteps = movementArea.maxSteps;
+      origin = movementArea.origin;
+    }
   } else if (game.turn.mode === 'moveSum') {
     if (game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
     maxSteps = game.turn.dice[0] + game.turn.dice[1];
@@ -305,7 +376,23 @@ function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
   const fromCell = character.position;
   const escapedCombat = Boolean(combatOpponent(game, character));
   const escapedBeast = Boolean(character.beastFight);
-  if (game.turn.movementArea) {
+  const area = game.turn.movementArea;
+  if (area && area.mode === 'split' && dieIndex !== area.dieIndex && !game.turn.usedDice[dieIndex]) {
+    // Вторая «нога»: фиксируем первую (её кубик уже потрачен), начинаем новую
+    // от текущей клетки другим кубиком. prev хранит первую ногу для отката.
+    game.turn.movementArea = {
+      characterId,
+      origin: fromCell,
+      mode: 'split',
+      dieIndex,
+      maxSteps: dieValue(game, dieIndex),
+      locked: false,
+      prev: { origin: area.origin, dieIndex: area.dieIndex, maxSteps: area.maxSteps },
+    };
+    character.position = toCell;
+    game.turn.usedDice[dieIndex] = true;
+  } else if (area) {
+    // Перестановка фишки внутри текущей ноги — кубик не тратится повторно.
     character.position = toCell;
   } else if (game.turn.mode === 'moveSum') {
     game.turn.movementArea = {
@@ -314,6 +401,8 @@ function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
       mode: 'moveSum',
       dieIndex: null,
       maxSteps: game.turn.dice[0] + game.turn.dice[1],
+      locked: false,
+      prev: null,
     };
     character.position = toCell;
     game.turn.usedDice = [true, true];
@@ -325,6 +414,8 @@ function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
       mode: 'split',
       dieIndex,
       maxSteps,
+      locked: false,
+      prev: null,
     };
     character.position = toCell;
     game.turn.usedDice[dieIndex] = true;
@@ -344,6 +435,12 @@ function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
     && !combatOpponent(game, character)
   ) {
     redEvent = drawRedEvent(game, character);
+  }
+
+  // Жёсткий коммит: после необратимого события (зверь на красной, выход из боя
+  // или от зверя) откат и смена кубика недоступны — ход зафиксирован.
+  if (game.turn.movementArea && (redEvent || escapedCombat || escapedBeast)) {
+    game.turn.movementArea.locked = true;
   }
 
   return {
@@ -389,6 +486,7 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   }
 
   const value = dieValue(game, dieIndex);
+  lockMovement(game);
   spendDie(game, dieIndex);
 
   let killed = false;
@@ -401,19 +499,25 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
     if (successes >= beast.needed) killed = true;
   }
 
+  let hide = null;
   if (killed) {
     const { cardId } = character.beastFight;
     character.beastFight = null;
-    // Туша зверя — трофей персонажа; нет места — в сброс.
-    if (character.inventory.length < INVENTORY_LIMIT) {
-      character.inventory.push(cardId);
-    } else {
-      game.discard.push(cardId);
+    // С убитого зверя падает «Шкура убитого зверя» (сырая), сама туша — в сброс.
+    game.discard.push(cardId);
+    hide = BEAST_HIDE_DROP[cardId] ?? null;
+    if (hide) {
+      if (character.inventory.length < INVENTORY_LIMIT) {
+        character.inventory.push(hide);
+      } else {
+        game.discard.push(hide); // нет места — шкура уходит в сброс
+        hide = null;
+      }
     }
   }
 
   return {
-    beastFought: { characterId, value, killed, successes, needed: beast.needed },
+    beastFought: { characterId, value, killed, successes, needed: beast.needed, hide },
   };
 }
 
@@ -465,34 +569,76 @@ export function availableAttackTargets(game, playerId, characterId) {
     .map((character) => character.id);
 }
 
-// Крафт по базовому чертежу на дубину: материал — трофей убитого зверя
-// (кабан, волк или медведь). Чертёж и трофей расходуются, Дубина открывается.
-// Бесплатное действие в свой ход (кубик не тратится).
-function craft(game, playerId, { characterId } = {}) {
+// Шаман обрабатывает «Шкуру убитого зверя» → «Очищенную шкуру зверя».
+// Бросает один кубик: ≥ HIDE_CLEAN_MIN — успех (сырая шкура заменяется на
+// очищенную); меньше — кубик потрачен впустую, шкура остаётся (можно ещё раз).
+function processHide(game, playerId, { characterId, dieIndex } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  requireSplit(game); // обработка стоит один кубик (режим раздельных кубиков)
+  const character = ownCharacter(game, playerId, characterId);
+  if (character.role !== 'S') {
+    throw new Error('Шкуру обрабатывает только Шаман.');
+  }
+  const rawIndex = character.inventory.findIndex((id) => RAW_HIDE_TO_CLEAN[id]);
+  if (rawIndex === -1) {
+    throw new Error('Нужна «Шкура убитого зверя» — добудьте её с убитого зверя.');
+  }
+  const value = dieValue(game, dieIndex);
+  lockMovement(game);
+  spendDie(game, dieIndex);
+
+  const success = value >= HIDE_CLEAN_MIN;
+  let cleaned = null;
+  if (success) {
+    const rawId = character.inventory[rawIndex];
+    cleaned = RAW_HIDE_TO_CLEAN[rawId];
+    character.inventory.splice(rawIndex, 1, cleaned);
+  }
+  return { hideProcessed: { characterId, value, success, cleaned } };
+}
+
+// Крафт базового изделия по чертежу/рецепту (CRAFT_RECIPES, строго по PnP).
+// Чертёж/рецепт и материалы расходуются, с изделия снимается замок. Бесплатное
+// действие в свой ход (кубик не тратится). item по умолчанию — дубина (совместимость).
+function craft(game, playerId, { characterId, item = 'club' } = {}) {
   assertActive(game, playerId);
   const character = ownCharacter(game, playerId, characterId);
-  // Дубина — оружие класса Воин: открыть может только он, и эффект работает только у него
-  if (character.role !== 'V') {
-    throw new Error('Дубину может открыть только Воин.');
+  const recipe = CRAFT_RECIPES[item];
+  if (!recipe) {
+    throw new Error('Неизвестное изделие для крафта.');
   }
-  if (!character.inventory.includes('club')) {
-    throw new Error('Карта Дубины должна быть у этого персонажа.');
+  // Изделие класса: открыть может только его класс (и эффект работает только у него)
+  if (character.role !== recipe.role) {
+    throw new Error(`Это изделие может открыть только ${ROLE_NAMES[recipe.role]}.`);
   }
-  if (character.crafted.includes('club')) {
-    throw new Error('Дубина уже открыта.');
+  if (!character.inventory.includes(recipe.result)) {
+    throw new Error('Карта изделия должна быть у этого персонажа.');
   }
-  if (!character.inventory.includes('bp_club_base')) {
-    throw new Error('Нужен базовый чертёж на дубину.');
+  if (character.crafted.includes(recipe.result)) {
+    throw new Error('Изделие уже открыто.');
   }
-  const trophyIndex = character.inventory.findIndex((id) => BEAST_TROPHIES.includes(id));
-  if (trophyIndex === -1) {
-    throw new Error('Нужен трофей зверя: убейте кабана, волка или медведя.');
+  if (!character.inventory.includes(recipe.via)) {
+    throw new Error('Нужен чертёж или рецепт на это изделие.');
   }
-  const [trophy] = character.inventory.splice(trophyIndex, 1);
-  const bpIndex = character.inventory.indexOf('bp_club_base');
-  game.discard.push(trophy, ...character.inventory.splice(bpIndex, 1));
-  character.crafted.push('club');
-  return { crafted: { characterId, itemId: 'club', trophy } };
+  // По одной карте на каждый слот материалов (без повторного использования карты).
+  const consumedIdx = [];
+  for (const slot of recipe.materials) {
+    const idx = character.inventory.findIndex((id, i) => !consumedIdx.includes(i) && slot.includes(id));
+    if (idx === -1) {
+      throw new Error('Не хватает материалов для изделия.');
+    }
+    consumedIdx.push(idx);
+  }
+  // Израсходовать материалы + чертёж/рецепт (удаляем с конца, чтобы не сбить индексы).
+  const removeIdx = [...consumedIdx, character.inventory.indexOf(recipe.via)].sort((a, b) => b - a);
+  const discarded = [];
+  for (const i of removeIdx) {
+    discarded.push(...character.inventory.splice(i, 1));
+  }
+  game.discard.push(...discarded);
+  character.crafted.push(recipe.result);
+  return { crafted: { characterId, item, result: recipe.result, materials: discarded } };
 }
 
 function attack(game, playerId, { attackerId, targetId } = {}) {

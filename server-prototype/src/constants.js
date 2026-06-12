@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260612-1';
+export const BUILD_VERSION = '20260613-2';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -39,9 +39,39 @@ export const BEASTS = Object.freeze({
   beast_bear:  { damage: 10, killOn: 5, successOn: 5, needed: 3 },
 });
 
-// Трофеи убитых зверей — материал для базового чертежа на дубину
-// (по правилам: «убить кабана, медведя или волка»).
-export const BEAST_TROPHIES = Object.freeze(['boar_red', 'boar_forest', 'wolf', 'beast_bear']);
+// Цепочка крафта Дубины (по правилам):
+//   убил зверя → «Шкура убитого зверя» (сырая) → шаман обрабатывает (кубик ≥2)
+//   → «Очищенная шкура зверя» → воин открывает Дубину очищенной шкурой.
+//
+// Лут с убитого зверя: какая сырая шкура падает за какого зверя.
+export const BEAST_HIDE_DROP = Object.freeze({
+  boar_red:    'raw_hide_red',
+  wolf:        'raw_hide_red',
+  beast_bear:  'raw_hide_red',
+  boar_forest: 'raw_hide',
+});
+// Сырые шкуры → очищенные (результат обработки шаманом).
+export const RAW_HIDE_TO_CLEAN = Object.freeze({
+  raw_hide:     'beast_hide',
+  raw_hide_red: 'hide_red',
+});
+// Шаман бросает один кубик; значение ≥ этого — шкура очищена.
+export const HIDE_CLEAN_MIN = 2;
+// Материал для открытия Дубины — очищенная шкура зверя.
+export const CLUB_MATERIALS = Object.freeze(['beast_hide', 'hide_red']);
+
+// Рецепты крафта базовых изделий — строго по PnP (без выдуманных «игл»).
+// via — карта чертежа/рецепта; result — открываемое изделие (locked-карта);
+// materials — список «слотов», в каждом перечислены допустимые id (любой подходит).
+// Чертёж/рецепт и материалы расходуются, на result снимается замок.
+export const CRAFT_RECIPES = Object.freeze({
+  // Воин: убитый зверь → шкуру очищает шаман → очищенной шкурой открыть Дубину
+  club:   { role: 'V', via: 'bp_club_base',   result: 'club',   materials: [['beast_hide', 'hide_red']] },
+  // Кузнец: смешанная (грязная) железная руда
+  hammer: { role: 'K', via: 'bp_hammer_base', result: 'hammer', materials: [['ore_medium', 'ore_coarse']] },
+  // Помощник: клубок + очищенная шкура барана
+  sack:   { role: 'P', via: 'recipe_sack',    result: 'sack',   materials: [['yarn'], ['sheep_hide_c']] },
+});
 // Дубина: враг в бою теряет 10 HP каждое начало хода владельца (без учёта брони)
 export const CLUB_DAMAGE = 10;
 
@@ -138,19 +168,19 @@ export const BASE_CARD_CATALOG = Object.freeze([
 
   // Кузнец
   { id: 'bp_hammer_base',   role: 'K', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на молоток',
-    desc: 'Материалы: смешанная руда + игла зверя. Кубик 2 раза не менее 3. До 4 попыток. Открывает Молоток.' },
+    desc: 'Материалы: смешанная железная руда ×1. Кубик 2 раза не менее 2. До 4 попыток. Открывает Молоток.' },
   { id: 'hammer',           role: 'K', type: 'tool',       copies: 1, name: 'Молоток', locked: true,
     desc: 'Класс: кузнец. На точке добычи — взять 2 карты вне зависимости от кубика.' },
 
   // Помощник кузнеца
-  { id: 'sack',             role: 'P', type: 'tool',       copies: 1, name: 'Мешок',
+  { id: 'sack',             role: 'P', type: 'tool',       copies: 1, name: 'Мешок', locked: true,
     desc: 'На точке добычи — взять 2 карты вне зависимости от кубика.' },
   { id: 'recipe_sack',      role: 'P', type: 'recipe',     copies: 1, name: 'Рецепт на мешок',
-    desc: 'Материалы: клубок + сшивная игла. Кубик 2 раза не менее 3. Открывает Мешок.' },
+    desc: 'Материалы: клубок ×1 + очищенная шкура барана ×1. Кубик 2 раза не менее 3. Открывает Мешок.' },
 
   // Воин
   { id: 'bp_club_base',     role: 'V', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на дубину',
-    desc: 'Материалы: убить кабана, медведя или волка. Открывает Дубину.' },
+    desc: 'Материалы: убить кабана, медведя или волка → шкуру очищает шаман → очищенной шкурой открыть Дубину.' },
   { id: 'club',             role: 'V', type: 'weapon',     copies: 1, name: 'Дубина', locked: true,
     desc: 'Класс: воин. Каждое начало хода враг теряет 10 HP без учёта брони.' },
 

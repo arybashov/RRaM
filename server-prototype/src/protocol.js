@@ -14,6 +14,7 @@ export const ClientCommand = Object.freeze({
   // ход и кубики
   TURN_ROLL: 'turn:roll',
   TURN_SET_MODE: 'turn:setMode',
+  TURN_RESET_MOVE: 'turn:resetMove',
   TURN_END: 'turn:end',
   // действия с картами и фишками
   ACTION_DRAW: 'action:draw',
@@ -22,6 +23,7 @@ export const ClientCommand = Object.freeze({
   ACTION_TELEPORT: 'action:teleport',
   ACTION_ATTACK: 'action:attack',
   ACTION_FIGHT_BEAST: 'action:fightBeast',
+  ACTION_PROCESS_HIDE: 'action:processHide',
   ACTION_CRAFT: 'action:craft',
 });
 
@@ -30,6 +32,7 @@ export const GAME_COMMANDS = Object.freeze(
   new Set([
     ClientCommand.TURN_ROLL,
     ClientCommand.TURN_SET_MODE,
+    ClientCommand.TURN_RESET_MOVE,
     ClientCommand.TURN_END,
     ClientCommand.ACTION_DRAW,
     ClientCommand.ACTION_TRANSFER,
@@ -37,6 +40,7 @@ export const GAME_COMMANDS = Object.freeze(
     ClientCommand.ACTION_TELEPORT,
     ClientCommand.ACTION_ATTACK,
     ClientCommand.ACTION_FIGHT_BEAST,
+    ClientCommand.ACTION_PROCESS_HIDE,
     ClientCommand.ACTION_CRAFT,
   ]),
 );

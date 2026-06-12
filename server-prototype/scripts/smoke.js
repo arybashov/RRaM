@@ -113,7 +113,14 @@ const snapA = (await a.waitFor('state:snapshot')).payload.room;
 check('игра стартовала при 2 игроках', snapA.status === 'active' && snapA.game !== null);
 check('создано 10 персонажей (5+5)', snapA.game.characters.length === 10);
 check('позиции авторитетно хранятся на сервере', snapA.game.positionAuthority === 'server-v1');
-check('все стартовые позиции опубликованы', snapA.game.characters.every(c => typeof c.position === 'string'));
+const ownAStart = snapA.game.characters.filter(c => c.owner === playerA);
+check('свои стартовые позиции опубликованы',
+  ownAStart.length === 5 && ownAStart.every(c => typeof c.position === 'string'));
+// Туман войны: чужие фишки вне зоны видимости скрыты (position null + hidden),
+// внутри — видны. Флаг hidden обязан совпадать с тем, скрыта ли позиция.
+const enemyAStart = snapA.game.characters.filter(c => c.owner !== playerA);
+check('вражеские фишки согласованы с туманом',
+  enemyAStart.every(c => (c.position === null) === Boolean(c.hidden)));
 check('колода конечная (mixed+forest+dark_forest = 41)', snapA.game.deckCount === 41);
 check('ход у первого игрока', snapA.game.turn.activePlayerId === playerA);
 

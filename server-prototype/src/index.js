@@ -28,6 +28,7 @@ app.get('/ws', { websocket: true }, (socket) => {
     socket,
     roomId: null,
     playerId: null,
+    fogEnabled: true,
   });
 
   send(socket, ServerEvent.CONNECTED, { connectionId, serverVersion: BUILD_VERSION });
@@ -85,6 +86,17 @@ function routeCommand(connectionId, message) {
     case 'ping': {
       // keepalive: клиент проверяет живость сокета (нужно без входа в комнату)
       send(client.socket, 'pong', {});
+      break;
+    }
+
+    case 'client:setFog': {
+      client.fogEnabled = message.payload?.enabled !== false;
+      const room = client.roomId ? store.getRoom(client.roomId) : null;
+      if (room) {
+        send(client.socket, ServerEvent.STATE_SNAPSHOT, {
+          room: store.snapshot(room, client.playerId, { fogEnabled: client.fogEnabled }),
+        });
+      }
       break;
     }
 
@@ -242,7 +254,7 @@ function broadcastState(roomId) {
   for (const client of clients.values()) {
     if (client.roomId === roomId) {
       send(client.socket, ServerEvent.STATE_SNAPSHOT, {
-        room: store.snapshot(room, client.playerId),
+        room: store.snapshot(room, client.playerId, { fogEnabled: client.fogEnabled }),
       });
     }
   }

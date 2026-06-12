@@ -185,7 +185,7 @@ export function createStore() {
   }
 
   // Персональный снимок: чужие руки скрыты, видны только счетчики карт.
-  function snapshot(room, forPlayerId) {
+  function snapshot(room, forPlayerId, options = {}) {
     return {
       id: room.id,
       code: room.code,
@@ -200,7 +200,7 @@ export function createStore() {
         connected: p.connected,
         isBot: p.isBot ?? false,
       })),
-      game: room.game ? snapshotGame(room.game, forPlayerId) : null,
+      game: room.game ? snapshotGame(room.game, forPlayerId, options) : null,
     };
   }
 
@@ -256,8 +256,11 @@ function fogVisibleCells(game, forPlayerId) {
   return seen;
 }
 
-function snapshotGame(game, forPlayerId) {
-  const visible = null; // туман войны отключён (пока): forPlayerId ? fogVisibleCells(game, forPlayerId) : null
+function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
+  // Туман войны: видно клетки в радиусе FOG_RADIUS от своих живых персонажей;
+  // вражеские фишки вне зоны скрываются (position: null). Движение туманом не
+  // ограничено — ходить можно на длину кубиков и в неизведанное.
+  const visible = forPlayerId && fogEnabled ? fogVisibleCells(game, forPlayerId) : null;
   return {
     over: game.over,
     winnerId: game.winnerId,
@@ -276,6 +279,7 @@ function snapshotGame(game, forPlayerId) {
             characterId: game.turn.movementArea.characterId,
             mode: game.turn.movementArea.mode,
             dieIndex: game.turn.movementArea.dieIndex,
+            locked: Boolean(game.turn.movementArea.locked),
           }
         : null,
       mode: game.turn.mode,
