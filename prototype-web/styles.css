@@ -706,18 +706,29 @@ h2::after {
 .token.own { cursor: pointer; }
 .token.attackable { cursor: crosshair; }
 
-.token circle {
-  stroke: #fff;
-  stroke-width: 2;
+.token .token-halo {
+  fill: transparent;
+  stroke: rgba(255, 255, 255, 0.38);
+  stroke-width: 1.5;
   transition: stroke 0.15s ease, stroke-width 0.15s ease, filter 0.15s ease;
 }
 
-.token.side-green circle {
-  fill: var(--accent-deep);
+.token .token-figure {
+  filter: brightness(1.3) drop-shadow(0 2px 2px rgba(3, 8, 12, 0.8));
+  pointer-events: none;
 }
 
-.token.side-red circle {
-  fill: var(--accent-2-deep);
+.token .token-glow {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.token.side-green:not(.role-V) .token-figure {
+  filter: brightness(1.69) drop-shadow(0 2px 2px rgba(3, 8, 12, 0.8));
+}
+
+.token.side-red .token-figure {
+  filter: brightness(1.82) drop-shadow(0 2px 2px rgba(3, 8, 12, 0.8));
 }
 
 .token text {
@@ -732,19 +743,19 @@ h2::after {
 .token .token-hp {
   paint-order: stroke;
   stroke: rgba(5, 10, 18, 0.9);
-  stroke-width: 2.5px;
+  stroke-width: 1.25px;
   fill: #fff;
   font-weight: 900;
 }
 
-.token.attackable circle {
+.token.attackable .token-halo {
   stroke: #ff4d55;
   stroke-width: 4;
   filter: drop-shadow(0 0 8px rgba(255, 50, 60, 0.95));
   animation: attack-target-pulse 0.9s ease-in-out infinite alternate;
 }
 
-.token.in-combat:not(.attackable) circle {
+.token.in-combat:not(.attackable) .token-halo {
   stroke: #ff9b3d;
   stroke-width: 4;
   filter: drop-shadow(0 0 7px rgba(255, 116, 30, 0.9));
@@ -761,7 +772,7 @@ h2::after {
 
 /* Персонаж в бою со зверем (красная клетка): тёмно-красное пульсирующее свечение.
    Бой с игроком (.in-combat) и цель атаки (.attackable) приоритетнее. */
-.token.beast-fight:not(.attackable):not(.in-combat) circle {
+.token.beast-fight:not(.attackable):not(.in-combat) .token-halo {
   stroke: #b3122a;
   stroke-width: 4;
   animation: beast-fight-pulse 1.3s ease-in-out infinite alternate;
@@ -778,8 +789,8 @@ h2::after {
   }
 }
 
-.token.own:hover circle,
-.token.own:focus-visible circle {
+.token.own:hover .token-halo,
+.token.own:focus-visible .token-halo {
   stroke: var(--gold);
   stroke-width: 3;
   filter: drop-shadow(0 0 5px rgba(244, 201, 93, 0.9));
@@ -789,10 +800,39 @@ h2::after {
   outline: none;
 }
 
-.token.active circle {
+.token.active .token-halo {
   stroke: var(--gold);
   stroke-width: 3.5;
-  filter: drop-shadow(0 0 7px rgba(244, 201, 93, 0.95));
+  animation: token-halo-pulse 1.7s ease-in-out infinite;
+}
+
+.token.active .token-glow {
+  animation: token-figure-pulse 1.7s ease-in-out infinite;
+}
+
+@keyframes token-halo-pulse {
+  0%, 100% {
+    stroke-opacity: 0.8;
+    filter: drop-shadow(0 0 1px rgba(244, 201, 93, 0.4));
+  }
+  50% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 4.5px rgba(255, 219, 105, 1));
+  }
+}
+
+@keyframes token-figure-pulse {
+  0%, 100% {
+    opacity: 0.12;
+    filter: sepia(1) saturate(5) brightness(2)
+      drop-shadow(0 0 0.5px rgba(255, 219, 105, 0.3));
+  }
+  50% {
+    opacity: 0.56;
+    filter: sepia(1) saturate(6) brightness(2.4)
+      drop-shadow(0 0 2px rgba(255, 219, 105, 1))
+      drop-shadow(0 0 4.5px rgba(255, 219, 105, 1));
+  }
 }
 
 /* ---------- Inventory ---------- */

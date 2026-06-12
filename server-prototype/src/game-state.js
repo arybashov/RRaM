@@ -271,6 +271,13 @@ function snapshotGame(game, forPlayerId) {
       rollsLeft: game.turn.rollsLeft,
       dice: game.turn.dice,
       usedDice: game.turn.usedDice,
+      movementArea: game.turn.movementArea
+        ? {
+            characterId: game.turn.movementArea.characterId,
+            mode: game.turn.movementArea.mode,
+            dieIndex: game.turn.movementArea.dieIndex,
+          }
+        : null,
       mode: game.turn.mode,
       hasRolled: Boolean(game.turn.hasRolled),
       transferRemaining: game.turn.transferRemaining ?? 0,
@@ -330,7 +337,9 @@ function snapshotLegalTargets(game, forPlayerId) {
     }
   } else if (game.turn.mode === 'split') {
     for (const dieIndex of [0, 1]) {
-      if (game.turn.usedDice[dieIndex]) continue;
+      const movementDie = game.turn.movementArea?.mode === 'split'
+        && game.turn.movementArea.dieIndex === dieIndex;
+      if (game.turn.usedDice[dieIndex] && !movementDie) continue;
       for (const character of characters) {
         empty.dice[dieIndex][character.id] = rules
           .availableMoveTargets(game, forPlayerId, character.id, dieIndex)

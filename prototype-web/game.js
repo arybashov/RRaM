@@ -12,6 +12,16 @@ const SESSION_KEY = 'rram_session';
 const ROLE_NAMES = { K: 'Кузнец', P: 'Помощник', V: 'Воин', O: 'Охотник', S: 'Шаман' };
 const TELEPORT_ID = 'teleport_beads'; // id карты «Бусы телепортации» (сервер шлёт инвентарь как {id,name,type})
 const ROLE_ART   = { K: 'blacksmith', P: 'assistant', V: 'warrior', O: 'hunter', S: 'shaman' };
+const TOKEN_ART = {
+  green: {
+    K: 'blacksmith-figure-v1', P: 'assistant-figure-v1', V: 'warrior-figure-v2',
+    O: 'hunter-figure-v1', S: 'shaman-figure-v1',
+  },
+  red: {
+    K: 'blacksmith-figure-v1', P: 'assistant-figure-v1', V: 'warrior-figure-v1',
+    O: 'hunter-figure-v1', S: 'shaman-figure-v1',
+  },
+};
 
 // Клиентский режим → серверный режим (для setMode)
 const TO_SERVER_MODE = {
@@ -70,6 +80,7 @@ let panStart = null, pinchStart = null;
 const boardEl        = document.querySelector('#board');
 const charactersEl   = document.querySelector('#characters');
 const inventoryEl    = document.querySelector('#inventory');
+const inventoryTitleEl = document.querySelector('#inventoryTitle');
 const logEl          = document.querySelector('#log');
 const turnInfoEl     = document.querySelector('#turnInfo');
 const diceHintEl     = document.querySelector('#diceHint');
@@ -421,6 +432,12 @@ function getSelDieVal() {
 
 function charSide(char) {
   return serverRoom?.players.find(p => p.id === char.owner)?.side ?? 'green';
+}
+
+function tokenArtHref(char) {
+  const side = charSide(char);
+  const art = TOKEN_ART[side]?.[char.role] ?? TOKEN_ART.green.V;
+  return `./assets/tokens/${side}/${art}.png`;
 }
 
 function usesServerPositions() {
@@ -919,6 +936,7 @@ dieButtons.forEach((btn, i) => {
     if (!getDice()) {
       wsSend('turn:roll');
     } else if (!getGame().turn.usedDice[i]) {
+      if (getGame().turn.movementArea) return;
       const used = getGame().turn.usedDice;
       const canChangeMode = !used[0] && !used[1];
       if (localMode === 'moveDie' && selectedDieIdx === i && canChangeMode) {
@@ -951,6 +969,7 @@ document.querySelectorAll('.mode').forEach(btn => {
 endTurnBtn.addEventListener('click', () => wsSend('turn:end'));
 
 function setLocalMode(mode) {
+  if (getGame()?.turn.movementArea) return;
   localMode = mode;
   document.querySelectorAll('.mode').forEach((button) => {
     button.classList.toggle('active', button.dataset.mode === mode);
@@ -1074,10 +1093,17 @@ function getMoveDistance() {
 function syncDieSelection() {
   const g = getGame();
   if (!g?.turn.dice) return;
+  if (g.turn.movementArea) {
+    localMode = g.turn.movementArea.mode === 'moveSum' ? 'moveSum' : 'moveDie';
+    if (g.turn.movementArea.dieIndex != null) {
+      selectedDieIdx = g.turn.movementArea.dieIndex;
+    }
+    return;
+  }
   const used = g.turn.usedDice;
   if (used[selectedDieIdx] && !used[1 - selectedDieIdx]) {
     selectedDieIdx = 1 - selectedDieIdx;
-    if (localMode === 'moveSum') localMode = 'moveDie'; // сумма уже невозможна
+    if (localMode === 'moveSum') localMode = 'moveDie';
   }
 }
 
@@ -1143,7 +1169,11 @@ function renderDice() {
     btn.disabled    = dice ? (!myTurn || used[i]) : !canRoll;
     btn.className   = 'die';
     if (canRoll)                                               btn.classList.add('rollable');
-    if (dice && !used[i] && selectedDieIdx === i && localMode !== 'moveSum') btn.classList.add('selected');
+    const movementDie = g.turn.movementArea?.mode === 'split'
+      && g.turn.movementArea.dieIndex === i;
+    if (dice && ((!used[i] && selectedDieIdx === i && localMode !== 'moveSum') || movementDie)) {
+      btn.classList.add('selected');
+    }
     if (dice && used[i])                                       btn.classList.add('used');
   });
 
@@ -1202,14 +1232,19 @@ function renderBoard() {
   const attackTargets = new Set(
     sel ? (game.legalTargets?.attacks?.[sel.id] ?? []) : [],
   );
-  for (const char of game.characters) {
+  const charactersByDepth = [...game.characters].sort((a, b) => {
+    const aPos = tokenDisplayPos.get(a.id) ?? characterPosition(a);
+    const bPos = tokenDisplayPos.get(b.id) ?? characterPosition(b);
+    return (cellCenter(aPos)?.cy ?? -Infinity) - (cellCenter(bPos)?.cy ?? -Infinity);
+  });
+  for (const char of charactersByDepth) {
     const pos  = tokenDisplayPos.get(char.id) ?? characterPosition(char);
     const ctr  = cellCenter(pos);
     if (!ctr) continue;
     const { cx, cy } = ctr;
     const g = document.createElementNS(svgNS, 'g');
     const isOwn = char.owner === myPlayerId;
-    const tokenClasses = ['token', `side-${charSide(char)}`];
+    const tokenClasses = ['token', `side-${charSide(char)}`, `role-${char.role}`];
     if (isOwn) tokenClasses.push('own');
     if (char.combatOpponentId) tokenClasses.push('in-combat');
     if (char.beastFight) tokenClasses.push('beast-fight');
@@ -1291,18 +1326,37 @@ function renderBoard() {
         onEnemyClick(event);
       });
     }
-    const circle = document.createElementNS(svgNS, 'circle');
-    circle.setAttribute('r', (HEX_R * 0.82).toFixed(1));
-    const text = document.createElementNS(svgNS, 'text');
-    text.setAttribute('font-size', (HEX_R * 0.95).toFixed(1));
-    text.textContent = char.role;
+    const halo = document.createElementNS(svgNS, 'circle');
+    halo.setAttribute('class', 'token-halo');
+    halo.setAttribute('r', (HEX_R * 0.74).toFixed(1));
+
+    const figure = document.createElementNS(svgNS, 'image');
+    const figureWidth = HEX_R * 3.38;
+    const figureHeight = HEX_R * 4.6475;
+    const figureHref = tokenArtHref(char);
+    figure.setAttribute('class', 'token-figure');
+    figure.setAttributeNS('http://www.w3.org/1999/xlink', 'href', figureHref);
+    figure.setAttribute('href', figureHref);
+    figure.setAttribute('x', (-figureWidth / 2).toFixed(2));
+    figure.setAttribute('y', (-figureHeight * 0.7).toFixed(2));
+    figure.setAttribute('width', figureWidth.toFixed(2));
+    figure.setAttribute('height', figureHeight.toFixed(2));
+    figure.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    const glow = figure.cloneNode();
+    glow.setAttribute('class', 'token-glow');
+
+    const title = document.createElementNS(svgNS, 'title');
+    title.textContent = `${ROLE_NAMES[char.role]} — ${char.hp} HP`;
     const hp = document.createElementNS(svgNS, 'text');
     hp.setAttribute('class', 'token-hp');
-    hp.setAttribute('y', (HEX_R * 1.35).toFixed(1));
-    hp.setAttribute('font-size', (HEX_R * 0.52).toFixed(1));
+    hp.setAttribute('y', (HEX_R * 0.62).toFixed(1));
+    hp.style.fontSize = '6.5px';
     hp.textContent = `${char.hp}`;
-    g.appendChild(circle);
-    g.appendChild(text);
+    g.appendChild(title);
+    g.appendChild(halo);
+    g.appendChild(glow);
+    g.appendChild(figure);
     g.appendChild(hp);
     boardVp.appendChild(g);
   }
@@ -1340,6 +1394,7 @@ let invExpandedFor = null;       // для какого персонажа на�
 
 function renderInventory() {
   const char = getSelChar();
+  if (inventoryTitleEl) inventoryTitleEl.textContent = char ? ROLE_NAMES[char.role] : 'Персонаж';
   if (!char) {
     inventoryEl.className = 'inventory empty';
     inventoryEl.textContent = 'Выберите персонажа.';

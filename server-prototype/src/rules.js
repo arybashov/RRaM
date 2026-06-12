@@ -67,6 +67,7 @@ export function createGame(players) {
       rollsLeft,
       dice: null,
       usedDice: [false, false],
+      movementArea: null, // { characterId, origin, mode, dieIndex, maxSteps }
       mode: null, // 'moveSum' | 'split'
       hasRolled: false,
       transferRemaining: 0, // «бюджет» передачи карт из ящика (= значению потраченного кубика)
@@ -120,6 +121,7 @@ function roll(game, playerId) {
   const dice = [rollDie(), rollDie()];
   game.turn.dice = dice;
   game.turn.usedDice = [false, false];
+  game.turn.movementArea = null;
   game.turn.mode = null;
   game.turn.hasRolled = true;
   game.turn.movedCharacterId = null;
@@ -134,7 +136,11 @@ function roll(game, playerId) {
 function setMode(game, playerId, { mode } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
-  if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
+  if (
+    game.turn.usedDice[0]
+    || game.turn.usedDice[1]
+    || game.turn.movementArea
+  ) {
     throw new Error('Режим нельзя менять после траты кубика.');
   }
   if (mode !== 'moveSum' && mode !== 'split') {
@@ -243,9 +249,16 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
   const character = ownCharacter(game, playerId, characterId);
   if (!game.turn.dice) return [];
   const opponent = combatOpponent(game, character);
+  const movementArea = game.turn.movementArea;
 
   let maxSteps;
-  if (game.turn.mode === 'moveSum') {
+  let origin = character.position;
+  if (movementArea) {
+    if (movementArea.characterId !== character.id || character.beastFight) return [];
+    if (movementArea.mode === 'split' && dieIndex !== movementArea.dieIndex) return [];
+    maxSteps = movementArea.maxSteps;
+    origin = movementArea.origin;
+  } else if (game.turn.mode === 'moveSum') {
     if (game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
     maxSteps = game.turn.dice[0] + game.turn.dice[1];
   } else if (game.turn.mode === 'split') {
@@ -262,7 +275,8 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
       .filter((item) => item.id !== character.id && item.position)
       .map((item) => item.position),
   );
-  const targets = reachableCells(character.position, maxSteps, blocked);
+  const targets = reachableCells(origin, maxSteps, blocked)
+    .filter((target) => target.cellId !== character.position);
   if (!opponent) return targets;
 
   const opponentAdjacent = new Set(neighbors(opponent.position));
@@ -291,12 +305,29 @@ function move(game, playerId, { characterId, toCell, dieIndex } = {}) {
   const fromCell = character.position;
   const escapedCombat = Boolean(combatOpponent(game, character));
   const escapedBeast = Boolean(character.beastFight);
-  if (game.turn.mode === 'moveSum') {
+  if (game.turn.movementArea) {
     character.position = toCell;
-    spendAllDice(game);
+  } else if (game.turn.mode === 'moveSum') {
+    game.turn.movementArea = {
+      characterId,
+      origin: fromCell,
+      mode: 'moveSum',
+      dieIndex: null,
+      maxSteps: game.turn.dice[0] + game.turn.dice[1],
+    };
+    character.position = toCell;
+    game.turn.usedDice = [true, true];
   } else if (game.turn.mode === 'split') {
+    const maxSteps = dieValue(game, dieIndex);
+    game.turn.movementArea = {
+      characterId,
+      origin: fromCell,
+      mode: 'split',
+      dieIndex,
+      maxSteps,
+    };
     character.position = toCell;
-    spendDie(game, dieIndex);
+    game.turn.usedDice[dieIndex] = true;
   } else {
     throw new Error('Сначала выберите режим движения.');
   }
@@ -534,6 +565,7 @@ function endTurn(game, playerId) {
   game.turn.activePlayerId = other ?? playerId;
   game.turn.dice = null;
   game.turn.usedDice = [false, false];
+  game.turn.movementArea = null;
   game.turn.mode = null;
   game.turn.hasRolled = false;
   game.turn.transferRemaining = 0;
@@ -688,6 +720,7 @@ function clearCombat(game, character) {
 function spendDie(game, dieIndex) {
   game.turn.usedDice[dieIndex] = true;
   if (game.turn.usedDice[0] && game.turn.usedDice[1]) {
+    if (game.turn.movementArea) return;
     game.turn.dice = null;
     game.turn.usedDice = [false, false];
     game.turn.mode = null;
@@ -697,6 +730,7 @@ function spendDie(game, dieIndex) {
 function spendAllDice(game) {
   game.turn.dice = null;
   game.turn.usedDice = [false, false];
+  game.turn.movementArea = null;
   game.turn.mode = null;
 }
 
