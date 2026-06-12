@@ -36,7 +36,7 @@ const CARD_FACE_ART = {
   bp_club_base: 'base/warrior/club-blueprint-v1',
   club: 'base/warrior/club-v1',
   griffin: 'base/hunter/griffin-v1',
-  recipe_yarn_base: 'base/common/yarn-v1',
+  recipe_yarn_base: 'base/shaman/yarn-recipe-v1',
   yarn: 'base/common/yarn-v1',
   wolf: 'beasts/red/gray-wolf-v1',
   beast_bear: 'beasts/red/mystical-bear-v1',
@@ -140,7 +140,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260611-27'; // единый источник; держать в синхроне с ?v= в index.html
+const APP_VERSION = '20260612-1'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 
 // ── Старт ─────────────────────────────────────────────────────────
 showAppVersion();

@@ -9,6 +9,10 @@ WEBROOT=/var/www/rram
 cd "$REPO"
 git pull
 
+# Версия сборки должна совпадать в constants.js / game.js / index.html, иначе
+# у игроков «не обновляется клиент». Падаем ДО выкладки, если разъехалось.
+node "$REPO/server-prototype/scripts/check-version.mjs"
+
 # Клиент → веб-корень nginx (вне /root, чтобы www-data имел доступ)
 mkdir -p "$WEBROOT"
 cp -rf "$REPO/prototype-web/." "$WEBROOT/"
