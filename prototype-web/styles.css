@@ -697,19 +697,14 @@ h2::after {
   pointer-events: none;
 }
 
+/* Все фишки кликабельны (свои — выбор, чужие — окно боя/подход).
+   Жесты пана/зума всё равно работают: события всплывают на #board. */
 .token {
-  pointer-events: none;
-}
-
-.token.own {
-  cursor: pointer;
   pointer-events: auto;
 }
 
-.token.attackable {
-  cursor: crosshair;
-  pointer-events: auto;
-}
+.token.own { cursor: pointer; }
+.token.attackable { cursor: crosshair; }
 
 .token circle {
   stroke: #fff;
@@ -1982,6 +1977,7 @@ h2::after {
 .lobby-version {
   margin-top: -6px;
   margin-bottom: 4px;
+  text-align: center;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -1991,29 +1987,7 @@ h2::after {
   text-align: center;
 }
 
-/* ---------- Чат (лобби + журнал) ---------- */
-.lobby-chat { margin-top: 14px; text-align: left; }
-
-.lobby-chat-msgs {
-  max-height: 140px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 13px;
-}
-.lobby-chat-msgs:empty::before {
-  content: "Пока тихо — напишите первым";
-  color: var(--muted);
-  opacity: 0.7;
-  font-size: 12px;
-}
-.lobby-chat-msg b { color: var(--accent); font-weight: 700; }
-
+/* ---------- Чат (в журнале) ---------- */
 .chat-input-row {
   position: relative;
   margin-top: 8px;
@@ -2051,3 +2025,46 @@ h2::after {
 
 /* Сообщения чата в журнале */
 .log-entry.log-chat { color: var(--accent); font-weight: 600; }
+
+/* Лицевая карта противника/зверя в окне боя */
+.cb-foe { display: flex; align-items: center; gap: 14px; }
+.cb-foe-card {
+  flex: none;
+  width: 112px;
+  max-height: 168px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 22px -10px rgba(0, 0, 0, 0.7);
+}
+.cb-foe-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.cb-foe-info .cb-hpbar { margin: 0; }
+.cb-foe-info .cb-cards { margin: 2px 0 0; }
+
+/* Баннер «обновите версию» — поверх всего, блокирует игру старым клиентом */
+.version-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #b3122a 0%, #7a0f20 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.7);
+}
+.version-banner b { font-weight: 800; }
+.version-banner button {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.version-banner button:hover { background: rgba(255, 255, 255, 0.28); border-color: #fff; }

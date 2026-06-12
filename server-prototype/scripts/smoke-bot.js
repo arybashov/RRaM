@@ -135,9 +135,16 @@ const botCardsAfter1 = snapAfterBot1.game.characters
 const botMovedAfter1 = snapAfterBot1.game.characters
   .filter(c => c.owner === bot.id)
   .some(c => botPositionsBefore.get(c.id) !== c.position);
+// Туман войны: позиции бота скрыты от игрока, движение не наблюдаемо —
+// тогда признак состоявшегося хода = потраченный бросок.
+const botHiddenByFog = snapAfterBot1.game.characters
+  .filter(c => c.owner === bot.id)
+  .every(c => c.hidden);
 check(
   'бот совершил полезное действие за первый ход',
-  botCardsAfter1 > botCardsBefore || botMovedAfter1,
+  botCardsAfter1 > botCardsBefore
+    || botMovedAfter1
+    || (botHiddenByFog && snapAfterBot1.game.turn.rollsLeft[bot.id] === botRollsBefore - 1),
 );
 check('rollsLeft бота уменьшился на 1', snapAfterBot1.game.turn.rollsLeft[bot.id] === botRollsBefore - 1);
 

@@ -1,6 +1,10 @@
 // Общие константы правил RRaM. Держим отдельно от сетевого кода,
 // чтобы движок правил можно было переиспользовать и менять без транспорта.
 
+// ⚠️ ВЕРСИЯ СБОРКИ: держать В СИНХРОНЕ с APP_VERSION в prototype-web/game.js
+// и ?v= в index.html. Клиент сравнивает свою версию с этой и просит обновиться.
+export const BUILD_VERSION = '20260611-27';
+
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
 export const ROLE_NAMES = Object.freeze({

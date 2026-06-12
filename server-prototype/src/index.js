@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createStore } from './game-state.js';
 import { ClientCommand, ServerEvent, GAME_COMMANDS } from './protocol.js';
 import { runBotTurn } from './bot.js';
+import { BUILD_VERSION } from './constants.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -13,7 +14,6 @@ const store = createStore();
 const clients = new Map();
 const botRunning = new Set();        // roomId → бот сейчас ходит
 const lobbySubscribers = new Set();  // connectionId → смотрит список открытых игр
-const lobbyChat = [];                // общий чат лобби: последние 50 сообщений
 
 await app.register(websocket);
 
@@ -30,8 +30,7 @@ app.get('/ws', { websocket: true }, (socket) => {
     playerId: null,
   });
 
-  send(socket, ServerEvent.CONNECTED, { connectionId });
-  send(socket, 'chat:history', { scope: 'lobby', messages: lobbyChat });
+  send(socket, ServerEvent.CONNECTED, { connectionId, serverVersion: BUILD_VERSION });
 
   socket.on('message', (rawMessage) => {
     handleMessage(connectionId, rawMessage);
@@ -90,30 +89,18 @@ function routeCommand(connectionId, message) {
     }
 
     case 'chat:send': {
+      // Чат только в комнате (в лобби чата нет). Сообщение — участникам комнаты.
+      const room = client.roomId ? store.getRoom(client.roomId) : null;
+      if (!room) break;
       const text = String(message.payload?.text ?? '').trim().slice(0, 200);
       if (!text) break;
       const now = Date.now();
-      if (now - (client.lastChatAt ?? 0) < 500) break; // троттлинг от флуда
+      if (now - (client.lastChatAt ?? 0) < 400) break; // троттлинг от флуда
       client.lastChatAt = now;
-
-      const room = client.roomId ? store.getRoom(client.roomId) : null;
-      if (room && room.status === 'active') {
-        // Игровой чат — только участникам комнаты, имя авторитетное
-        const player = room.players.find((p) => p.id === client.playerId);
-        const msg = { scope: 'room', name: player?.name ?? 'Игрок', text, ts: now };
-        for (const c of clients.values()) {
-          if (c.roomId === client.roomId) send(c.socket, 'chat:message', msg);
-        }
-      } else {
-        // Общий чат лобби: все, кто без комнаты или ждёт соперника
-        const name = String(message.payload?.name ?? '').trim().slice(0, 32) || 'Гость';
-        const msg = { scope: 'lobby', name, text, ts: now };
-        lobbyChat.push(msg);
-        if (lobbyChat.length > 50) lobbyChat.shift();
-        for (const c of clients.values()) {
-          const r = c.roomId ? store.getRoom(c.roomId) : null;
-          if (!r || r.status === 'waiting') send(c.socket, 'chat:message', msg);
-        }
+      const player = room.players.find((p) => p.id === client.playerId);
+      const msg = { scope: 'room', name: player?.name ?? 'Игрок', text, ts: now };
+      for (const c of clients.values()) {
+        if (c.roomId === client.roomId) send(c.socket, 'chat:message', msg);
       }
       break;
     }

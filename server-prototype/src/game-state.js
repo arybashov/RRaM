@@ -257,7 +257,7 @@ function fogVisibleCells(game, forPlayerId) {
 }
 
 function snapshotGame(game, forPlayerId) {
-  const visible = forPlayerId ? fogVisibleCells(game, forPlayerId) : null;
+  const visible = null; // туман войны отключён (пока): forPlayerId ? fogVisibleCells(game, forPlayerId) : null
   return {
     over: game.over,
     winnerId: game.winnerId,

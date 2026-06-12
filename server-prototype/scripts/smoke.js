@@ -92,6 +92,9 @@ await b.connect();
 await a.waitFor('server:connected');
 await b.waitFor('server:connected');
 
+// --- Чат вне комнаты игнорируется (в лобби чата нет) ---
+a.send('chat:send', { text: 'есть кто?', name: 'Алиса' });
+
 // --- Комната ---
 a.send('room:create', { playerName: 'Алиса' });
 const created = await a.waitFor('room:created');
@@ -166,21 +169,24 @@ check('B НЕ видит инвентарь A', bSeesA.inventory === undefined);
 const bSeesOwnShaman = bSnap.game.characters.find((c) => c.id === `${playerB}:S`);
 check('B видит свой инвентарь (Бусы у шамана)', Array.isArray(bSeesOwnShaman.inventory) && bSeesOwnShaman.inventory.some((c) => c.id === 'teleport_beads'));
 
-// --- Передача отклонена: персонажи на разных клетках (правило) ---
-a.send('action:transfer', { fromId: blacksmithA, toId: `${playerA}:P`, dieIndex: 1 });
-const transferErr = await a.waitFor('server:error');
-check('передача между разными клетками отклонена', /соседней клетке/i.test(transferErr.payload.message ?? ''));
+// --- Игровой чат: сообщение участникам комнаты, имя авторитетное ---
+await new Promise((r) => setTimeout(r, 600)); // переждать троттлинг чата (500 мс)
+a.send('chat:send', { text: 'удачи!', name: 'подделка' });
+const roomMsg = await b.waitFor('chat:message');
+check('игровой чат доходит сопернику',
+  roomMsg.payload.scope === 'room' && roomMsg.payload.text === 'удачи!' && roomMsg.payload.name === 'Алиса');
 
 // --- Второй добор за бросок отклонён (правило: 1 карта за бросок) ---
 a.send('action:draw', { characterId: `${playerA}:P`, dieIndex: 1 });
 const drawErr = await a.waitFor('server:error');
 check('второй добор за бросок отклонён', /один раз за бросок/i.test(drawErr.payload.message ?? ''));
 
-// Тратим второй кубик движением кузнеца
-const kMove = a.lastSnapshot.game.legalTargets.dice[1][blacksmithA]?.[0];
-check('есть цель движения вторым кубиком', typeof kMove === 'string');
-a.send('action:move', { characterId: blacksmithA, toCell: kMove, dieIndex: 1 });
+// --- Передача через всё поле (расстояние не ограничено) ---
+const pBefore = a.lastSnapshot.game.characters.find((c) => c.id === `${playerA}:P`).cardCount;
+a.send('action:transfer', { fromId: blacksmithA, toId: `${playerA}:P`, dieIndex: 1 });
 await a.waitFor('state:snapshot');
+const pAfter = a.lastSnapshot.game.characters.find((c) => c.id === `${playerA}:P`);
+check('передача через всё поле прошла', pAfter.cardCount > pBefore);
 check('оба кубика потрачены — стол очищен', a.lastSnapshot.game.turn.dice === null);
 
 // --- Конец хода ---
