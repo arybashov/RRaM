@@ -12,6 +12,11 @@ const SESSION_KEY = 'rram_session';
 const ROLE_NAMES = { K: 'Кузнец', P: 'Помощник', V: 'Воин', O: 'Охотник', S: 'Шаман' };
 const TELEPORT_ID = 'teleport_beads'; // id карты «Бусы телепортации» (сервер шлёт инвентарь как {id,name,type})
 const ROLE_ART   = { K: 'blacksmith', P: 'assistant', V: 'warrior', O: 'hunter', S: 'shaman' };
+const CHAR_CARD_ART = {
+  K: 'base/blacksmith/blacksmith-v1', P: 'base/assistant/assistant-v1',
+  V: 'base/warrior/warrior-v3',       O: 'base/hunter/hunter-v1',
+  S: 'base/shaman/shaman-v3',
+};
 const TOKEN_ART = {
   green: {
     K: 'blacksmith-figure-v1', P: 'assistant-figure-v1', V: 'warrior-figure-v2',
@@ -21,6 +26,22 @@ const TOKEN_ART = {
     K: 'blacksmith-figure-v1', P: 'assistant-figure-v1', V: 'warrior-figure-v1',
     O: 'hunter-figure-v1', S: 'shaman-figure-v1',
   },
+};
+const CARD_FACE_ART = {
+  teleport_beads: 'base/common/teleport-beads-v1',
+  bp_hammer_base: 'base/blacksmith/hammer-blueprint-v1',
+  hammer: 'base/blacksmith/hammer-v1',
+  sack: 'base/assistant/sack-v1',
+  recipe_sack: 'base/assistant/sack-recipe-v1',
+  bp_club_base: 'base/warrior/club-blueprint-v1',
+  club: 'base/warrior/club-v1',
+  griffin: 'base/hunter/griffin-v1',
+  recipe_yarn_base: 'base/common/yarn-v1',
+  yarn: 'base/common/yarn-v1',
+  wolf: 'beasts/red/gray-wolf-v1',
+  beast_bear: 'beasts/red/mystical-bear-v1',
+  boar_red: 'beasts/red/wild-boar-v1',
+  boar_forest: 'beasts/red/wild-boar-v1',
 };
 
 // Клиентский режим → серверный режим (для setMode)
@@ -1447,12 +1468,21 @@ const CARD_TYPE_LABELS = {
 function renderCard(c, i = 0, forceOpen = false) {
   // c = { id, name, type, locked, desc }; легаси-строку (если придёт) тоже покажем
   if (typeof c === 'string') return `<div class="card">${escapeHtml(c)}</div>`;
+  const art = CARD_FACE_ART[c.id];
   const type = CARD_TYPE_LABELS[c.type] ?? '';
   const locked = c.locked ? '<span class="card-lock" title="Откроется после крафта">🔒</span>' : '';
   const hasDesc = Boolean(c.desc);
   const open = forceOpen || expandedCards.has(i);
   const caret = hasDesc ? `<span class="card-caret">${open ? '▾' : '▸'}</span>` : '';
   const desc = hasDesc && open ? `<div class="card-desc">${escapeHtml(c.desc)}</div>` : '';
+  if (art) {
+    return `<div class="card card-face card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}${open ? ' expanded' : ''}" data-i="${i}" title="${escapeHtml(c.name)}"${hasDesc ? ' role="button" tabindex="0"' : ''}>`
+      + `<img class="inventory-card-art" src="./assets/cards/${art}.png" alt="${escapeHtml(c.name)}" draggable="false" />`
+      + locked
+      + caret
+      + desc
+      + `</div>`;
+  }
   return `<div class="card card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}${open ? ' expanded' : ''}" data-i="${i}"${hasDesc ? ' role="button" tabindex="0"' : ''}>`
     + `<div class="card-head">`
     +   `<span class="card-name">${escapeHtml(c.name)}</span>`
@@ -1567,12 +1597,10 @@ function renderCbxRow(char) {
   const teleSlot = teleI >= 0
     ? renderCbxCard(inv[teleI], char.id, teleI)
     : '<div class="cbx-tele-empty" title="Слот Бус телепортации">∅</div>';
-  const cell = char.position ? `<span class="cbx-cell">📍 ${char.position}</span>` : '';
   return `<div class="cbx-row" data-char-id="${char.id}">`
     + `<div class="cbx-portrait side-${side}">`
-    +   `<img src="./assets/characters/${side}/transparent/${ROLE_ART[char.role]}.png" alt="${ROLE_NAMES[char.role]}" />`
-    +   `<span>${ROLE_NAMES[char.role]}</span>`
-    +   cell
+    +   `<img src="${charCardArt(char.role)}" alt="${ROLE_NAMES[char.role]}" />`
+    +   `<span class="cbx-hp">${char.hp ?? 100}</span>`
     + `</div>`
     + `<div class="cbx-slots">${otherSlots}</div>`
     + `<div class="cbx-tele-slot">${teleSlot}</div>`
@@ -1581,10 +1609,16 @@ function renderCbxRow(char) {
 
 function renderCbxCard(c, charId, i) {
   if (typeof c === 'string') c = { name: c, type: 'unknown', locked: false };
-  const lock = c.locked ? '<span class="cbx-lock">🔒</span>' : '';
+  const art = CARD_FACE_ART[c.id];
+  const image = art
+    ? `<img class="cbx-card-art" src="./assets/cards/${art}.png" alt="" draggable="false" />`
+    : '';
+  const lock = c.locked ? '<span class="cbx-lock" aria-label="Карта закрыта">🔒</span>' : '';
   return `<div class="cbx-card card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}"`
     + ` data-char-id="${charId}" data-i="${i}" title="${escapeHtml(c.name)}">`
-    + `<span class="cbx-card-name">${escapeHtml(c.name)}</span>${lock}`
+    + image
+    + (art ? '' : `<span class="cbx-card-name">${escapeHtml(c.name)}</span>`)
+    + lock
     + `</div>`;
 }
 
@@ -1894,11 +1928,6 @@ function updateCombatScene() {
 const BEAST_ICONS = { boar_red: '🐗', boar_forest: '🐗', wolf: '🐺', beast_bear: '🐻' };
 
 // Лицевые карты: персонажи-орки (враг) и красные звери — арты из assets/cards
-const CHAR_CARD_ART = {
-  K: 'base/blacksmith/blacksmith-v1', P: 'base/assistant/assistant-v1',
-  V: 'base/warrior/warrior-v3',       O: 'base/hunter/hunter-v1',
-  S: 'base/shaman/shaman-v3',
-};
 const BEAST_CARD_ART = {
   wolf: 'beasts/red/gray-wolf-v1', beast_bear: 'beasts/red/mystical-bear-v1',
   boar_red: 'beasts/red/wild-boar-v1', boar_forest: 'beasts/red/wild-boar-v1',

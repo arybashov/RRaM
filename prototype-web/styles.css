@@ -838,7 +838,14 @@ h2::after {
 /* ---------- Inventory ---------- */
 .inventory {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  align-items: start;
   gap: 9px;
+}
+
+.inventory > .beast-info,
+.inventory > .craft-info {
+  grid-column: 1 / -1;
 }
 
 /* Сводка боя со зверем — первым блоком над картами инвентаря */
@@ -865,6 +872,68 @@ h2::after {
 
 .card[role="button"] { cursor: pointer; }
 .card.expanded { background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)); }
+
+.card.card-face {
+  min-width: 0;
+  padding: 3px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.inventory-card-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 5px;
+  filter: brightness(1.5);
+  pointer-events: none;
+  user-select: none;
+}
+
+.card.card-face.card-locked .inventory-card-art {
+  filter: grayscale(0.35) brightness(1.08);
+}
+
+.card.card-face .card-lock {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(8, 12, 18, 0.84);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.75);
+}
+
+.card.card-face .card-caret {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(8, 12, 18, 0.82);
+  color: #fff;
+}
+
+.card.card-face .card-desc {
+  margin: 3px 0 0;
+  padding: 8px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(7, 11, 19, 0.92);
+  color: #d9e0ea;
+}
+
+.card.card-face::before {
+  display: none;
+}
 
 .card-head {
   display: flex;
@@ -922,6 +991,7 @@ h2::after {
 .card-special    { --card-accent: #6fc3c0; }
 
 .empty {
+  grid-template-columns: 1fr;
   color: var(--muted);
   font-size: 13px;
 }
@@ -1533,8 +1603,9 @@ h2::after {
 }
 
 .cbx-portrait {
+  position: relative;
   flex: none;
-  width: 64px;
+  width: 78px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1544,13 +1615,33 @@ h2::after {
   color: var(--muted);
 }
 .cbx-portrait img {
-  width: 52px; height: 52px;
-  object-fit: contain;
-  border-radius: var(--radius-sm);
+  width: 72px;
+  height: 102px;
+  object-fit: cover;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.42);
+  filter: brightness(1.5);
 }
 .cbx-portrait.side-red  { color: #e98f7a; }
 .cbx-portrait.side-green { color: #9ec97a; }
+.cbx-hp {
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  transform: translateX(-50%);
+  min-width: 30px;
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(8, 12, 18, 0.84);
+  color: #fff;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.75);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 17px;
+  text-align: center;
+}
 
 .cbx-slots {
   flex: 1;
@@ -1565,34 +1656,62 @@ h2::after {
 .cbx-card {
   position: relative;
   display: flex;
+  flex: none;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  max-width: 150px;
-  padding: 7px 9px 7px 11px;
+  justify-content: flex-start;
+  width: 76px;
+  min-height: 102px;
+  gap: 3px;
+  padding: 3px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
+  overflow: hidden;
   touch-action: none; /* перетаскивание не должно скроллить список */
 }
 .cardbox.can-transfer .cbx-card,
 .cardbox-overlay.can-transfer .cbx-card { cursor: grab; }
-.cbx-card::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 6px; bottom: 6px;
-  width: 3px; border-radius: 3px;
-  background: var(--card-accent, var(--gold));
+.cbx-card-art {
+  display: block;
+  width: 68px;
+  height: 96px;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 5px;
+  filter: brightness(1.5);
+  pointer-events: none;
+  user-select: none;
 }
 .cbx-card-name {
+  width: 100%;
   min-width: 0;
+  padding: 0 2px 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
+  line-height: 14px;
+}
+.cbx-card.card-locked .cbx-card-art {
+  filter: grayscale(0.35) brightness(1.08);
 }
 .cbx-card.card-locked .cbx-card-name { color: var(--muted); }
-.cbx-lock { flex: none; font-size: 11px; }
+.cbx-lock {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(10, 13, 19, 0.82);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.8);
+  font-size: 12px;
+}
 .cbx-card.dragging { opacity: 0.35; }
 
 .cbx-ghost {
@@ -1905,11 +2024,14 @@ h2::after {
   border-left: 1px dashed var(--line-strong);
 }
 .cbx-tele-slot .cbx-card {
-  background: linear-gradient(135deg, rgba(111, 195, 192, 0.18), rgba(111, 195, 192, 0.05));
   border-color: rgba(111, 195, 192, 0.5);
+  box-shadow: 0 0 10px rgba(111, 195, 192, 0.16);
 }
 .cbx-tele-empty {
-  width: 64px;
+  width: 76px;
+  min-height: 102px;
+  display: grid;
+  place-items: center;
   padding: 7px 4px;
   font-size: 13px;
   text-align: center;
@@ -1920,18 +2042,21 @@ h2::after {
   opacity: 0.6;
 }
 
-/* Передача через ящик: подсветка запрета (разные клетки) и метка клетки */
+@media (max-width: 620px) {
+  .cardbox-rows { padding: 8px; }
+  .cbx-row { gap: 6px; padding: 6px; }
+  .cbx-portrait { width: 66px; }
+  .cbx-portrait img { width: 60px; height: 85px; }
+  .cbx-card { width: 68px; min-height: 91px; }
+  .cbx-card-art { width: 60px; height: 85px; }
+  .cbx-tele-slot { padding-left: 6px; margin-left: 0; }
+  .cbx-tele-empty { width: 68px; min-height: 91px; }
+}
+
+/* Передача через ящик: подсветка запрета */
 .cbx-row.drop-blocked {
   border-color: #e0563f;
   background: rgba(224, 86, 63, 0.12);
-}
-.cbx-cell {
-  display: inline-block;
-  margin-top: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--muted);
 }
 
 /* ---------- Toasts ---------- */
