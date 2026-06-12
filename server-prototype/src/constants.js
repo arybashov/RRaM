@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260613-2';
+export const BUILD_VERSION = '20260613-3';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -45,15 +45,18 @@ export const BEASTS = Object.freeze({
 //
 // Лут с убитого зверя: какая сырая шкура падает за какого зверя.
 export const BEAST_HIDE_DROP = Object.freeze({
-  boar_red:    'raw_hide_red',
-  wolf:        'raw_hide_red',
-  beast_bear:  'raw_hide_red',
-  boar_forest: 'raw_hide',
+  boar_red:    'boar_hide',
+  wolf:        'wolf_hide',
+  beast_bear:  'bear_hide',
+  boar_forest: 'boar_hide',
 });
 // Сырые шкуры → очищенные (результат обработки шаманом).
 export const RAW_HIDE_TO_CLEAN = Object.freeze({
   raw_hide:     'beast_hide',
   raw_hide_red: 'hide_red',
+  boar_hide:    'beast_hide',
+  wolf_hide:    'beast_hide',
+  bear_hide:    'beast_hide',
 });
 // Шаман бросает один кубик; значение ≥ этого — шкура очищена.
 export const HIDE_CLEAN_MIN = 2;
@@ -112,6 +115,9 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'boar_forest',   deck: 'forest',      type: 'beast',       copies: 2, name: 'Дикий кабан' },
   { id: 'beast_hide',    deck: 'forest',      type: 'ingredient',  copies: 4, name: 'Очищенная шкура зверя' },
   { id: 'raw_hide',      deck: 'forest',      type: 'ingredient',  copies: 4, name: 'Шкура убитого зверя' },
+  { id: 'boar_hide',     deck: 'trophy',      type: 'ingredient',  copies: 0, name: 'Шкура кабана' },
+  { id: 'wolf_hide',     deck: 'trophy',      type: 'ingredient',  copies: 0, name: 'Шкура волка' },
+  { id: 'bear_hide',     deck: 'trophy',      type: 'ingredient',  copies: 0, name: 'Шкура медведя' },
   { id: 'bark',          deck: 'forest',      type: 'armor',       copies: 3, name: 'Кора дерева' },
   { id: 'gold_nugget',   deck: 'forest',      type: 'special',     copies: 2, name: 'Малый золотой самородок' },
   { id: 'amanita_color', deck: 'forest',      type: 'ingredient',  copies: 3, name: 'Мухомор цвет' },
