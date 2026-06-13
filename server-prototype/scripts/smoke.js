@@ -173,6 +173,14 @@ const bSnap = await snapshotAtLeast(b, a.lastSnapshot.revision);
 const bSeesA = bSnap.game.characters.find((c) => c.id === blacksmithA);
 check('B видит счетчик карт A (5)', bSeesA.cardCount === 5);
 check('B НЕ видит инвентарь A', bSeesA.inventory === undefined);
+const bSeesAHunter = bSnap.game.characters.find((c) => c.id === `${playerA}:O`);
+check(
+  'B видит публичного Грифона A, но не остальные карты Охотника',
+  bSeesAHunter.inventory === undefined
+    && bSeesAHunter.cardCount === 2
+    && bSeesAHunter.publicCards?.length === 1
+    && bSeesAHunter.publicCards[0].id === 'griffin',
+);
 const bSeesOwnShaman = bSnap.game.characters.find((c) => c.id === `${playerB}:S`);
 check('B видит свой инвентарь (Бусы у шамана)', Array.isArray(bSeesOwnShaman.inventory) && bSeesOwnShaman.inventory.some((c) => c.id === 'teleport_beads'));
 
@@ -194,7 +202,11 @@ a.send('action:transfer', { fromId: blacksmithA, toId: `${playerA}:P`, dieIndex:
 await a.waitFor('state:snapshot');
 const pAfter = a.lastSnapshot.game.characters.find((c) => c.id === `${playerA}:P`);
 check('передача через всё поле прошла', pAfter.cardCount > pBefore);
-check('оба кубика потрачены — стол очищен', a.lastSnapshot.game.turn.dice === null);
+check(
+  'оба кубика потрачены — значения видны до конца хода',
+  Array.isArray(a.lastSnapshot.game.turn.dice)
+    && a.lastSnapshot.game.turn.usedDice.every(Boolean),
+);
 
 // --- Конец хода ---
 a.send('turn:end', {});

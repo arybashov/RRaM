@@ -25,7 +25,6 @@ import {
 } from './constants.js';
 import {
   MAP_ID,
-  allStartCells,
   cellTerrain,
   isBoardCell,
   neighbors,
@@ -227,21 +226,40 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
   if (character.beastFight) {
     throw new Error('В схватке со зверем персонаж не может брать карты: добейте зверя или убегайте.');
   }
-  if (game.deck.length === 0) {
+  const drawCount = character.role === 'K'
+    && character.crafted?.includes('hammer')
+    && character.inventory.includes('hammer')
+    && cellTerrain(character.position) === 'resource'
+    ? 2
+    : 1;
+  if (game.deck.length < drawCount) {
     throw new Error('Колода пуста.');
   }
-  if (character.inventory.length >= INVENTORY_LIMIT) {
-    throw new Error('Инвентарь персонажа полон.');
+  if (character.inventory.length + drawCount > INVENTORY_LIMIT) {
+    throw new Error(drawCount === 1
+      ? 'Инвентарь персонажа полон.'
+      : 'Для Молотка нужны два свободных места в инвентаре.');
   }
 
-  const cardId = game.deck.shift();
-  character.inventory.push(cardId);
+  const cardIds = game.deck.splice(0, drawCount);
+  character.inventory.push(...cardIds);
   game.turn.drawnThisTurn = true;
   lockMovement(game); // движение в этот бросок зафиксировано — откат недоступен
   spendDie(game, dieIndex);
 
-  const card = CARD_BY_ID[cardId];
-  return { drawn: { characterId, card: cardId, name: card?.name, type: card?.type, desc: card?.desc } };
+  const cards = cardIds.map((cardId) => {
+    const card = CARD_BY_ID[cardId];
+    return { card: cardId, name: card?.name, type: card?.type, desc: card?.desc };
+  });
+  return {
+    drawn: {
+      characterId,
+      ...cards[0],
+      cards,
+      count: cards.length,
+      hammerUsed: drawCount === 2,
+    },
+  };
 }
 
 function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
@@ -491,7 +509,11 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
 
   let killed = false;
   let successes = character.beastFight.successes;
-  if (value >= beast.killOn) {
+  const clubUsed = character.role === 'V'
+    && character.crafted?.includes('club')
+    && character.inventory.includes('club')
+    && value >= 4;
+  if (clubUsed || value >= beast.killOn) {
     killed = true;
   } else if (value >= beast.successOn) {
     successes += 1;
@@ -517,13 +539,22 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   }
 
   return {
-    beastFought: { characterId, value, killed, successes, needed: beast.needed, hide },
+    beastFought: {
+      characterId,
+      value,
+      killed,
+      successes,
+      needed: beast.needed,
+      hide,
+      clubUsed,
+    },
   };
 }
 
-function teleport(game, playerId, { characterId, toCell } = {}) {
+function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
+  requireSplit(game);
   const character = ownCharacter(game, playerId, characterId);
   if (combatOpponent(game, character)) {
     throw new Error('В бою нельзя телепортироваться: атакуйте, передайте карты или убегайте.');
@@ -534,8 +565,9 @@ function teleport(game, playerId, { characterId, toCell } = {}) {
   if (!character.inventory.includes(TELEPORT_CARD)) {
     throw new Error('У персонажа нет Бус телепортации.');
   }
-  if (!allStartCells().includes(toCell)) {
-    throw new Error('Телепортация доступна только на стартовые клетки.');
+  const ownStartCells = ROLES.map((role) => startCell(character.side, role));
+  if (!ownStartCells.includes(toCell)) {
+    throw new Error('Телепортация доступна только на свои стартовые клетки.');
   }
   if (game.characters.some((item) => item.id !== character.id && item.position === toCell)) {
     throw new Error('Стартовая клетка занята.');
@@ -543,13 +575,35 @@ function teleport(game, playerId, { characterId, toCell } = {}) {
   if (character.position === toCell) {
     throw new Error('Персонаж уже находится на этой клетке.');
   }
-  if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
-    throw new Error('Для телепортации нужны оба неиспользованных кубика.');
+  const value = dieValue(game, dieIndex);
+  lockMovement(game);
+  spendDie(game, dieIndex);
+  if (value < 2) {
+    return {
+      teleported: {
+        characterId,
+        toCell: null,
+        value,
+        success: false,
+        consumed: false,
+      },
+    };
   }
 
   character.position = toCell;
-  spendAllDice(game);
-  return { teleported: { characterId, toCell }, winnerId: game.winnerId };
+  const beadsIndex = character.inventory.indexOf(TELEPORT_CARD);
+  character.inventory.splice(beadsIndex, 1);
+  game.discard.push(TELEPORT_CARD);
+  return {
+    teleported: {
+      characterId,
+      toCell,
+      value,
+      success: true,
+      consumed: true,
+    },
+    winnerId: game.winnerId,
+  };
 }
 
 export function availableAttackTargets(game, playerId, characterId) {
@@ -629,6 +683,26 @@ function craft(game, playerId, { characterId, item = 'club' } = {}) {
       throw new Error('Не хватает материалов для изделия.');
     }
     consumedIdx.push(idx);
+  }
+  if (recipe.dice) {
+    assertRolled(game);
+    if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
+      throw new Error('Для испытания Молотка нужны оба неиспользованных кубика.');
+    }
+    const values = [...game.turn.dice];
+    spendAllDice(game);
+    const success = values.every((value) => value >= recipe.dice.min);
+    if (!success) {
+      return {
+        craftAttempt: {
+          characterId,
+          item,
+          values,
+          min: recipe.dice.min,
+          success: false,
+        },
+      };
+    }
   }
   // Израсходовать материалы + чертёж/рецепт (удаляем с конца, чтобы не сбить индексы).
   const removeIdx = [...consumedIdx, character.inventory.indexOf(recipe.via)].sort((a, b) => b - a);
@@ -867,15 +941,12 @@ function spendDie(game, dieIndex) {
   game.turn.usedDice[dieIndex] = true;
   if (game.turn.usedDice[0] && game.turn.usedDice[1]) {
     if (game.turn.movementArea) return;
-    game.turn.dice = null;
-    game.turn.usedDice = [false, false];
     game.turn.mode = null;
   }
 }
 
 function spendAllDice(game) {
-  game.turn.dice = null;
-  game.turn.usedDice = [false, false];
+  game.turn.usedDice = [true, true];
   game.turn.movementArea = null;
   game.turn.mode = null;
 }

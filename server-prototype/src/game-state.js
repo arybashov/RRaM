@@ -222,9 +222,23 @@ export function createStore() {
 // Карта-результат крафта показывается открытой, если персонаж её скрафтил.
 function cardView(id, character) {
   const card = CARD_BY_ID[id];
-  if (!card) return { id, name: id, type: 'unknown', locked: false, desc: '' };
+  if (!card) return {
+    id,
+    name: id,
+    type: 'unknown',
+    locked: false,
+    desc: '',
+    visibleToOpponent: false,
+  };
   const locked = (card.locked ?? false) && !character?.crafted?.includes(id);
-  return { id, name: card.name, type: card.type, locked, desc: card.desc ?? '' };
+  return {
+    id,
+    name: card.name,
+    type: card.type,
+    locked,
+    desc: card.desc ?? '',
+    visibleToOpponent: card.public === true && !locked,
+  };
 }
 
 // Схватка со зверем → представление для клиента: имя и параметры зверя.
@@ -305,8 +319,14 @@ function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
         // схватка со зверем публична — видна обоим игрокам
         beastFight: beastFightView(c.beastFight),
         cardCount: c.inventory.length,
-        // полный инвентарь — только владельцу; id резолвим в карточку для UI
+        // Полный инвентарь — только владельцу. Отдельные открытые карты
+        // видны сопернику без раскрытия остальной руки.
         inventory: c.owner === forPlayerId ? c.inventory.map((id) => cardView(id, c)) : undefined,
+        publicCards: c.owner !== forPlayerId
+          ? c.inventory
+              .map((id) => cardView(id, c))
+              .filter((card) => card.visibleToOpponent)
+          : [],
       };
     }),
     legalTargets: snapshotLegalTargets(game, forPlayerId),

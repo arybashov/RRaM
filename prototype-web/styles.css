@@ -262,6 +262,60 @@ h2::after {
   z-index: 3;
 }
 
+.character-nav {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 4;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: rgba(19, 28, 36, 0.88);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+  touch-action: manipulation;
+}
+
+.character-nav-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+  background: var(--panel-solid);
+  border: 1px solid var(--line-strong);
+}
+
+.character-nav-btn.active {
+  border-color: var(--accent);
+  background: rgba(70, 194, 160, 0.3);
+  box-shadow: 0 0 0 2px rgba(70, 194, 160, 0.32);
+}
+
+.character-nav-btn.in-combat::after {
+  content: "!";
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #d84a43;
+  color: white;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.character-nav-btn:disabled {
+  opacity: 0.38;
+}
+
 .board-ctl {
   width: 38px;
   height: 38px;
@@ -619,6 +673,20 @@ h2::after {
   border-color: var(--accent-2);
   background: linear-gradient(180deg, rgba(240, 136, 74, 0.3), rgba(240, 136, 74, 0.06));
   box-shadow: inset 0 0 0 1px rgba(240, 136, 74, 0.4), 0 8px 20px -12px var(--accent-2);
+}
+
+.card-public-mark {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  z-index: 2;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(20, 105, 76, 0.9);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 /* ---------- Board ---------- */
