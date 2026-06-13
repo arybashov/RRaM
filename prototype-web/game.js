@@ -33,6 +33,7 @@ const CARD_FACE_ART = {
   teleport_beads: 'base/common/teleport-beads-v1',
   bp_hammer_base: 'base/blacksmith/hammer-blueprint-v1',
   hammer: 'base/blacksmith/hammer-v1',
+  ore_medium: 'base/blacksmith/mixed-iron-ore-v1',
   sack: 'base/assistant/sack-v1',
   recipe_sack: 'base/assistant/sack-recipe-v1',
   bp_club_base: 'base/warrior/club-blueprint-v1',
@@ -147,7 +148,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260613-3'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260613-5'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 
 // ── Старт ─────────────────────────────────────────────────────────
 showAppVersion();
@@ -382,11 +383,16 @@ function handleMsg({ type, payload }) {
 
       // Авто-setMode: отправляем один раз после броска кубиков
       const g = getGame();
-      if (g && isMyTurn() && g.turn.dice && !g.turn.mode && !autoModeSent) {
+      if (g && !getSelChar()) {
+        const nextSelectable = getMyChars().find(c => c.hp > 0 && characterPosition(c));
+        selectedCharId = nextSelectable?.id ?? null;
+      }
+      const allDiceSpent = g?.turn.usedDice?.every(Boolean);
+      if (g && isMyTurn() && g.turn.dice && !allDiceSpent && !g.turn.mode && !autoModeSent) {
         const sm = TO_SERVER_MODE[localMode];
         if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
       }
-      if (!g?.turn.dice) {
+      if (!g?.turn.dice || prevActive !== g.turn.activePlayerId) {
         autoModeSent = false;
         localMode = 'moveSum';
         selectedDieIdx = 0;
@@ -1096,10 +1102,13 @@ function handleCellClick(targetId) {
 
   if (localMode === 'teleport') {
     const inv = char.inventory ?? [];
-    if (!inv.some(c => c.id === TELEPORT_ID) || !isStartCell(targetId)) return;
+    if (!inv.some(c => c.id === TELEPORT_ID) || !validTargets(char).has(targetId)) return;
     if (usesServerPositions()) {
       teleportedChars.add(char.id); // не анимировать шагами — это прыжок
-      wsSend('action:teleport', { characterId: char.id, toCell: targetId });
+      const used = getGame().turn.usedDice;
+      const dieIndex = used[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
+      if (used[dieIndex]) return;
+      wsSend('action:teleport', { characterId: char.id, toCell: targetId, dieIndex });
       return;
     }
     if (localUsedDice[0] && localUsedDice[1]) return;
@@ -1247,7 +1256,8 @@ function renderDice() {
   });
 
   // Кубики потрачены, бросать больше нельзя — подсветить «Конец хода»
-  endTurnBtn.classList.toggle('attention', myTurn && !dice && g.turn.hasRolled);
+  const allSpent = Boolean(dice) && used.every(Boolean);
+  endTurnBtn.classList.toggle('attention', myTurn && allSpent && g.turn.hasRolled);
 
   // «Передать» открывает «ящик» — теперь всегда доступно для просмотра карт команды
   if (transferModeBtn) {
@@ -1263,14 +1273,14 @@ function renderDice() {
       ? 'Карту в этом броске уже брали — второй кубик потратьте на другое действие'
       : 'Взять карту из колоды (тратит кубик)';
   }
-  // «Телепорт» активен только если у выбранного персонажа есть Бусы (и нужны оба свободных кубика)
+  // «Телепорт» активен, если у выбранного персонажа есть Бусы и свободен один кубик.
   if (teleportModeBtn) {
     const sel = getSelChar();
     const hasBeads = sel?.inventory?.some(c => c.id === TELEPORT_ID);
-    const bothFree = dice && !used[0] && !used[1];
-    teleportModeBtn.disabled = !(myTurn && hasBeads && bothFree);
+    const hasFreeDie = dice && (!used[0] || !used[1]);
+    teleportModeBtn.disabled = !(myTurn && hasBeads && hasFreeDie);
     teleportModeBtn.title = hasBeads
-      ? 'Телепорт на стартовую клетку (нужны оба кубика)'
+      ? 'Бросить выбранный кубик: при результате 2+ телепорт на стартовую клетку'
       : 'У выбранного персонажа нет Бус телепортации';
   }
 
@@ -1450,18 +1460,19 @@ function renderCharacters() {
   if (!game) return;
 
   for (const char of getMyChars()) {
-    const side   = charSide(char);
     const hp     = char.hp ?? 100;
-    const cards  = char.cardCount ?? char.inventory?.length ?? 0;
     const btn    = document.createElement('button');
-    btn.className = `character-card side-${side}`;
+    btn.className = 'character-nav-btn';
     if (char.id === selectedCharId) btn.classList.add('active');
-    if (char.combatOpponentId) btn.classList.add('in-combat');
-    btn.innerHTML = `
-      <img class="portrait-img" src="./assets/characters/${side}/transparent/${ROLE_ART[char.role]}.png" alt="${ROLE_NAMES[char.role]}" />
-      <strong>${ROLE_NAMES[char.role]}</strong>
-      <span class="meta">HP ${hp} · ${cards} карт${char.combatOpponentId ? ' · БОЙ' : ''}${char.beastFight ? ' · ЗВЕРЬ' : ''}</span>
-    `;
+    if (char.combatOpponentId || char.beastFight) btn.classList.add('in-combat');
+    btn.textContent = char.role;
+    btn.title = `${ROLE_NAMES[char.role]} · HP ${hp}`;
+    btn.setAttribute(
+      'aria-label',
+      `${ROLE_NAMES[char.role]}, HP ${hp}${char.id === selectedCharId ? ', выбран' : ''}`,
+    );
+    btn.setAttribute('aria-pressed', char.id === selectedCharId ? 'true' : 'false');
+    btn.disabled = char.hp <= 0 || !characterPosition(char);
     btn.addEventListener('click', () => {
       reopenCombatFor(char); // тап по карточке воюющего персонажа возвращает в бой
       selectCharacter(char.id);
@@ -1517,8 +1528,11 @@ function renderInventory() {
     const resultLocked = inv.some(c => c.id === r.result && c.locked);
     const matsReady = r.materials.every(slot => slot.some(id => has(id)));
     if (resultLocked && has(r.via) && matsReady) {
+      const diceReady = !r.needsBothDice || (dice && !used[0] && !used[1]);
       craftInfo = `<div class="craft-info">🔨 Есть материалы — можно открыть «${r.label}»! `
-        + `<button id="craftBtn" data-item="${item}" ${isMyTurn() ? '' : 'disabled'}>Открыть «${r.label}»</button></div>`;
+        + `<button id="craftBtn" data-item="${item}" ${(isMyTurn() && diceReady) ? '' : 'disabled'}>Открыть «${r.label}»</button>`
+        + (r.needsBothDice && !diceReady ? ' Нужны оба свободных кубика, каждый 3+.' : '')
+        + `</div>`;
     }
   }
 
@@ -1546,7 +1560,7 @@ const RAW_HIDE_IDS = ['raw_hide', 'raw_hide_red', 'boar_hide', 'wolf_hide', 'bea
 // Рецепты базовых изделий — зеркало server CRAFT_RECIPES (для кнопок крафта).
 const CRAFT_RECIPES = {
   club:   { role: 'V', via: 'bp_club_base',   result: 'club',   label: 'Дубина',  materials: [['beast_hide', 'hide_red']] },
-  hammer: { role: 'K', via: 'bp_hammer_base', result: 'hammer', label: 'Молоток', materials: [['ore_medium', 'ore_coarse']] },
+  hammer: { role: 'K', via: 'bp_hammer_base', result: 'hammer', label: 'Молоток', materials: [['ore_medium']], needsBothDice: true },
   sack:   { role: 'P', via: 'recipe_sack',    result: 'sack',   label: 'Мешок',   materials: [['yarn'], ['sheep_hide_c']] },
 };
 
@@ -1562,6 +1576,9 @@ function renderCard(c, i = 0, forceOpen = false) {
   const art = CARD_FACE_ART[c.id];
   const type = CARD_TYPE_LABELS[c.type] ?? '';
   const locked = c.locked ? '<span class="card-lock" title="Откроется после крафта">🔒</span>' : '';
+  const publicMark = c.visibleToOpponent
+    ? '<span class="card-public-mark" title="Эта карта видна сопернику">✓ видна</span>'
+    : '';
   const hasDesc = Boolean(c.desc);
   const open = forceOpen || expandedCards.has(i);
   const caret = hasDesc ? `<span class="card-caret">${open ? '▾' : '▸'}</span>` : '';
@@ -1569,6 +1586,7 @@ function renderCard(c, i = 0, forceOpen = false) {
   if (art) {
     return `<div class="card card-face card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}${open ? ' expanded' : ''}" data-i="${i}" title="${escapeHtml(c.name)}"${hasDesc ? ' role="button" tabindex="0"' : ''}>`
       + `<img class="inventory-card-art" src="./assets/cards/${art}.png" alt="${escapeHtml(c.name)}" draggable="false" />`
+      + publicMark
       + locked
       + caret
       + desc
@@ -1578,6 +1596,7 @@ function renderCard(c, i = 0, forceOpen = false) {
     + `<div class="card-head">`
     +   `<span class="card-name">${escapeHtml(c.name)}</span>`
     +   (type ? `<span class="card-type">${type}</span>` : '')
+    +   publicMark
     +   locked
     +   caret
     + `</div>`
@@ -2061,9 +2080,13 @@ function renderCombatScene(mine, enemyOverride = null) {
   const enemyOwner = serverRoom?.players.find(p => p.id === enemy.owner)?.name ?? 'Противник';
 
   // Верх: лицевая карта противника-орка + HP + закрытая рука
-  const backs = Array.from({ length: enemy.cardCount ?? 0 }, () =>
+  const publicCards = enemy.publicCards ?? [];
+  const hiddenCardCount = Math.max(0, (enemy.cardCount ?? 0) - publicCards.length);
+  const backs = Array.from({ length: hiddenCardCount }, () =>
     '<img class="cb-back" src="./assets/cards/backs/mixed-ground.png" alt="Закрытая карта" draggable="false" />'
-  ).join('')
+  ).join('');
+  const publicFaces = publicCards.length ? combatCardsHtml(publicCards) : '';
+  const enemyCards = `${publicFaces}${backs}`
     || '<span class="cb-none">нет карт</span>';
   combatEl.querySelector('#combatEnemy').innerHTML = `
     <div class="cb-foe">
@@ -2072,7 +2095,7 @@ function renderCombatScene(mine, enemyOverride = null) {
         <div class="cb-name">${ROLE_NAMES[enemy.role]} · ${escapeHtml(enemyOwner)}</div>
         <div class="cb-hpbar"><div style="width:${Math.max(0, enemy.hp)}%"></div></div>
         <div class="cb-hp">${enemy.hp} HP</div>
-        <div class="cb-cards">${backs}</div>
+        <div class="cb-cards">${enemyCards}</div>
       </div>
     </div>`;
 
@@ -2144,7 +2167,7 @@ function combatDiceHtml(g, myTurn) {
 
 // Кнопка «Конец хода» в ряду действий сцены; пульсирует, когда кубики потрачены
 function combatEndTurnHtml(g, myTurn) {
-  const attention = myTurn && !g.turn.dice && g.turn.hasRolled;
+  const attention = myTurn && g.turn.dice && g.turn.usedDice.every(Boolean) && g.turn.hasRolled;
   return `<button id="cbEndTurnBtn" class="ghost${attention ? ' attention' : ''}" ${myTurn ? '' : 'disabled'}>Конец хода</button>`;
 }
 
@@ -2256,7 +2279,8 @@ function validTargets(char) {
   if (localMode === 'teleport') {
     const inv = char.inventory ?? [];
     if (!inv.some(c => c.id === TELEPORT_ID)) return result;
-    for (const id of startCellIds) {
+    const ownStarts = Object.values(boardMap?.starts?.[charSide(char)] ?? {});
+    for (const id of ownStarts) {
       const occupied = getGame()?.characters.some(
         c => c.id !== char.id && characterPosition(c) === id,
       );
@@ -2805,13 +2829,25 @@ function handleActionResult(result) {
     const d = result.drawn;
     const card = { id: d.card, name: d.name, type: d.type, desc: d.desc };
     showFoundCard(card, false);
-    showToast(`Взято из колоды: ${d.name}`, 'success');
+    showToast(d.hammerUsed ? 'Молоток: взято 2 карты' : `Взято из колоды: ${d.name}`, 'success');
   }
 
   if (result.transferred) {
     const t = result.transferred;
     const name = t.name || getCardName(t.cardId);
     showToast(`Передано: ${name}`, 'info');
+  }
+
+  if (result.teleported) {
+    const t = result.teleported;
+    if (t.success) {
+      showToast(`Телепортация удалась: кубик ${t.value}`, 'success');
+      addLog(`Бусы телепортации: кубик ${t.value}, персонаж перемещён. Карта израсходована.`, { type: 'my' });
+    } else {
+      teleportedChars.delete(t.characterId);
+      showToast(`Телепортация не удалась: кубик ${t.value}`, 'info');
+      addLog(`Бусы телепортации: кубик ${t.value}, нужно 2 или больше.`, { type: 'sys' });
+    }
   }
 
   if (result.attacked) {
@@ -2839,7 +2875,8 @@ function handleActionResult(result) {
     const b = result.beastFought;
     if (b.killed) {
       const hideName = b.hide ? getCardName(b.hide) : null;
-      showToast(hideName ? `🐗 Зверь убит! Добыта: ${hideName}` : '🐗 Зверь убит!', 'success');
+      const weapon = b.clubUsed ? ' Дубина сработала.' : '';
+      showToast(hideName ? `🐗 Зверь убит!${weapon} Добыта: ${hideName}` : `🐗 Зверь убит!${weapon}`, 'success');
       addLog(hideName
         ? `Зверь убит (кубик ${b.value}). Добыта «${hideName}».`
         : `Зверь убит (кубик ${b.value}).`, { type: 'my' });
@@ -2863,6 +2900,12 @@ function handleActionResult(result) {
     const label = CRAFT_RECIPES[result.crafted.item]?.label ?? 'изделие';
     showToast(`🔨 Открыто: ${label}!`, 'success');
     addLog(`Открыто изделие «${label}» по чертежу/рецепту (материалы израсходованы).`, { type: 'my' });
+  }
+
+  if (result.craftAttempt && !result.craftAttempt.success) {
+    const a = result.craftAttempt;
+    showToast(`Испытание Молотка не пройдено: [${a.values.join(', ')}]`, 'info');
+    addLog(`Испытание Молотка: [${a.values.join(', ')}], нужно 3+ на каждом кубике. Материалы сохранены.`, { type: 'sys' });
   }
 }
 

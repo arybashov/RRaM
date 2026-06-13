@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260613-3';
+export const BUILD_VERSION = '20260613-5';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -71,7 +71,13 @@ export const CRAFT_RECIPES = Object.freeze({
   // Воин: убитый зверь → шкуру очищает шаман → очищенной шкурой открыть Дубину
   club:   { role: 'V', via: 'bp_club_base',   result: 'club',   materials: [['beast_hide', 'hide_red']] },
   // Кузнец: смешанная (грязная) железная руда
-  hammer: { role: 'K', via: 'bp_hammer_base', result: 'hammer', materials: [['ore_medium', 'ore_coarse']] },
+  hammer: {
+    role: 'K',
+    via: 'bp_hammer_base',
+    result: 'hammer',
+    materials: [['ore_medium']],
+    dice: { count: 2, min: 3 },
+  },
   // Помощник: клубок + очищенная шкура барана
   sack:   { role: 'P', via: 'recipe_sack',    result: 'sack',   materials: [['yarn'], ['sheep_hide_c']] },
 });
@@ -108,7 +114,7 @@ export const DECKS = Object.freeze({
 
 export const CARD_CATALOG = Object.freeze([
   // --- Смешанный грунт ---
-  { id: 'ore_medium',    deck: 'mixed',       type: 'ingredient',  copies: 8, name: 'Железная руда среднего качества' },
+  { id: 'ore_medium',    deck: 'mixed',       type: 'ingredient',  copies: 8, name: 'Смешанная железная руда' },
   { id: 'ore_coarse',    deck: 'mixed',       type: 'provocation', copies: 6, name: 'Грубая смешанная железная руда' },
 
   // --- Лес ---
@@ -174,7 +180,7 @@ export const BASE_CARD_CATALOG = Object.freeze([
 
   // Кузнец
   { id: 'bp_hammer_base',   role: 'K', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на молоток',
-    desc: 'Материалы: смешанная железная руда ×1. Кубик 2 раза не менее 2. До 4 попыток. Открывает Молоток.' },
+    desc: 'Материалы: смешанная железная руда и крепёжный материал. Испытание: два кубика, каждый не меньше 3. Открывает Молоток.' },
   { id: 'hammer',           role: 'K', type: 'tool',       copies: 1, name: 'Молоток', locked: true,
     desc: 'Класс: кузнец. На точке добычи — взять 2 карты вне зависимости от кубика.' },
 
@@ -187,11 +193,11 @@ export const BASE_CARD_CATALOG = Object.freeze([
   // Воин
   { id: 'bp_club_base',     role: 'V', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на дубину',
     desc: 'Материалы: убить кабана, медведя или волка → шкуру очищает шаман → очищенной шкурой открыть Дубину.' },
-  { id: 'club',             role: 'V', type: 'weapon',     copies: 1, name: 'Дубина', locked: true,
-    desc: 'Класс: воин. Каждое начало хода враг теряет 10 HP без учёта брони.' },
+  { id: 'club',             role: 'V', type: 'weapon',     copies: 1, name: 'Дубина', locked: true, public: true,
+    desc: 'Класс: воин. В начале хода враг теряет 10 HP. Против зверя кубик 4+ побеждает его одной атакой.' },
 
   // Охотник (в исходном дизайн-доке — «Орёл», переименован в «Гриффон» по требованию заказчика)
-  { id: 'griffin',          role: 'O', type: 'companion',  copies: 1, name: 'Гриффон',
+  { id: 'griffin',          role: 'O', type: 'companion',  copies: 1, name: 'Гриффон', public: true,
     desc: 'HP 10. Атака по персонажу: 2 → 20, 3 → 25, 4 → 30 урона.' },
 
   // Шаман
@@ -205,7 +211,7 @@ export const BASE_CARD_CATALOG = Object.freeze([
 
 // Базовые карты по ролям — id, выдаются при старте.
 export const BASE_CARDS = Object.freeze({
-  K: ['bp_hammer_base', 'hammer', 'yarn', 'teleport_beads'],
+  K: ['bp_hammer_base', 'hammer', 'ore_medium', 'teleport_beads'],
   P: ['sack', 'recipe_sack', 'yarn', 'teleport_beads'],
   V: ['bp_club_base', 'club', 'teleport_beads'],
   O: ['griffin', 'teleport_beads'],
