@@ -163,15 +163,15 @@ check('режим split установлен', a.lastSnapshot.game.turn.mode ===
 const blacksmithA = `${playerA}:K`;
 a.send('action:draw', { characterId: blacksmithA, dieIndex: 0 });
 await a.waitFor('state:snapshot');
-// K стартует с 2 базовыми картами (чертёж + бусы), после добора — 3
+// K стартует с 3 базовыми картами (чертёж + руда + бусы), после добора — 4
 const myK = a.lastSnapshot.game.characters.find((c) => c.id === blacksmithA);
-check('кузнец A добрал карту (4 базовых + 1 = 5)', myK.cardCount === 5 && Array.isArray(myK.inventory) && myK.inventory.length === 5);
+check('кузнец A добрал карту (3 базовых + 1 = 4)', myK.cardCount === 4 && Array.isArray(myK.inventory) && myK.inventory.length === 4);
 check('колода уменьшилась (41-1=40)', a.lastSnapshot.game.deckCount === 40);
 
 // --- Скрытие чужих карт (ждем тот же снимок у B) ---
 const bSnap = await snapshotAtLeast(b, a.lastSnapshot.revision);
 const bSeesA = bSnap.game.characters.find((c) => c.id === blacksmithA);
-check('B видит счетчик карт A (5)', bSeesA.cardCount === 5);
+check('B видит счетчик карт A (4)', bSeesA.cardCount === 4);
 check('B НЕ видит инвентарь A', bSeesA.inventory === undefined);
 const bSeesAHunter = bSnap.game.characters.find((c) => c.id === `${playerA}:O`);
 check(

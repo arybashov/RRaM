@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260613-5';
+export const BUILD_VERSION = '20260614-12';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -33,6 +33,7 @@ export const TELEPORT_CARD = 'teleport_beads';
 // killOn — значение кубика для мгновенного убийства;
 // successOn/needed — меньшие значения копят успехи, needed успехов убивают зверя.
 export const BEASTS = Object.freeze({
+  sheep_ram:    { damage: 1,  killOn: 3, successOn: 1, needed: 2 },
   boar_red:    { damage: 5,  killOn: 4, successOn: 2, needed: 3 },
   boar_forest: { damage: 5,  killOn: 4, successOn: 2, needed: 3 },
   wolf:        { damage: 5,  killOn: 5, successOn: 2, needed: 3 },
@@ -45,13 +46,15 @@ export const BEASTS = Object.freeze({
 //
 // Лут с убитого зверя: какая сырая шкура падает за какого зверя.
 export const BEAST_HIDE_DROP = Object.freeze({
+  sheep_ram:    'sheep_hide_r',
   boar_red:    'boar_hide',
   wolf:        'wolf_hide',
   beast_bear:  'bear_hide',
   boar_forest: 'boar_hide',
 });
-// Сырые шкуры → очищенные (результат обработки шаманом).
+// Сырые шкуры → материалы после обработки шаманом.
 export const RAW_HIDE_TO_CLEAN = Object.freeze({
+  sheep_hide_r: ['sheep_hide_c', 'sheep_wool'],
   raw_hide:     'beast_hide',
   raw_hide_red: 'hide_red',
   boar_hide:    'beast_hide',
@@ -79,7 +82,29 @@ export const CRAFT_RECIPES = Object.freeze({
     dice: { count: 2, min: 3 },
   },
   // Помощник: клубок + очищенная шкура барана
-  sack:   { role: 'P', via: 'recipe_sack',    result: 'sack',   materials: [['yarn'], ['sheep_hide_c']] },
+  sack: {
+    role: 'P',
+    via: 'recipe_sack',
+    result: 'sack',
+    materials: [['yarn'], ['sheep_hide_c']],
+    dice: { count: 2, min: 3 },
+  },
+  // Шаман: клубок + шкура медведя → Ковёр шамана
+  shaman_carpet: {
+    role: 'S',
+    via: 'recipe_shaman_carpet',
+    result: 'shaman_carpet',
+    materials: [['yarn'], ['bear_hide']],
+    dice: { count: 1, min: 3 },
+  },
+  // Шерсть барана → Клубок; отдельная карта рецепта не требуется.
+  yarn: {
+    role: 'S',
+    via: 'sheep_wool',
+    result: 'yarn',
+    materials: [],
+    dice: { count: 1, min: 2 },
+  },
 });
 // Дубина: враг в бою теряет 10 HP каждое начало хода владельца (без учёта брони)
 export const CLUB_DAMAGE = 10;
@@ -133,10 +158,10 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'dead_ore',      deck: 'dark_forest', type: 'ingredient',  copies: 6, name: 'Неживая руда высокого качества' },
 
   // --- Баран (зелёные точки) ---
-  { id: 'sheep_ram',     deck: 'sheep',       type: 'beast',       copies: 2, name: 'Боран' },
+  { id: 'sheep_ram',     deck: 'sheep',       type: 'beast',       copies: 2, name: 'Баран' },
   { id: 'sheep_wool',    deck: 'sheep',       type: 'ingredient',  copies: 5, name: 'Шерсть барана' },
   { id: 'sheep_hide_r',  deck: 'sheep',       type: 'ingredient',  copies: 4, name: 'Шкура барана' },
-  { id: 'sheep_hide_c',  deck: 'sheep',       type: 'ingredient',  copies: 3, name: 'Очищенная шкура барана' },
+  { id: 'sheep_hide_c',  deck: 'sheep',       type: 'ingredient',  copies: 3, name: 'Кожа барана' },
 
   // --- Красная / Агрессия ---
   { id: 'boar_red',      deck: 'red',         type: 'beast',       copies: 2, name: 'Дикий кабан' },
@@ -171,16 +196,16 @@ export const CARD_CATALOG = Object.freeze([
 
 // Базовые (стартовые) карты персонажей. Не входят в общие колоды — выдаются
 // при создании партии. Печатаются в 2 экземплярах (по одному на игрока).
-// Поле `locked: true` — карта-результат крафта (открывается чертежом/рецептом);
-// механика крафта пока не реализована, карта выдаётся, но эффекта не несёт.
+// Поле `locked: true` отмечает карту-результат крафта. Такая карта не выдаётся
+// на старте и появляется в инвентаре только после успешного крафта.
 export const BASE_CARD_CATALOG = Object.freeze([
   // Универсальная — есть у каждого персонажа
   { id: 'teleport_beads',   role: '*', type: 'special',    copies: 1, name: 'Бусы телепортации',
-    desc: 'Одноразовая. Бросьте один кубик не менее 2 раз — телепортируетесь на старт своей партии. Перезарядка — у шамана.' },
+    desc: 'Одноразовая. Кубик 2+ телепортирует на свой старт или фиолетовую точку. После использования карта переворачивается рубашкой вверх.' },
 
   // Кузнец
   { id: 'bp_hammer_base',   role: 'K', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на молоток',
-    desc: 'Материалы: смешанная железная руда и крепёжный материал. Испытание: два кубика, каждый не меньше 3. Открывает Молоток.' },
+    desc: 'Материалы: смешанная железная руда. Испытание: два кубика, каждый не меньше 3. Открывает Молоток.' },
   { id: 'hammer',           role: 'K', type: 'tool',       copies: 1, name: 'Молоток', locked: true,
     desc: 'Класс: кузнец. На точке добычи — взять 2 карты вне зависимости от кубика.' },
 
@@ -198,24 +223,27 @@ export const BASE_CARD_CATALOG = Object.freeze([
 
   // Охотник (в исходном дизайн-доке — «Орёл», переименован в «Гриффон» по требованию заказчика)
   { id: 'griffin',          role: 'O', type: 'companion',  copies: 1, name: 'Гриффон', public: true,
-    desc: 'HP 10. Атака по персонажу: 2 → 20, 3 → 25, 4 → 30 урона.' },
+    desc: 'Атака по персонажу по сумме кубиков: 2 → 10, 3 → 20, 4 → 25, 5 и больше → 30 урона. После атаки переворачивается рубашкой вверх.' },
 
   // Шаман
-  { id: 'recipe_yarn_base', role: 'S', type: 'recipe',     copies: 1, name: 'Базовый рецепт на клубок',
-    desc: 'Материалы: шерсть барана. Кубик 1 раз не менее 3. Открывает Клубок.' },
+  { id: 'recipe_shaman_carpet', role: 'S', type: 'recipe', copies: 1, name: 'Рецепт на Ковёр шамана',
+    desc: 'Материалы: клубок ×1 + шкура медведя ×1. Кубик 1 раз не менее 3. Открывает Ковёр шамана.' },
+  { id: 'shaman_carpet', role: 'S', type: 'tool', copies: 1, name: 'Ковёр шамана', locked: true,
+    desc: 'Каждое начало хода Шаман восстанавливает 2 HP. Также применяется в обрядах и изделиях по рецептам.' },
 
   // Ингредиент — у нескольких ролей (кузнец, помощник, шаман)
-  { id: 'yarn',             role: 'K,P,S', type: 'ingredient', copies: 1, name: 'Клубок',
-    desc: 'Ингредиент обрядов и изделий. Каждое начало хода шаман получает +2 HP.' },
+  { id: 'yarn',             role: 'K,P,S', type: 'ingredient', copies: 1, name: 'Клубок сплетённой шерсти',
+    desc: 'Ингредиент обрядов и изделий.' },
 ]);
 
-// Базовые карты по ролям — id, выдаются при старте.
+// Базовые карты по ролям — id, выдаются при старте. Готовые изделия сюда не
+// входят: они добавляются в инвентарь только после успешного крафта.
 export const BASE_CARDS = Object.freeze({
-  K: ['bp_hammer_base', 'hammer', 'ore_medium', 'teleport_beads'],
-  P: ['sack', 'recipe_sack', 'yarn', 'teleport_beads'],
-  V: ['bp_club_base', 'club', 'teleport_beads'],
+  K: ['bp_hammer_base', 'ore_medium', 'teleport_beads'],
+  P: ['recipe_sack', 'sheep_ram', 'teleport_beads'],
+  V: ['bp_club_base', 'teleport_beads'],
   O: ['griffin', 'teleport_beads'],
-  S: ['recipe_yarn_base', 'yarn', 'teleport_beads'],
+  S: ['sheep_ram', 'recipe_shaman_carpet', 'teleport_beads'],
 });
 
 // Сводный справочник: id → описание карты (общие колоды + базовые).

@@ -108,7 +108,7 @@ await a.waitFor('state:snapshot');
 
 a.send('action:draw', { characterId: `${playerId}:K`, dieIndex: 0 });
 await a.waitFor('state:snapshot');
-check('кузнец добрал карту (4 базовых + 1 = 5)', a.lastSnapshot.game.characters.find(c => c.id === `${playerId}:K`)?.inventory?.length === 5);
+check('кузнец добрал карту (3 базовых + 1 = 4)', a.lastSnapshot.game.characters.find(c => c.id === `${playerId}:K`)?.inventory?.length === 4);
 
 a.send('turn:end', {});
 await a.waitFor('state:snapshot');

@@ -228,6 +228,7 @@ function cardView(id, character) {
     type: 'unknown',
     locked: false,
     desc: '',
+    exhausted: character?.exhaustedCards?.includes(id) ?? false,
     visibleToOpponent: false,
   };
   const locked = (card.locked ?? false) && !character?.crafted?.includes(id);
@@ -237,6 +238,7 @@ function cardView(id, character) {
     type: card.type,
     locked,
     desc: card.desc ?? '',
+    exhausted: character?.exhaustedCards?.includes(id) ?? false,
     visibleToOpponent: card.public === true && !locked,
   };
 }
@@ -247,10 +249,13 @@ function beastFightView(beastFight) {
   const beast = BEASTS[beastFight.cardId] ?? {};
   return {
     cardId: beastFight.cardId,
+    cellId: beastFight.cellId ?? null,
     name: CARD_BY_ID[beastFight.cardId]?.name ?? beastFight.cardId,
     damage: beast.damage ?? 0,
     successes: beastFight.successes ?? 0,
     needed: beast.needed ?? 0,
+    hp: Math.max(0, (beast.needed ?? 0) - (beastFight.successes ?? 0)),
+    maxHp: beast.needed ?? 0,
     killOn: beast.killOn ?? 0,
     successOn: beast.successOn ?? 0,
   };
@@ -283,6 +288,22 @@ function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
     deckCount: game.deck.length,
     redDeckCount: game.redDeck?.length ?? 0,
     discardCount: game.discard.length,
+    terrainCards: (game.terrainCards ?? []).map((entry) => {
+      const character = game.characters.find((item) => item.id === entry.characterId);
+      const hiddenFromViewer = entry.faceDown && entry.ownerId !== forPlayerId;
+      return {
+        id: entry.id,
+        ownerId: entry.ownerId,
+        characterId: entry.characterId,
+        cardIndex: entry.cardIndex,
+        faceDown: Boolean(entry.faceDown),
+        x: entry.x,
+        y: entry.y,
+        card: hiddenFromViewer
+          ? { id: null, name: 'Закрытая карта', type: 'hidden', desc: '', hidden: true }
+          : cardView(entry.cardId, character),
+      };
+    }),
     turn: {
       activePlayerId: game.turn.activePlayerId,
       rollsLeft: game.turn.rollsLeft,

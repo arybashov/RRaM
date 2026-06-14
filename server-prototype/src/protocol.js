@@ -25,6 +25,9 @@ export const ClientCommand = Object.freeze({
   ACTION_FIGHT_BEAST: 'action:fightBeast',
   ACTION_PROCESS_HIDE: 'action:processHide',
   ACTION_CRAFT: 'action:craft',
+  ACTION_TERRAIN_PLACE: 'action:terrainPlace',
+  ACTION_TERRAIN_REMOVE: 'action:terrainRemove',
+  ACTION_TERRAIN_FLIP: 'action:terrainFlip',
 });
 
 // Команды, которые обрабатывает движок правил, а не транспорт.
@@ -42,6 +45,9 @@ export const GAME_COMMANDS = Object.freeze(
     ClientCommand.ACTION_FIGHT_BEAST,
     ClientCommand.ACTION_PROCESS_HIDE,
     ClientCommand.ACTION_CRAFT,
+    ClientCommand.ACTION_TERRAIN_PLACE,
+    ClientCommand.ACTION_TERRAIN_REMOVE,
+    ClientCommand.ACTION_TERRAIN_FLIP,
   ]),
 );
 

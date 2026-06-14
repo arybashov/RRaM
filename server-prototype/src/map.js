@@ -101,6 +101,12 @@ export function allStartCells() {
   return [...new Set(out)];
 }
 
+export function pointClassCells(pointClass) {
+  return MAP.cells
+    .filter((cell) => cell.pointClass === pointClass && cell.walkable !== false)
+    .map((cell) => cell.id);
+}
+
 // Цель гонки (заглушка победы): база противника — его стартовые клетки и
 // клетки вокруг них. Сами старты заняты фишками, но соседи достижимы.
 export function enemyIslandCells(side) {
