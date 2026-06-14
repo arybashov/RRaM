@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260614-17';
+export const BUILD_VERSION = '20260614-18';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -166,7 +166,7 @@ export const CARD_CATALOG = Object.freeze([
   // --- Красная / Агрессия ---
   { id: 'boar_red',      deck: 'red',         type: 'beast',       copies: 2, name: 'Дикий кабан' },
   { id: 'wolf',          deck: 'red',         type: 'beast',       copies: 2, name: 'Серый волк' },
-  { id: 'beast_bear',    deck: 'red',         type: 'beast',       copies: 1, name: 'Мистический зверь-медведь' },
+  { id: 'beast_bear',    deck: 'red',         type: 'beast',       copies: 2, name: 'Мистический зверь-медведь' },
   { id: 'hide_red',      deck: 'red',         type: 'ingredient',  copies: 3, name: 'Очищенная шкура зверя' },
   { id: 'raw_hide_red',  deck: 'red',         type: 'ingredient',  copies: 3, name: 'Шкура убитого зверя' },
   { id: 'axe_sun',       deck: 'red',         type: 'weapon',      copies: 1, name: 'Секира Красное солнце' },

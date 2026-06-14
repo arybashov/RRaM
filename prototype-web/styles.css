@@ -1101,7 +1101,8 @@ h2::after {
 }
 
 .inventory > .beast-info,
-.inventory > .craft-info {
+.inventory > .craft-info,
+.inventory > .inventory-actions {
   grid-column: 1 / -1;
 }
 
@@ -2213,6 +2214,58 @@ h2::after {
   color: #2a1c02;
 }
 .craft-info button:disabled { opacity: 0.5; }
+
+.inventory-actions {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(244, 201, 93, 0.45);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius-sm);
+  background: rgba(244, 201, 93, 0.08);
+}
+
+.inventory-actions-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inventory-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(244, 201, 93, 0.2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inventory-action-row button {
+  flex: none;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--gold) 0%, #d8a13a 100%);
+  color: #2a1c02;
+}
+
+.inventory-action-row button:disabled { opacity: 0.5; }
+
+@media (max-width: 620px) {
+  .inventory-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inventory-action-row button {
+    width: 100%;
+  }
+}
 
 /* Подсветка «Конец хода», когда кубики потрачены и действий не осталось */
 #endTurnBtn.attention { animation: end-turn-pulse 1.4s ease-in-out infinite; }

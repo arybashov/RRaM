@@ -866,7 +866,7 @@ function engage(game, playerId, { attackerId, targetId } = {}) {
 // Шаман обрабатывает сырую шкуру в материалы. Шкура барана даёт кожу и шерсть.
 // Бросает один кубик: ≥ HIDE_CLEAN_MIN — успех; меньше — кубик потрачен,
 // а шкура остаётся и её можно обработать ещё раз.
-function processHide(game, playerId, { characterId, dieIndex } = {}) {
+function processHide(game, playerId, { characterId, dieIndex, cardIndex } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
   requireSplit(game); // обработка стоит один кубик (режим раздельных кубиков)
@@ -874,8 +874,11 @@ function processHide(game, playerId, { characterId, dieIndex } = {}) {
   if (character.role !== 'S') {
     throw new Error('Шкуру обрабатывает только Шаман.');
   }
-  const rawIndex = character.inventory.findIndex((id) => RAW_HIDE_TO_CLEAN[id]);
-  if (rawIndex === -1) {
+  const rawIndex = Number.isInteger(cardIndex)
+    ? cardIndex
+    : character.inventory.findIndex((id) => RAW_HIDE_TO_CLEAN[id]);
+  const rawId = character.inventory[rawIndex];
+  if (rawIndex < 0 || !RAW_HIDE_TO_CLEAN[rawId]) {
     throw new Error('Нужна «Шкура убитого зверя» — добудьте её с убитого зверя.');
   }
   const value = dieValue(game, dieIndex);
@@ -886,12 +889,21 @@ function processHide(game, playerId, { characterId, dieIndex } = {}) {
   let cleaned = null;
   let produced = [];
   if (success) {
-    const rawId = character.inventory[rawIndex];
     cleaned = RAW_HIDE_TO_CLEAN[rawId];
     produced = Array.isArray(cleaned) ? cleaned : [cleaned];
     character.inventory.splice(rawIndex, 1, ...produced);
   }
-  return { hideProcessed: { characterId, value, success, cleaned, produced } };
+  return {
+    hideProcessed: {
+      characterId,
+      cardIndex: rawIndex,
+      rawId,
+      value,
+      success,
+      cleaned,
+      produced,
+    },
+  };
 }
 
 // Крафт базового изделия по чертежу/рецепту (CRAFT_RECIPES, строго по PnP).

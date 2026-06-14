@@ -1076,9 +1076,10 @@ function stepOnEventCell(g, redDeck, role = 'V') {
   return { char, result };
 }
 
-test('createGame — красная колода: только звери (5 карт)', () => {
+test('createGame — красная колода: только звери, медведь встречается чаще', () => {
   const g = freshGame();
-  assert.equal(g.redDeck.length, 5); // кабан×2, волк×2, медведь×1
+  assert.equal(g.redDeck.length, 6); // кабан×2, волк×2, медведь×2
+  assert.equal(g.redDeck.filter(cardId => cardId === 'beast_bear').length, 2);
   assert.ok(g.deck.length > 0); // общая колода не пострадала
 });
 
@@ -1429,6 +1430,27 @@ test('processHide — шаман превращает сырую шкуру в �
   assert.ok(shaman.inventory.includes('beast_hide'));
   assert.ok(!shaman.inventory.includes('wolf_hide'));
   assert.equal(g.turn.usedDice[0], true);
+});
+
+test('processHide — обрабатывает выбранную шкуру по индексу', () => {
+  const g = freshGame();
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  shaman.inventory.push('boar_hide', 'sheep_hide_r');
+  const sheepIndex = shaman.inventory.indexOf('sheep_hide_r');
+  g.turn.dice = [3, 1];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:processHide', {
+    characterId: shaman.id,
+    dieIndex: 0,
+    cardIndex: sheepIndex,
+  });
+
+  assert.equal(result.hideProcessed.rawId, 'sheep_hide_r');
+  assert.deepEqual(result.hideProcessed.produced, ['sheep_hide_c', 'sheep_wool']);
+  assert.ok(shaman.inventory.includes('boar_hide'));
+  assert.ok(!shaman.inventory.includes('sheep_hide_r'));
 });
 
 test('processHide — кубик 1 не очищает, шкура остаётся, кубик потрачен', () => {
