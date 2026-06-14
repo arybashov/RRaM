@@ -237,27 +237,35 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
   if (character.beastFight) {
     throw new Error('В схватке со зверем персонаж не может брать карты: добейте зверя или убегайте.');
   }
-  const resourceDoubleDraw = cellTerrain(character.position) === 'resource'
-    && (
-      (character.role === 'K'
-        && character.crafted?.includes('hammer')
-        && character.inventory.includes('hammer'))
-      || (character.role === 'P'
-        && character.crafted?.includes('sack')
-        && character.inventory.includes('sack'))
-    );
-  const drawCount = resourceDoubleDraw ? 2 : 1;
+  const bonusTool = character.role === 'K' ? 'hammer'
+    : character.role === 'P' ? 'sack'
+      : null;
+  const inventoryToolCount = bonusTool
+    ? character.inventory.filter((cardId) => cardId === bonusTool).length
+    : 0;
+  const placedTools = bonusTool
+    ? (game.terrainCards ?? []).filter((card) =>
+      card.ownerId === playerId
+      && card.characterId === character.id
+      && card.cardId === bonusTool
+      && !card.faceDown)
+    : [];
+  const bonusToolCount = cellTerrain(character.position) === 'resource'
+    ? inventoryToolCount + placedTools.length
+    : 0;
+  const drawCount = 1 + bonusToolCount;
   if (game.deck.length < drawCount) {
     throw new Error('Колода пуста.');
   }
   if (character.inventory.length + drawCount > INVENTORY_LIMIT) {
     throw new Error(drawCount === 1
       ? 'Инвентарь персонажа полон.'
-      : 'Для Молотка нужны два свободных места в инвентаре.');
+      : `Для действия нужно ${drawCount} свободных места в инвентаре.`);
   }
 
   const cardIds = game.deck.splice(0, drawCount);
   character.inventory.push(...cardIds);
+  for (const card of placedTools) card.faceDown = true;
   game.turn.drawnThisTurn = true;
   lockMovement(game); // движение в этот бросок зафиксировано — откат недоступен
   spendDie(game, dieIndex);
@@ -272,10 +280,10 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
       ...cards[0],
       cards,
       count: cards.length,
-      bonusTool: drawCount === 2
-        ? (character.role === 'K' ? 'hammer' : 'sack')
-        : null,
-      hammerUsed: drawCount === 2 && character.role === 'K',
+      bonusTool: bonusToolCount > 0 ? bonusTool : null,
+      bonusToolCount,
+      hammerUsed: bonusToolCount > 0 && character.role === 'K',
+      terrainCardsTurnedFaceDown: placedTools.map((card) => card.cardId),
     },
   };
 }
@@ -597,15 +605,19 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   // Активные карты на террейне после применения остаются на поле рубашкой вверх.
   const deactivatedTerrainCards = [];
   let terrainBonus = 0; // бонус к значению кубика
+  const placedClubs = [];
   const placedCards = (game.terrainCards ?? []).filter(
     (card) => card.ownerId === playerId && card.characterId === characterId,
   );
   for (const card of placedCards) {
     if (card.cardId === 'griffin' && character.role === 'O' && !card.faceDown) {
       // Гриффон: +1 к значению кубика против зверя
-      terrainBonus = 1;
+      terrainBonus += 1;
       card.faceDown = true;
       deactivatedTerrainCards.push(card.cardId);
+    }
+    if (card.cardId === 'club' && character.role === 'V' && !card.faceDown) {
+      placedClubs.push(card);
     }
     // Будущие эффекты других карт
   }
@@ -614,10 +626,13 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   let killed = false;
   const previousSuccesses = character.beastFight.successes;
   let successes = previousSuccesses;
-  const clubUsed = character.role === 'V'
-    && character.crafted?.includes('club')
-    && character.inventory.includes('club')
-    && effectiveValue >= 4;
+  const clubUsed = placedClubs.length > 0 && effectiveValue >= 4;
+  if (clubUsed) {
+    for (const card of placedClubs) {
+      card.faceDown = true;
+      deactivatedTerrainCards.push(card.cardId);
+    }
+  }
   if (clubUsed || effectiveValue >= beast.killOn) {
     killed = true;
   } else if (effectiveValue >= beast.successOn) {
@@ -667,12 +682,6 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
   assertRolled(game);
   requireSplit(game);
   const character = ownCharacter(game, playerId, characterId);
-  if (combatOpponent(game, character)) {
-    throw new Error('В бою нельзя телепортироваться: атакуйте, передайте карты или убегайте.');
-  }
-  if (character.beastFight) {
-    throw new Error('В схватке со зверем нельзя телепортироваться: добейте зверя или убегайте.');
-  }
   if (!character.inventory.includes(TELEPORT_CARD)) {
     throw new Error('У персонажа нет Бус телепортации.');
   }
@@ -705,7 +714,16 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
     };
   }
 
+  const escapedCombat = Boolean(combatOpponent(game, character));
+  const escapedBeast = Boolean(character.beastFight);
   character.position = toCell;
+  if (escapedCombat) clearCombat(game, character);
+  if (escapedBeast) {
+    if (character.beastFight?.fromInventory) {
+      character.inventory.push(character.beastFight.cardId);
+    }
+    character.beastFight = null;
+  }
   character.exhaustedCards ??= [];
   character.exhaustedCards.push(TELEPORT_CARD);
   return {
@@ -715,6 +733,8 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
       value,
       success: true,
       consumed: true,
+      escapedCombat,
+      escapedBeast,
     },
     winnerId: game.winnerId,
   };
@@ -733,8 +753,7 @@ function terrainPlace(game, playerId, { id, characterId, cardIndex, x, y, faceDo
   if (!id || typeof id !== 'string' || id.length > 100 || !Number.isFinite(x) || !Number.isFinite(y)) {
     throw new Error('Некорректное размещение карты.');
   }
-  if (game.terrainCards.some((card) =>
-    card.characterId === characterId && card.cardIndex === cardIndex)) {
+  if (game.terrainCards.some((card) => card.id === id)) {
     throw new Error('Карта уже выложена на террейн.');
   }
   character.inventory.splice(cardIndex, 1);
@@ -889,9 +908,6 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
   if (character.role !== recipe.role) {
     throw new Error(`Это изделие может открыть только ${ROLE_NAMES[recipe.role]}.`);
   }
-  if (character.crafted.includes(recipe.result)) {
-    throw new Error('Изделие уже открыто.');
-  }
   if (!character.inventory.includes(recipe.via)) {
     throw new Error('Нужен чертёж или рецепт на это изделие.');
   }
@@ -938,11 +954,11 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
     discarded.push(...character.inventory.splice(i, 1));
   }
   game.discard.push(...discarded);
-  // Добавить изделие в инвентарь и пометить как открытое (crafted).
-  if (!character.inventory.includes(recipe.result)) {
-    character.inventory.push(recipe.result);
+  // Каждый новый чертёж/рецепт с новым комплектом материалов даёт ещё один экземпляр.
+  character.inventory.push(recipe.result);
+  if (!character.crafted.includes(recipe.result)) {
+    character.crafted.push(recipe.result);
   }
-  character.crafted.push(recipe.result);
   return { crafted: { characterId, item, result: recipe.result, materials: discarded } };
 }
 
@@ -972,20 +988,22 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   let griffinDamage = 0;
   
   // Гриффон срабатывает только у Охотника и только когда лежит лицом вверх.
-  const placedGriffin = (game.terrainCards ?? []).find((card) =>
+  const placedGriffins = (game.terrainCards ?? []).filter((card) =>
     card.ownerId === playerId
     && card.characterId === attacker.id
     && card.cardId === 'griffin'
     && !card.faceDown);
-  if (attacker.role === 'O' && placedGriffin) {
+  if (attacker.role === 'O' && placedGriffins.length > 0) {
     // Атака по персонажу: сумма 2 → 10, 3 → 20, 4 → 25, 5+ → 30 урона.
-    if (damage === 2) griffinDamage = 10;
-    else if (damage === 3) griffinDamage = 20;
-    else if (damage === 4) griffinDamage = 25;
-    else if (damage >= 5) griffinDamage = 30;
+    let damagePerGriffin = 0;
+    if (damage === 2) damagePerGriffin = 10;
+    else if (damage === 3) damagePerGriffin = 20;
+    else if (damage === 4) damagePerGriffin = 25;
+    else if (damage >= 5) damagePerGriffin = 30;
+    griffinDamage = damagePerGriffin * placedGriffins.length;
   }
   if (griffinDamage > 0) {
-    placedGriffin.faceDown = true;
+    for (const card of placedGriffins) card.faceDown = true;
   }
   
   const totalDamage = damage + griffinDamage;
@@ -1100,18 +1118,32 @@ const SHAMAN_CARPET_HEAL = 2;
 function applyTurnStartEffects(game, playerId) {
   for (const character of game.characters) {
     if (character.owner !== playerId || character.hp <= 0 || !character.position) continue;
-    if (character.role === 'S'
-      && character.crafted?.includes('shaman_carpet')
-      && character.inventory.includes('shaman_carpet')
-      && character.hp < CHARACTER_HP) {
-      character.hp = Math.min(CHARACTER_HP, character.hp + SHAMAN_CARPET_HEAL);
+    const inventoryCarpets = character.role === 'S'
+      ? character.inventory.filter((cardId) => cardId === 'shaman_carpet').length
+      : 0;
+    const placedCarpets = character.role === 'S'
+      ? (game.terrainCards ?? []).filter((card) =>
+        card.ownerId === playerId
+        && card.characterId === character.id
+        && card.cardId === 'shaman_carpet'
+        && !card.faceDown)
+      : [];
+    const carpetCount = inventoryCarpets + placedCarpets.length;
+    if (carpetCount > 0 && character.hp < CHARACTER_HP) {
+      character.hp = Math.min(CHARACTER_HP, character.hp + SHAMAN_CARPET_HEAL * carpetCount);
+      for (const card of placedCarpets) card.faceDown = true;
     }
-    // Дубина (открытая крафтом): враг в бою теряет 10 HP в начало хода владельца.
-    // Эффект работает только у Воина (Класс: воин — иначе её даже не открыть).
-    if (character.role === 'V' && character.crafted?.includes('club') && character.inventory.includes('club')) {
+    // Активная Дубина на террейне: враг в бою теряет 10 HP в начало хода владельца.
+    const placedClubs = (game.terrainCards ?? []).filter((card) =>
+      card.ownerId === playerId
+      && card.characterId === character.id
+      && card.cardId === 'club'
+      && !card.faceDown);
+    if (character.role === 'V' && placedClubs.length > 0) {
       const opponent = combatOpponent(game, character);
       if (opponent) {
-        opponent.hp = Math.max(0, opponent.hp - CLUB_DAMAGE);
+        opponent.hp = Math.max(0, opponent.hp - CLUB_DAMAGE * placedClubs.length);
+        for (const card of placedClubs) card.faceDown = true;
         if (opponent.hp === 0) defeatByPlayer(game, opponent, character);
       }
     }
