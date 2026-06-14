@@ -956,8 +956,10 @@ h2::after {
   text-anchor: middle;
   dominant-baseline: central;
   paint-order: stroke;
-  stroke: rgba(40, 0, 4, 0.95);
-  stroke-width: 2.4px;
+  stroke: #ff8a18;
+  stroke-width: 3.2px;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgba(30, 4, 0, 0.95));
   pointer-events: none;
   animation: damage-float-up 1.5s linear forwards;
 }
