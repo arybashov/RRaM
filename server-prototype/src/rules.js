@@ -817,6 +817,7 @@ export function availableAttackTargets(game, playerId, characterId) {
 
 function engage(game, playerId, { attackerId, targetId } = {}) {
   assertActive(game, playerId);
+  assertRolled(game);
   const attacker = ownCharacter(game, playerId, attackerId);
   if (attacker.beastFight) {
     throw new Error('В схватке со зверем нельзя вступить в бой с игроком.');
