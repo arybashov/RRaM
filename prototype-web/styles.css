@@ -2297,6 +2297,7 @@ h2::after {
 
 .toast-success { border-color: var(--accent); color: var(--accent); }
 .toast-error { border-color: var(--danger); color: var(--danger); }
+.toast-danger { border-color: var(--danger); color: #ff8585; }
 .toast-info { border-color: var(--gold); color: var(--gold); }
 
 @keyframes toast-in {

@@ -101,6 +101,8 @@ export function apply(game, playerId, type, payload = {}) {
       return move(game, playerId, payload);
     case 'action:teleport':
       return teleport(game, playerId, payload);
+    case 'action:engage':
+      return engage(game, playerId, payload);
     case 'action:attack':
       return attack(game, playerId, payload);
     case 'action:fightBeast':
@@ -811,6 +813,34 @@ export function availableAttackTargets(game, playerId, characterId) {
       && (!combatOpponent(game, character) || character.combatOpponentId === attacker.id)
       && adjacent.has(character.position))
     .map((character) => character.id);
+}
+
+function engage(game, playerId, { attackerId, targetId } = {}) {
+  assertActive(game, playerId);
+  const attacker = ownCharacter(game, playerId, attackerId);
+  if (attacker.beastFight) {
+    throw new Error('В схватке со зверем нельзя вступить в бой с игроком.');
+  }
+  const target = game.characters.find((character) => character.id === targetId);
+  if (!target || target.owner === playerId || target.hp <= 0 || !target.position) {
+    throw new Error('Цель боя недоступна.');
+  }
+  const currentOpponent = combatOpponent(game, attacker);
+  if (currentOpponent) {
+    if (currentOpponent.id === target.id) {
+      return { engaged: { attackerId, targetId, alreadyEngaged: true } };
+    }
+    throw new Error('Персонаж уже сражается с другим противником.');
+  }
+  if (combatOpponent(game, target)) {
+    throw new Error('Противник уже участвует в другом бою.');
+  }
+  if (!neighbors(attacker.position).includes(target.position)) {
+    throw new Error('Вступить в бой можно только с противником на соседней клетке.');
+  }
+  linkCombat(attacker, target);
+  lockMovement(game);
+  return { engaged: { attackerId, targetId, alreadyEngaged: false } };
 }
 
 // Шаман обрабатывает сырую шкуру в материалы. Шкура барана даёт кожу и шерсть.
