@@ -275,7 +275,7 @@ function fogVisibleCells(game, forPlayerId) {
   return seen;
 }
 
-function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
+export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
   // Туман войны: видно клетки в радиусе FOG_RADIUS от своих живых персонажей;
   // вражеские фишки вне зоны скрываются (position: null). Движение туманом не
   // ограничено — ходить можно на длину кубиков и в неизведанное.
@@ -286,6 +286,11 @@ function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
     positionAuthority: 'server-v1',
     map: mapSnapshot(),
     deckCount: game.deck.length,
+    deckCounts: {
+      mixed: game.deck.length,
+      ...Object.fromEntries(Object.entries(game.decks ?? {}).map(([deck, cards]) => [deck, cards.length])),
+      red: game.redDeck?.length ?? 0,
+    },
     redDeckCount: game.redDeck?.length ?? 0,
     discardCount: game.discard.length,
     terrainCards: (game.terrainCards ?? []).map((entry) => {
@@ -324,17 +329,20 @@ function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
       drawnThisTurn: Boolean(game.turn.drawnThisTurn),
     },
     characters: game.characters.map((c) => {
+      const beacon = c.inventory?.includes('gold_feather') ?? false;
       // Враг вне радиуса тумана — позицию скрываем (фишка не рисуется)
       const fogged = visible
         && c.owner !== forPlayerId
         && c.position
-        && !visible.has(c.position);
+        && !visible.has(c.position)
+        && !beacon;
       return {
         id: c.id,
         owner: c.owner,
         role: c.role,
         position: fogged ? null : c.position,
         hidden: Boolean(fogged),
+        beacon,
         hp: c.hp,
         combatOpponentId: c.combatOpponentId ?? null,
         // схватка со зверем публична — видна обоим игрокам

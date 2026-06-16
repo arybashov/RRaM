@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260614-18';
+export const BUILD_VERSION = '20260617-07';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -38,6 +38,9 @@ export const BEASTS = Object.freeze({
   boar_forest: { damage: 5,  killOn: 4, successOn: 2, needed: 3 },
   wolf:        { damage: 5,  killOn: 5, successOn: 2, needed: 3 },
   beast_bear:  { damage: 10, killOn: 5, successOn: 5, needed: 3 },
+  // Феникс на Сказочной опушке (квест Иерихон). Баланс MVP, тюнится.
+  phoenix_1:   { damage: 15, killOn: 6, successOn: 5, needed: 3 },
+  phoenix_2:   { damage: 15, killOn: 6, successOn: 5, needed: 3 },
 });
 
 // Цепочка крафта Дубины (по правилам):
@@ -52,6 +55,15 @@ export const BEAST_HIDE_DROP = Object.freeze({
   beast_bear:  'bear_hide',
   boar_forest: 'boar_hide',
 });
+// Трофеи (не шкуры) с убитого зверя. Отдельно от BEAST_HIDE_DROP: трофей —
+// особый предмет квеста, не материал обработки шкур.
+// phoenix_2 (перо к кузнецу врага) — доставка пера сопернику отложена, пока
+// падает так же владельцу-убийце.
+export const BEAST_TROPHY_DROP = Object.freeze({
+  phoenix_1: 'gold_feather',
+  phoenix_2: 'gold_feather',
+});
+
 // Сырые шкуры → материалы после обработки шаманом.
 export const RAW_HIDE_TO_CLEAN = Object.freeze({
   sheep_hide_r: ['sheep_hide_c', 'sheep_wool'],
@@ -97,6 +109,16 @@ export const CRAFT_RECIPES = Object.freeze({
     materials: [['yarn'], ['bear_hide']],
     dice: { count: 1, min: 3 },
   },
+  // Кузнец: Молот Иерикон (квест Иерихон). Чертёж Ирикон + задание + золотое перо
+  // феникса. Испытание: два кубика, каждый не меньше 3. result 'irikon' уже есть
+  // в CARD_CATALOG (красная колода, оружие) — это нормально.
+  irikon: {
+    role: 'K',
+    via: 'blueprint_irikon',
+    result: 'irikon',
+    materials: [['task_irikon'], ['gold_feather']],
+    dice: { count: 2, min: 3 },
+  },
   // Шерсть барана → Клубок; отдельная карта рецепта не требуется.
   yarn: {
     role: 'S',
@@ -108,6 +130,81 @@ export const CRAFT_RECIPES = Object.freeze({
 });
 // Дубина: враг в бою теряет 10 HP каждое начало хода владельца (без учёта брони)
 export const CLUB_DAMAGE = 10;
+
+// Молот Иерикон: бонус к урону атаки Кузнеца (без учёта защиты). Молот
+// многоразовый — остаётся в инвентаре после атаки.
+export const IRIKON_DAMAGE = 35;
+
+// Карты-ловушки (механика Блефа). Выкладываются рубашкой вверх (faceDown) на
+// свою фишку через action:terrainPlace. Срабатывают, когда владельца атакуют
+// первым: карта вскрывается и бьёт по нападающему, затем уходит в сброс.
+// Поля эффекта (применяются в attack() через resolveDefenderTraps):
+//   negateIncoming — атака защищающемуся не наносит урона (для «лечения» и блока);
+//   attackerSelfDamage — нападающий теряет столько HP (без учёта брони);
+//   mirror — нападающий получает урон, равный фактически нанесённому им в атаке;
+//   retreatAttacker — нападающий отходит к своему старту на столько бордов;
+//   dot — нападающий получает дебафф: теряет столько HP в начале КАЖДОГО своего
+//         хода, пока не стряхнёт карту (dischargeMin — кубик ≥ этого в режиме split);
+//   stealCard — защищающийся забирает одну карту из инвентаря нападающего;
+//   purgeIngredientsMin — если нанесённый урон ≥ этого, у всех персонажей
+//         нападающего по 1 карте-ингредиенту уходит в сброс;
+//   consume — карта одноразовая (true → в сброс после срабатывания).
+export const TRAP_CARDS = Object.freeze({
+  // Гриб мухомор: нападающий снимает со своего столба 10 карт. Одноразовый.
+  amanita: { attackerSelfDamage: 10, consume: true, name: 'Гриб мухомор' },
+  // Кольцо возврата: весь нанесённый урон зеркально получает нападающий.
+  return_ring: { mirror: true, consume: true, name: 'Кольцо возврата' },
+  // Чёрные ягоды: урон первой атаки возвращается владельцу лечением (net 0).
+  // Моделируем как негейт входящего урона. Одноразовая.
+  black_berries: { negateIncoming: true, consume: true, name: 'Чёрные ягоды' },
+  // Обычная сова: нападающий не наносит урона и отходит к своему старту на 6 бордов.
+  owl_common: { negateIncoming: true, retreatAttacker: 6, consume: true, name: 'Обычная сова' },
+  // Полянка мухоморов: нападающий сразу теряет 20 HP, затем по 10 в начале каждого
+  // своего хода. Сброс — кубик ≥5. Карта переходит дебаффом на нападающего.
+  amanita_glade: { attackerSelfDamage: 20, dot: 10, dischargeMin: 5, name: 'Полянка мухоморов' },
+  // Дикие красные ягоды: нападающий теряет по 5 HP в начале каждого своего хода.
+  // Сброс — кубик ≥4.
+  red_berries: { dot: 5, dischargeMin: 4, name: 'Дикие красные ягоды' },
+  // Ночной филин: нападающий обязан отдать одну карту из инвентаря защищающемуся.
+  // (Вариант «забрать карту с поля при пустом инвентаре» — упрощён, отложен.)
+  owl_night: { stealCard: true, consume: true, name: 'Ночной филин' },
+  // Порча: если нанесённый урон ≥25, у всех персонажей нападающего по одной
+  // карте-ингредиенту возвращается в сброс. Одноразовая.
+  porcha: { purgeIngredientsMin: 25, consume: true, name: 'Порча' },
+});
+
+// Карты брони/щитов. Выкладываются лицом вверх (активны) на свою фишку через
+// action:terrainPlace и поглощают ОБЫЧНЫЙ урон входящей атаки (кубики + Гриффон).
+// Урон «без учёта защиты» (Молот Иерихон и т.п.) броню игнорирует. Многоразовые —
+// не переворачиваются. absorb — сколько HP урона поглощает за атаку.
+export const ARMOR_CARDS = Object.freeze({
+  // Кора дерева: −5 от общего урона (версия тёмного леса сильнее — отдельная карта).
+  bark: { absorb: 5, name: 'Кора дерева' },
+  // Щиты/броня §16 — флэт-поглощение. Условные эффекты (защита от зверей,
+  // анти-магия, блок побега, отъём оружия) пока упрощены до базового поглощения.
+  chainmail_light: { absorb: 15, name: 'Лёгкая кольчуга' },
+  shield_lom:      { absorb: 15, name: 'Ломщит' },
+  shield_kalan:    { absorb: 10, name: 'Щит Калан' },
+  shield_dr:       { absorb: 20, name: 'Щит Др' },
+  shield_revenge:  { absorb: 25, name: 'Щит Отмщение' },
+  helm_shem:       { absorb: 20, name: 'Шлем Шем' },
+  helm_ttm:        { absorb: 25, name: 'Шлем ТТМ' },
+  armor_il:        { absorb: 25, name: 'Защита Ил' },
+  leather_shirt:   { absorb: 20, name: 'Кожаная рубашка' },
+});
+
+// Оружие в инвентаре. При атаке берётся ЛУЧШЕЕ по урону доступное атакующему
+// (role — ограничение класса, если задано). damage — бонус к урону по врагу;
+// piercing — «без учёта защиты» (игнорирует броню). Многоразовое, остаётся в руке.
+// Условные эффекты §16 (по зверю/дварфу, удвоение неиспользованных кубиков) пока
+// не моделируются — берётся базовый урон по игроку.
+export const WEAPON_CARDS = Object.freeze({
+  irikon:     { damage: IRIKON_DAMAGE, piercing: true, role: 'K', name: 'Молот Иерихон' },
+  topormol:   { damage: 25, piercing: true, name: 'Топормол' },
+  sword_sech: { damage: 15, piercing: true, name: 'Меч Сеч' },
+  sword_lorp: { damage: 15, piercing: true, name: 'Меч Лорп' },
+  axe_sun:    { damage: 50, piercing: true, name: 'Секира Красное солнце' },
+});
 
 // Туман войны: вражеские персонажи видны только в радиусе N клеток от своих
 export const FOG_RADIUS = 5;
@@ -153,9 +250,47 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'gold_nugget',   deck: 'forest',      type: 'special',     copies: 2, name: 'Малый золотой самородок' },
   { id: 'amanita_color', deck: 'forest',      type: 'ingredient',  copies: 3, name: 'Мухомор цвет' },
   { id: 'amanita',       deck: 'forest',      type: 'provocation', copies: 3, name: 'Гриб мухомор' },
+  { id: 'owl_common',    deck: 'forest',      type: 'provocation', copies: 2, name: 'Обычная сова',
+    desc: 'Ловушка. Выложите рубашкой вверх на свою фишку. Если враг атакует первым, он не наносит урона и отходит к своему старту на 6 бордов. Одноразовая.' },
+  { id: 'amanita_glade', deck: 'forest',      type: 'provocation', copies: 2, name: 'Полянка мухоморов',
+    desc: 'Ловушка. Выложите рубашкой вверх на свою фишку. Если враг атакует первым, он сразу теряет 20 HP, затем по 10 в начале каждого своего хода, пока не стряхнёт карту (кубик 5+).' },
+  { id: 'owl_night',     deck: 'forest',      type: 'provocation', copies: 2, name: 'Ночной филин',
+    desc: 'Ловушка. Выложите рубашкой вверх на свою фишку. Если враг атакует первым, он обязан отдать вам одну карту из своего инвентаря. Одноразовая.' },
 
   // --- Тёмный лес ---
   { id: 'dead_ore',      deck: 'dark_forest', type: 'ingredient',  copies: 6, name: 'Неживая руда высокого качества' },
+  { id: 'return_ring',   deck: 'dark_forest', type: 'provocation', copies: 2, name: 'Кольцо возврата',
+    desc: 'Ловушка. Выложите рубашкой вверх на свою фишку. Если враг атакует первым, весь его урон зеркально получает он сам. Одноразовая.' },
+  { id: 'black_berries', deck: 'dark_forest', type: 'provocation', copies: 2, name: 'Чёрные ягоды',
+    desc: 'Ловушка. Выложите рубашкой вверх на свою фишку. Если враг атакует первым, весь его урон возвращается владельцу лечением. Одноразовая.' },
+  { id: 'red_berries',   deck: 'dark_forest', type: 'provocation', copies: 2, name: 'Дикие красные ягоды',
+    desc: 'Ловушка. Выложите рубашкой вверх на свою фишку. Если враг атакует первым, он теряет по 5 HP в начале каждого своего хода, пока не стряхнёт карту (кубик 4+).' },
+  // Готовое оружие (флэт-урон, без учёта защиты; держится в руке, многоразовое).
+  { id: 'topormol',      deck: 'dark_forest', type: 'weapon',      copies: 1, name: 'Топормол',
+    desc: 'Оружие. Атака по врагу: −25 HP без учёта защиты. Многоразовое.' },
+  { id: 'sword_sech',    deck: 'dark_forest', type: 'weapon',      copies: 1, name: 'Меч Сеч',
+    desc: 'Оружие. Атака по врагу: −15 HP без учёта защиты. Многоразовое.' },
+  { id: 'sword_lorp',    deck: 'dark_forest', type: 'weapon',      copies: 1, name: 'Меч Лорп',
+    desc: 'Оружие. Атака по врагу: −15 HP без учёта защиты. Многоразовое.' },
+  // Готовые щиты/броня (флэт-поглощение; выкладываются лицом вверх на свою фишку).
+  { id: 'chainmail_light', deck: 'dark_forest', type: 'armor',     copies: 1, name: 'Лёгкая кольчуга',
+    desc: 'Броня. Выложите лицом вверх на свою фишку. Поглощает 15 урона входящей атаки. Многоразовая.' },
+  { id: 'shield_lom',    deck: 'dark_forest', type: 'armor',       copies: 1, name: 'Ломщит',
+    desc: 'Щит. Выложите лицом вверх на свою фишку. Поглощает 15 урона за атаку. Многоразовый.' },
+  { id: 'shield_kalan',  deck: 'dark_forest', type: 'armor',       copies: 1, name: 'Щит Калан',
+    desc: 'Щит. Выложите лицом вверх на свою фишку. Поглощает 10 урона за атаку. Многоразовый.' },
+  { id: 'shield_dr',     deck: 'dark_forest', type: 'armor',       copies: 1, name: 'Щит Др',
+    desc: 'Щит. Выложите лицом вверх на свою фишку. Поглощает 20 урона за атаку. Многоразовый.' },
+  { id: 'shield_revenge', deck: 'dark_forest', type: 'armor',      copies: 1, name: 'Щит Отмщение',
+    desc: 'Щит. Выложите лицом вверх на свою фишку. Поглощает 25 урона за атаку. Многоразовый.' },
+  { id: 'helm_shem',     deck: 'dark_forest', type: 'armor',       copies: 1, name: 'Шлем Шем',
+    desc: 'Шлем. Выложите лицом вверх на свою фишку. Поглощает 20 урона за атаку. Многоразовый.' },
+  { id: 'helm_ttm',      deck: 'dark_forest', type: 'armor',       copies: 1, name: 'Шлем ТТМ',
+    desc: 'Шлем. Выложите лицом вверх на свою фишку. Поглощает 25 урона за атаку. Многоразовый.' },
+  { id: 'armor_il',      deck: 'dark_forest', type: 'armor',       copies: 1, name: 'Защита Ил',
+    desc: 'Броня. Выложите лицом вверх на свою фишку. Поглощает 25 урона за атаку. Многоразовая.' },
+  { id: 'leather_shirt', deck: 'dark_forest', type: 'armor',       copies: 1, name: 'Кожаная рубашка',
+    desc: 'Броня. Выложите лицом вверх на свою фишку. Поглощает 20 урона за атаку. Многоразовая.' },
 
   // --- Баран (зелёные точки) ---
   { id: 'sheep_ram',     deck: 'sheep',       type: 'beast',       copies: 2, name: 'Баран' },
@@ -192,6 +327,9 @@ export const CARD_CATALOG = Object.freeze([
   // --- Сказочная опушка ---
   { id: 'phoenix_1',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к своему кузнецу)' },
   { id: 'phoenix_2',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к кузнецу врага)' },
+  // copies:0 — не входит в случайную раздачу, появляется только как трофей феникса.
+  { id: 'gold_feather',  deck: 'fairy_glade', type: 'special',     copies: 0, name: 'Золотое перо', public: true,
+    desc: 'Маяк: персонаж-носитель всегда виден всем (игнорирует туман). Материал для Молота Иерихон.' },
 ]);
 
 // Базовые (стартовые) карты персонажей. Не входят в общие колоды — выдаются

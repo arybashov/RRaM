@@ -836,6 +836,22 @@ h2::after {
   fill: var(--cell-fill, #f4c95d);
 }
 
+.cell.blacksmith-stone {
+  fill: #8f969f;
+  fill-opacity: 0.9;
+  stroke: #d7dde5;
+  stroke-opacity: 0.95;
+  stroke-width: 2.4;
+}
+
+.cell.blacksmith-stone.valid,
+.cell.blacksmith-stone.valid.colored {
+  fill: #8f969f;
+  fill-opacity: 0.95;
+  stroke: #f2f5f8;
+  stroke-width: 4;
+}
+
 /* Подсветка валидных клеток.
    Обычные клетки (path) — насыщенная жёлтая заливка.
    Цветные (event/resource/старты/колоды/опушка) — НЕ перекрашиваем, чтобы
@@ -1153,7 +1169,147 @@ h2::after {
   user-select: none;
 }
 
-.card.card-face.card-locked .inventory-card-art {
+.generated-card-art {
+  --generated-accent: #7fae54;
+  --generated-deck: #1e2b35;
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 50% 31%, rgba(255, 255, 255, 0.16), transparent 24%),
+    linear-gradient(160deg, color-mix(in srgb, var(--generated-deck) 84%, #ffffff 16%), var(--generated-deck));
+  color: #f4f0df;
+  pointer-events: none;
+  user-select: none;
+}
+
+.generated-card-frame {
+  position: absolute;
+  inset: 6%;
+  display: grid;
+  grid-template-rows: min-content 1fr min-content min-content;
+  align-items: center;
+  gap: 4%;
+  padding: 8%;
+  border: 1px solid rgba(245, 220, 154, 0.56);
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.24)),
+    color-mix(in srgb, var(--generated-deck) 76%, #0b1016 24%);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.04);
+}
+
+.generated-card-deck,
+.generated-card-type {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e7d7a4;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.generated-card-symbol {
+  align-self: center;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 52%;
+  aspect-ratio: 1;
+  border: 2px solid color-mix(in srgb, var(--generated-accent) 70%, #ffffff 30%);
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--generated-accent) 62%, #ffffff 38%), var(--generated-accent));
+  color: #10151b;
+  font-size: 22px;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.34);
+}
+
+.generated-card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 34px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  text-align: center;
+  color: #fff7df;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.generated-card-cbx {
+  width: 68px;
+  height: 96px;
+  aspect-ratio: auto;
+}
+
+.generated-card-cbx .generated-card-frame {
+  inset: 5px;
+  gap: 2px;
+  padding: 6px 5px;
+}
+
+.generated-card-cbx .generated-card-deck,
+.generated-card-cbx .generated-card-type {
+  font-size: 6px;
+}
+
+.generated-card-cbx .generated-card-symbol {
+  width: 42px;
+  font-size: 14px;
+}
+
+.generated-card-cbx .generated-card-title {
+  min-height: 22px;
+  font-size: 8px;
+  line-height: 1.12;
+}
+
+.generated-card-terrain {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.generated-card-terrain .generated-card-frame {
+  inset: 5%;
+}
+
+.generated-card-gallery {
+  width: 104px;
+  aspect-ratio: 2 / 3;
+}
+
+.generated-card-art.card-weapon { --generated-accent: #e0563f; }
+.generated-card-art.card-armor { --generated-accent: #5b9bd5; }
+.generated-card-art.card-tool { --generated-accent: #d8a13a; }
+.generated-card-art.card-ingredient { --generated-accent: #7fae54; }
+.generated-card-art.card-blueprint { --generated-accent: #c08a4a; }
+.generated-card-art.card-recipe { --generated-accent: #b06fb8; }
+.generated-card-art.card-companion { --generated-accent: #d8a13a; }
+.generated-card-art.card-special { --generated-accent: #6fc3c0; }
+.generated-card-art.card-provocation { --generated-accent: #b85f75; }
+.generated-card-art.card-beast { --generated-accent: #b3122a; }
+
+.generated-card-art.deck-mixed { --generated-deck: #5a4934; }
+.generated-card-art.deck-forest { --generated-deck: #25472d; }
+.generated-card-art.deck-dark_forest { --generated-deck: #18222b; }
+.generated-card-art.deck-sheep { --generated-deck: #586645; }
+.generated-card-art.deck-red { --generated-deck: #5b1e27; }
+.generated-card-art.deck-lake { --generated-deck: #18465b; }
+.generated-card-art.deck-recipes { --generated-deck: #40345c; }
+.generated-card-art.deck-blueprints { --generated-deck: #2b4e68; }
+.generated-card-art.deck-fairy_glade { --generated-deck: #365438; }
+.generated-card-art.deck-trophy { --generated-deck: #5d3f29; }
+
+.card.card-face.card-locked .inventory-card-art,
+.card.card-face.card-locked .generated-card-art {
   filter: grayscale(0.35) brightness(1.08);
 }
 
@@ -1740,6 +1896,199 @@ h2::after {
 }
 #settingsOverlay.hidden { display: none; }
 
+#encyclopediaOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 125;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 15, 25, 0.82);
+  backdrop-filter: blur(10px);
+}
+#encyclopediaOverlay.hidden { display: none; }
+
+.encyclopedia-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, 94vw);
+  max-height: min(760px, 88vh);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.encyclopedia-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.encyclopedia-title {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.encyclopedia-count {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.encyclopedia-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px;
+  overflow: auto;
+}
+
+.encyclopedia-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.encyclopedia-section-title {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.encyclopedia-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.encyclopedia-character-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.encyclopedia-card {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.encyclopedia-card-toggle {
+  position: relative;
+  width: 92px;
+  min-height: 138px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  perspective: 700px;
+  cursor: pointer;
+}
+
+.encyclopedia-face {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  border-radius: 6px;
+  backface-visibility: hidden;
+  transition: transform 0.22s ease;
+}
+
+.encyclopedia-face img,
+.encyclopedia-face .generated-card-art {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.encyclopedia-face img {
+  object-fit: cover;
+  filter: brightness(1.35);
+}
+
+.encyclopedia-character {
+  border-color: rgba(232, 193, 115, 0.34);
+  background: rgba(232, 193, 115, 0.065);
+}
+
+.encyclopedia-character-face {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(232, 193, 115, 0.18), transparent 58%),
+    rgba(5, 10, 16, 0.82);
+}
+
+.encyclopedia-character-face img {
+  object-fit: contain;
+  padding: 3px;
+  filter: brightness(1.08) contrast(1.04);
+}
+
+.encyclopedia-face-back {
+  transform: rotateY(180deg);
+}
+
+.encyclopedia-card.is-flipped .encyclopedia-face-front {
+  transform: rotateY(180deg);
+}
+
+.encyclopedia-card.is-flipped .encyclopedia-face-back {
+  transform: rotateY(360deg);
+}
+
+.encyclopedia-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.encyclopedia-card-name {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.encyclopedia-card-meta {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.encyclopedia-card-body p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: #d9e0ea;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.encyclopedia-card-body code {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+
 .settings-card {
   display: flex;
   flex-direction: column;
@@ -2089,7 +2438,10 @@ h2::after {
 
 .card-exhausted .inventory-card-art,
 .card-face-down .inventory-card-art,
-.cbx-card.card-exhausted .cbx-card-art {
+.cbx-card.card-exhausted .cbx-card-art,
+.card-exhausted .generated-card-art,
+.card-face-down .generated-card-art,
+.cbx-card.card-exhausted .generated-card-art {
   filter: brightness(0.85);
 }
 

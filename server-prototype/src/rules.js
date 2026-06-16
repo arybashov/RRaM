@@ -18,20 +18,29 @@ import {
   ROLE_NAMES,
   BEASTS,
   BEAST_HIDE_DROP,
+  BEAST_TROPHY_DROP,
   RAW_HIDE_TO_CLEAN,
   HIDE_CLEAN_MIN,
   CRAFT_RECIPES,
   CLUB_DAMAGE,
+  TRAP_CARDS,
+  ARMOR_CARDS,
+  WEAPON_CARDS,
 } from './constants.js';
 import {
   MAP_ID,
   cellTerrain,
+  cellRole,
+  cellDeck,
   isBoardCell,
   neighbors,
   reachableCells,
+  shortestDistance,
   startCell,
   pointClassCells,
 } from './map.js';
+
+const GOLD_FEATHER_CARD = 'gold_feather';
 
 export function createGame(players) {
   const characters = [];
@@ -50,6 +59,7 @@ export function createGame(players) {
         combatOpponentId: null,
         beastFight: null, // { cardId, successes } — схватка со зверем с красной клетки
         crafted: [], // id карт, открытых крафтом (напр. 'club' по чертежу)
+        dots: [], // дебаффы-ловушки: [{ cardId, damagePerTurn, dischargeMin, name }]
       });
     }
   }
@@ -65,7 +75,9 @@ export function createGame(players) {
     mapId: MAP_ID,
     characters,
     deck: buildDeck(),
+    decks: buildDecks(),
     redDeck: buildRedDeck(),
+    redIrkonDropped: false,
     discard: [],
     terrainCards: [],
     turn: {
@@ -111,6 +123,8 @@ export function apply(game, playerId, type, payload = {}) {
       return processHide(game, playerId, payload);
     case 'action:craft':
       return craft(game, playerId, payload);
+    case 'action:dischargeDot':
+      return dischargeDot(game, playerId, payload);
     case 'action:terrainPlace':
       return terrainPlace(game, playerId, payload);
     case 'action:terrainRemove':
@@ -237,6 +251,9 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
   if (character.beastFight) {
     throw new Error('В схватке со зверем персонаж не может брать карты: добейте зверя или убегайте.');
   }
+  if (!isDrawCell(character.position)) {
+    throw new Error('Взять карту можно только на точке ресурса.');
+  }
   const bonusTool = character.role === 'K' ? 'hammer'
     : character.role === 'P' ? 'sack'
       : null;
@@ -250,11 +267,13 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
       && card.cardId === bonusTool
       && !card.faceDown)
     : [];
-  const bonusToolCount = cellTerrain(character.position) === 'resource'
+  const bonusToolCount = isDrawCell(character.position)
     ? inventoryToolCount + placedTools.length
     : 0;
+  const drawDeckName = drawDeckForCell(character.position);
+  const drawPile = drawPileForDeck(game, drawDeckName);
   const drawCount = 1 + bonusToolCount;
-  if (game.deck.length < drawCount) {
+  if (drawPile.length < drawCount) {
     throw new Error('Колода пуста.');
   }
   if (character.inventory.length + drawCount > INVENTORY_LIMIT) {
@@ -263,7 +282,7 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
       : `Для действия нужно ${drawCount} свободных места в инвентаре.`);
   }
 
-  const cardIds = game.deck.splice(0, drawCount);
+  const cardIds = drawPile.splice(0, drawCount);
   character.inventory.push(...cardIds);
   for (const card of placedTools) card.faceDown = true;
   game.turn.drawnThisTurn = true;
@@ -282,6 +301,7 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
       count: cards.length,
       bonusTool: bonusToolCount > 0 ? bonusTool : null,
       bonusToolCount,
+      deck: drawDeckName,
       hammerUsed: bonusToolCount > 0 && character.role === 'K',
       terrainCardsTurnedFaceDown: placedTools.map((card) => card.cardId),
     },
@@ -329,7 +349,9 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
   }
 
   const count = Math.min(limit, from.inventory.length, capacity);
-  const cards = from.inventory.splice(0, count);
+  const cards = from.inventory.slice(0, count);
+  assertCardTransferAllowed(from, to, cards);
+  from.inventory.splice(0, count);
   to.inventory.push(...cards);
   moveExhaustedCards(from, to, cards);
   lockMovement(game);
@@ -339,7 +361,6 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
 }
 
 // Переносит одну карту по индексу между персонажами игрока (для передачи из ящика).
-// Расстояние не ограничено — передавать можно любому своему персонажу.
 function moveOneCard(game, playerId, fromId, toId, cardIndex) {
   const from = ownCharacter(game, playerId, fromId);
   const to = ownCharacter(game, playerId, toId);
@@ -349,10 +370,62 @@ function moveOneCard(game, playerId, fromId, toId, cardIndex) {
   if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= from.inventory.length) {
     throw new Error('Карта для передачи не найдена.');
   }
-  const [card] = from.inventory.splice(cardIndex, 1);
+  const card = from.inventory[cardIndex];
+  assertCardTransferAllowed(from, to, [card]);
+  from.inventory.splice(cardIndex, 1);
   to.inventory.push(card);
   moveExhaustedCards(from, to, [card]);
   return card;
+}
+
+function assertCardTransferAllowed(from, to, cardIds) {
+  if (!cardIds.includes(GOLD_FEATHER_CARD)) return;
+  if (from.position && to.position && (from.position === to.position || neighbors(from.position).includes(to.position))) {
+    return;
+  }
+  throw new Error('Золотое перо нельзя передать через поле — персонажи должны стоять рядом.');
+}
+
+function isBlacksmithStone(cellId) {
+  return cellTerrain(cellId) === 'start' && cellRole(cellId) === 'K';
+}
+
+function checkFeatherVictory(game, character) {
+  if (
+    game.over
+    || !character?.position
+    || !character.inventory?.includes(GOLD_FEATHER_CARD)
+    || !isBlacksmithStone(character.position)
+  ) {
+    return null;
+  }
+  game.over = true;
+  game.winnerId = character.owner;
+  return {
+    winnerId: character.owner,
+    characterId: character.id,
+    cellId: character.position,
+    cardId: GOLD_FEATHER_CARD,
+  };
+}
+
+function isDrawCell(cellId) {
+  if (cellTerrain(cellId) === 'resource') return true;
+  const deck = cellDeck(cellId);
+  return Boolean(deck && deck !== 'fairy_glade');
+}
+
+function drawDeckForCell(cellId) {
+  const deck = cellDeck(cellId);
+  if (deck && deck !== 'fairy_glade') return deck;
+  return 'mixed';
+}
+
+function drawPileForDeck(game, deckName) {
+  if (deckName === 'mixed') return game.deck;
+  if (!game.decks) game.decks = buildDecks();
+  if (!game.decks[deckName]) game.decks[deckName] = buildDeck(deckName);
+  return game.decks[deckName];
 }
 
 function moveExhaustedCards(from, to, cardIds) {
@@ -519,7 +592,8 @@ function move(game, playerId, {
 
   if (engagedTarget) linkCombat(character, engagedTarget);
 
-  // Красная клетка: встреча — верхняя карта красной колоды.
+  // Клетка-событие: красная — зверь из красной колоды; Сказочная опушка
+  // (deck 'fairy_glade') — феникс из колоды феникса (квест Иерихон).
   let redEvent = null;
   const terrain = cellTerrain(toCell);
   if (
@@ -527,7 +601,9 @@ function move(game, playerId, {
     && !character.beastFight
     && !combatOpponent(game, character)
   ) {
-    redEvent = drawRedEvent(game, character);
+    redEvent = cellDeck(toCell) === 'fairy_glade'
+      ? drawFairyEvent(game, character)
+      : drawRedEvent(game, character);
   }
 
   // Жёсткий коммит: после необратимого события (зверь на красной, выход из боя
@@ -535,6 +611,7 @@ function move(game, playerId, {
   if (game.turn.movementArea && (redEvent || escapedCombat || escapedBeast || engagedTarget)) {
     game.turn.movementArea.locked = true;
   }
+  const featherVictory = checkFeatherVictory(game, character);
 
   return {
     moved: {
@@ -547,18 +624,64 @@ function move(game, playerId, {
       engagedTargetId: engagedTarget?.id ?? null,
     },
     redEvent,
+    featherVictory,
     winnerId: game.winnerId,
   };
 }
 
-// Красная клетка — ВСЕГДА бой со зверем (решение 11.06: без находок).
-// Колода зверей: верхняя карта; опустела — перетасовываем зверей заново,
-// чтобы каждая красная клетка гарантированно давала встречу.
+// Красная клетка: 2% шанс найти Ирикон; иначе карта из красной колоды.
+// Зверь начинает схватку, остальные красные карты попадают в инвентарь
+// персонажа, если есть место.
 function drawRedEvent(game, character) {
-  if (game.redDeck.length === 0) {
-    game.redDeck = buildRedDeck();
+  let cardId = null;
+  let specialRoll = false;
+  if (!game.redIrkonDropped && Math.random() < 0.02) {
+    cardId = 'irikon';
+    game.redIrkonDropped = true;
+    specialRoll = true;
+  } else {
+    if (game.redDeck.length === 0) {
+      game.redDeck = buildRedDeck();
+    }
+    cardId = game.redDeck.shift();
   }
-  const cardId = game.redDeck.shift();
+  const card = CARD_BY_ID[cardId];
+  const beast = card?.type === 'beast';
+  let acquired = false;
+  let discarded = false;
+  if (beast) {
+    character.beastFight = { cardId, successes: 0, cellId: character.position };
+  } else if (character.inventory.length < INVENTORY_LIMIT) {
+    character.inventory.push(cardId);
+    acquired = true;
+  } else {
+    game.discard.push(cardId);
+    discarded = true;
+  }
+  return {
+    cardId,
+    name: card?.name,
+    type: card?.type,
+    desc: card?.desc,
+    beast,
+    acquired,
+    discarded,
+    specialRoll,
+    cellId: character.position,
+  };
+}
+
+// Сказочная опушка (квест Иерихон) — встреча с фениксом. Колода феникса
+// уникальна: фениксы не возрождаются. Когда колода пуста — событие не
+// происходит (возвращаем null), клетка при этом остаётся (норма для MVP).
+function drawFairyEvent(game, character) {
+  if (!game.fairyDeck) {
+    game.fairyDeck = buildFairyDeck();
+  }
+  if (game.fairyDeck.length === 0) {
+    return null; // фениксы кончились — больше не возрождаются
+  }
+  const cardId = game.fairyDeck.shift();
   const card = CARD_BY_ID[cardId];
   character.beastFight = { cardId, successes: 0, cellId: character.position };
   return {
@@ -642,6 +765,7 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   }
 
   let hide = null;
+  let trophy = null;
   if (killed) {
     const { cardId } = character.beastFight;
     character.beastFight = null;
@@ -654,6 +778,16 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
       } else {
         game.discard.push(hide); // нет места — шкура уходит в сброс
         hide = null;
+      }
+    }
+    // Особый трофей (напр. золотое перо с феникса) — отдельно от шкуры.
+    trophy = BEAST_TROPHY_DROP[cardId] ?? null;
+    if (trophy) {
+      if (character.inventory.length < INVENTORY_LIMIT) {
+        character.inventory.push(trophy);
+      } else {
+        game.discard.push(trophy); // нет места — трофей уходит в сброс
+        trophy = null;
       }
     }
   }
@@ -671,6 +805,7 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
         ? Math.max(1, beast.needed - previousSuccesses)
         : Math.max(0, successes - previousSuccesses),
       hide,
+      trophy,
       clubUsed,
       terrainCardsTurnedFaceDown: deactivatedTerrainCards,
     },
@@ -684,6 +819,9 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
   const character = ownCharacter(game, playerId, characterId);
   if (!character.inventory.includes(TELEPORT_CARD)) {
     throw new Error('У персонажа нет Бус телепортации.');
+  }
+  if (character.inventory.includes(GOLD_FEATHER_CARD)) {
+    throw new Error('Персонаж с Золотым пером не может телепортироваться.');
   }
   if (character.exhaustedCards?.includes(TELEPORT_CARD)) {
     throw new Error('Бусы телепортации уже использованы.');
@@ -726,6 +864,7 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
   }
   character.exhaustedCards ??= [];
   character.exhaustedCards.push(TELEPORT_CARD);
+  const featherVictory = checkFeatherVictory(game, character);
   return {
     teleported: {
       characterId,
@@ -736,6 +875,7 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
       escapedCombat,
       escapedBeast,
     },
+    featherVictory,
     winnerId: game.winnerId,
   };
 }
@@ -974,6 +1114,39 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
   return { crafted: { characterId, item, result: recipe.result, materials: discarded } };
 }
 
+// Стряхнуть DoT-ловушку (Полянка/Дикие ягоды). Режим split, тратит один кубик.
+// При значении ≥ dischargeMin карта снимается и уходит в сброс; иначе дебафф
+// остаётся, а кубик потрачен.
+function dischargeDot(game, playerId, { characterId, dotIndex = 0, dieIndex } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  requireSplit(game);
+  const character = ownCharacter(game, playerId, characterId);
+  const dots = character.dots ?? [];
+  const dot = dots[dotIndex];
+  if (!dot) {
+    throw new Error('У персонажа нет ловушки для сброса.');
+  }
+  const value = dieValue(game, dieIndex);
+  lockMovement(game);
+  spendDie(game, dieIndex);
+  const success = value >= dot.dischargeMin;
+  if (success) {
+    dots.splice(dotIndex, 1);
+    game.discard.push(dot.cardId);
+  }
+  return {
+    dotDischarged: {
+      characterId,
+      cardId: dot.cardId,
+      name: dot.name,
+      value,
+      min: dot.dischargeMin,
+      success,
+    },
+  };
+}
+
 function attack(game, playerId, { attackerId, targetId } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
@@ -1017,15 +1190,62 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   if (griffinDamage > 0) {
     for (const card of placedGriffins) card.faceDown = true;
   }
-  
-  const totalDamage = damage + griffinDamage;
-  target.hp = Math.max(0, target.hp - totalDamage);
+
+  // Оружие работает из руки и как активная карта на террейне у персонажа. Берём
+  // лучшее по урону, доступное атакующему (role — ограничение класса).
+  let weapon = null;
+  const activeTerrainWeapons = (game.terrainCards ?? [])
+    .filter((card) => card.ownerId === playerId
+      && card.characterId === attacker.id
+      && !card.faceDown
+      && WEAPON_CARDS[card.cardId])
+    .map((card) => card.cardId);
+  for (const id of [...attacker.inventory, ...activeTerrainWeapons]) {
+    const w = WEAPON_CARDS[id];
+    if (!w || (w.role && w.role !== attacker.role)) continue;
+    if (!weapon || w.damage > weapon.damage) weapon = { id, ...w };
+  }
+  const weaponDamage = weapon ? weapon.damage : 0;
+  const weaponPiercing = weapon ? Boolean(weapon.piercing) : false;
+
+  // Урон делится на обычный (кубики + Гриффон + непробивающее оружие) и пробивающий
+  // («без учёта защиты»). Активная броня цели поглощает только обычную часть.
+  const normalDamage = damage + griffinDamage + (weaponPiercing ? 0 : weaponDamage);
+  const piercingDamage = weaponPiercing ? weaponDamage : 0;
+  const armorAbsorb = (game.terrainCards ?? [])
+    .filter((card) => card.ownerId === target.owner
+      && card.characterId === target.id
+      && !card.faceDown
+      && ARMOR_CARDS[card.cardId])
+    .reduce((sum, card) => sum + ARMOR_CARDS[card.cardId].absorb, 0);
+
+  const totalDamage = normalDamage + piercingDamage; // до брони — для журнала
+  const afterArmor = Math.max(0, normalDamage - armorAbsorb) + piercingDamage;
+
+  // Ловушки защищающегося (Блеф): нападающий ударил первым — вскрываем выложенные
+  // рубашкой вверх ловушки цели. Они могут погасить входящий урон (negate), бить
+  // по нападающему (флэт/зеркало) или отбросить его к своему старту.
+  const trap = resolveDefenderTraps(game, attacker, target, afterArmor);
+  const dealtDamage = trap.incomingDamage;
+
+  target.hp = Math.max(0, target.hp - dealtDamage);
   const defeated = target.hp === 0;
   let lootCount = 0;
   let discardedCount = 0;
-
   if (defeated) {
     ({ lootCount, discardedCount } = defeatByPlayer(game, target, attacker));
+  }
+
+  if (trap.attackerSelfDamage > 0) {
+    attacker.hp = Math.max(0, attacker.hp - trap.attackerSelfDamage);
+  }
+  if (trap.retreatSteps > 0) {
+    retreatToStart(game, attacker, trap.retreatSteps);
+  }
+  let attackerDefeated = false;
+  if (attacker.hp === 0) {
+    attackerDefeated = true;
+    defeatByPlayer(game, attacker, target);
   }
 
   spendAllDice(game);
@@ -1036,14 +1256,124 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
       damage,
       griffinDamage,
       griffinTurnedFaceDown: griffinDamage > 0,
+      weaponDamage,
+      weaponName: weapon?.name ?? null,
+      weaponPiercing,
       totalDamage,
+      armorAbsorbed: armorAbsorb,
+      dealtDamage,
       targetHp: target.hp,
       defeated,
       lootCount,
       discardedCount,
+      traps: trap.triggered,
+      attackerDefeated,
+      attackerHp: attacker.hp,
     },
     winnerId: game.winnerId,
   };
+}
+
+// Разрешение карт-ловушек защищающегося. Вскрывает выложенные рубашкой вверх
+// (faceDown) карты из TRAP_CARDS, привязанные к атакованному персонажу. Сначала
+// гасит входящий урон (negate), затем считает урон по нападающему (флэт + зеркало
+// от фактически нанесённого) и отброс. Одноразовые карты уходят в сброс.
+function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
+  const cards = (game.terrainCards ?? []).filter((card) =>
+    card.ownerId === defender.owner
+    && card.characterId === defender.id
+    && card.faceDown === true
+    && TRAP_CARDS[card.cardId]);
+  let incomingDamage = intendedDamage;
+  for (const card of cards) {
+    if (TRAP_CARDS[card.cardId].negateIncoming) incomingDamage = 0;
+  }
+  let attackerSelfDamage = 0;
+  let retreatSteps = 0;
+  const triggered = [];
+  for (const card of cards) {
+    const t = TRAP_CARDS[card.cardId];
+    const selfDamage = (t.attackerSelfDamage ?? 0) + (t.mirror ? incomingDamage : 0);
+    attackerSelfDamage += selfDamage;
+    if (t.retreatAttacker) retreatSteps = Math.max(retreatSteps, t.retreatAttacker);
+    // Ночной филин: защищающийся забирает одну карту из инвентаря нападающего.
+    let stolen = null;
+    if (t.stealCard && attacker.inventory.length > 0) {
+      stolen = attacker.inventory.shift();
+      if (defender.inventory.length < INVENTORY_LIMIT) defender.inventory.push(stolen);
+      else game.discard.push(stolen); // нет места — карта в сброс
+    }
+    // Порча: при уроне ≥ порога у каждого персонажа нападающего по 1 ингредиенту
+    // возвращается в сброс (упрощение «обратно в колоды»).
+    let purged = 0;
+    if (t.purgeIngredientsMin && incomingDamage >= t.purgeIngredientsMin) {
+      for (const ch of game.characters) {
+        if (ch.owner !== attacker.owner) continue;
+        const idx = ch.inventory.findIndex((id) => CARD_BY_ID[id]?.type === 'ingredient');
+        if (idx !== -1) {
+          game.discard.push(ch.inventory.splice(idx, 1)[0]);
+          purged += 1;
+        }
+      }
+    }
+    if (t.dot) {
+      // Карта-ловушка переходит дебаффом на нападающего: тикает каждый его ход,
+      // пока он не стряхнёт её (action:dischargeDot). С поля защищающегося уходит.
+      attacker.dots = attacker.dots ?? [];
+      attacker.dots.push({
+        cardId: card.cardId,
+        damagePerTurn: t.dot,
+        dischargeMin: t.dischargeMin ?? 5,
+        name: t.name ?? CARD_BY_ID[card.cardId]?.name ?? card.cardId,
+      });
+      const idx = game.terrainCards.indexOf(card);
+      if (idx !== -1) game.terrainCards.splice(idx, 1);
+    } else if (t.consume) {
+      const idx = game.terrainCards.indexOf(card);
+      if (idx !== -1) game.terrainCards.splice(idx, 1);
+      game.discard.push(card.cardId);
+    } else {
+      card.faceDown = false; // вскрыта, остаётся на поле
+    }
+    triggered.push({
+      id: card.id,
+      cardId: card.cardId,
+      name: t.name ?? CARD_BY_ID[card.cardId]?.name ?? card.cardId,
+      attackerSelfDamage: selfDamage,
+      negated: Boolean(t.negateIncoming),
+      retreat: t.retreatAttacker ?? 0,
+      dot: t.dot ?? 0,
+      stolen: stolen ? (CARD_BY_ID[stolen]?.name ?? stolen) : null,
+      purged,
+      consumed: t.consume === true,
+    });
+  }
+  return { incomingDamage, attackerSelfDamage, retreatSteps, triggered };
+}
+
+// Отброс персонажа к своему старту на steps бордов (эффект Совы). Жадно идём по
+// соседям, уменьшая дистанцию до старта, не вставая на занятые клетки. Бой при
+// этом разрывается — нападающий вынужденно покидает схватку.
+function retreatToStart(game, character, steps) {
+  const start = startCell(character.side, character.role);
+  if (!start || !character.position) return;
+  clearCombat(game, character);
+  let current = character.position;
+  for (let i = 0; i < steps && current !== start; i += 1) {
+    let best = null;
+    let bestDist = shortestDistance(current, start);
+    for (const nb of neighbors(current)) {
+      if (game.characters.some((c) => c.hp > 0 && c.id !== character.id && c.position === nb)) continue;
+      const dist = shortestDistance(nb, start);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = nb;
+      }
+    }
+    if (!best) break;
+    current = best;
+  }
+  character.position = current;
 }
 
 function endTurn(game, playerId) {
@@ -1175,6 +1505,23 @@ function applyTurnStartEffects(game, playerId) {
         }
       }
     }
+    // DoT-ловушки (Полянка мухоморов, Дикие красные ягоды): тикают в начале
+    // каждого хода носителя, пока он их не стряхнёт (action:dischargeDot).
+    if (Array.isArray(character.dots) && character.dots.length > 0 && character.hp > 0) {
+      const dotDamage = character.dots.reduce((sum, d) => sum + d.damagePerTurn, 0);
+      character.hp = Math.max(0, character.hp - dotDamage);
+      if (character.hp === 0) {
+        character.position = null;
+        character.beastFight = null;
+        character.dots = [];
+        game.discard.push(...character.inventory.splice(0));
+        if (!game.characters.some((c) => c.owner === playerId && c.hp > 0)) {
+          game.over = true;
+          game.winnerId = Object.keys(game.turn.rollsLeft)
+            .find((id) => id !== playerId) ?? null;
+        }
+      }
+    }
   }
 }
 
@@ -1248,14 +1595,14 @@ function rollDie() {
   return Math.floor(Math.random() * 6) + 1;
 }
 
-// Строит общую игровую колоду из смешанного грунта и леса.
-// Рецепты, чертежи, колода барана, красная, озеро и сказочная опушка — отдельные стеки (TODO).
-const GENERAL_DECKS = new Set(['mixed', 'forest', 'dark_forest']);
+// Добор по рубашке клетки. Красная колода и Сказочная опушка обрабатываются
+// отдельными событиями, трофеи не входят в случайный добор.
+const DRAW_DECKS = Object.freeze(['mixed', 'forest', 'dark_forest', 'sheep', 'lake', 'recipes', 'blueprints']);
 
-function buildDeck() {
+function buildDeck(deckName = 'mixed') {
   const deck = [];
   for (const card of CARD_CATALOG) {
-    if (!GENERAL_DECKS.has(card.deck)) continue;
+    if (card.deck !== deckName) continue;
     for (let i = 0; i < card.copies; i += 1) {
       deck.push(card.id);
     }
@@ -1263,17 +1610,28 @@ function buildDeck() {
   return shuffle(deck);
 }
 
-// Красная колода — ТОЛЬКО звери (красные клетки = бой, без находок).
-// Шкуры/оружие красной колоды приходят как трофеи и добыча, не с клеток.
+function buildDecks() {
+  return Object.fromEntries(DRAW_DECKS.map((deckName) => [deckName, buildDeck(deckName)]));
+}
+
+// Красная колода: все красные карты кроме Ирикона. Сам Ирикон идёт
+// отдельным редким шансом 2%, а медведь встречается чаще остальных зверей.
 function buildRedDeck() {
   const deck = [];
   for (const card of CARD_CATALOG) {
-    if (card.deck !== 'red' || card.type !== 'beast') continue;
-    for (let i = 0; i < card.copies; i += 1) {
+    if (card.deck !== 'red' || card.id === 'irikon') continue;
+    const copies = card.id === 'beast_bear' ? Math.max(card.copies, 4) : card.copies;
+    for (let i = 0; i < copies; i += 1) {
       deck.push(card.id);
     }
   }
   return shuffle(deck);
+}
+
+// Колода феникса (Сказочная опушка). Два уникальных феникса; перетасованы,
+// чтобы порядок появления не был детерминирован. Не пересобирается при опустошении.
+function buildFairyDeck() {
+  return shuffle(['phoenix_1', 'phoenix_2']);
 }
 
 function shuffle(cards) {

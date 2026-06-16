@@ -36,6 +36,16 @@ export function cellTerrain(id) {
   return cellsById.get(id)?.terrain ?? null;
 }
 
+export function cellRole(id) {
+  return cellsById.get(id)?.role ?? null;
+}
+
+// Колода события на клетке: 'fairy_glade' и т.п., либо null. Используется для
+// маршрутизации события (красная клетка vs Сказочная опушка с фениксом).
+export function cellDeck(id) {
+  return cellsById.get(id)?.deck ?? null;
+}
+
 // BFS по графу: клетки, достижимые не более чем за maxSteps шагов.
 export function reachableCells(fromId, maxSteps, blocked = new Set()) {
   if (!isBoardCell(fromId) || maxSteps <= 0) return [];
@@ -104,6 +114,18 @@ export function allStartCells() {
 export function pointClassCells(pointClass) {
   return MAP.cells
     .filter((cell) => cell.pointClass === pointClass && cell.walkable !== false)
+    .map((cell) => cell.id);
+}
+
+export function terrainCells(terrain) {
+  return MAP.cells
+    .filter((cell) => cell.terrain === terrain && cell.walkable !== false)
+    .map((cell) => cell.id);
+}
+
+export function deckCells() {
+  return MAP.cells
+    .filter((cell) => cell.deck && cell.walkable !== false)
     .map((cell) => cell.id);
 }
 

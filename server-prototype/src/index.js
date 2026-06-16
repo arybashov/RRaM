@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createStore } from './game-state.js';
 import { ClientCommand, ServerEvent, GAME_COMMANDS } from './protocol.js';
 import { runBotTurn } from './bot.js';
-import { BUILD_VERSION } from './constants.js';
+import { BASE_CARD_CATALOG, BUILD_VERSION, CARD_CATALOG } from './constants.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -31,7 +31,11 @@ app.get('/ws', { websocket: true }, (socket) => {
     fogEnabled: true,
   });
 
-  send(socket, ServerEvent.CONNECTED, { connectionId, serverVersion: BUILD_VERSION });
+  send(socket, ServerEvent.CONNECTED, {
+    connectionId,
+    serverVersion: BUILD_VERSION,
+    cardCatalog: [...CARD_CATALOG, ...BASE_CARD_CATALOG],
+  });
 
   socket.on('message', (rawMessage) => {
     handleMessage(connectionId, rawMessage);
