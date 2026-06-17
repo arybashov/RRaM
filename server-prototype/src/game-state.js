@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PLAYER_LIMIT, CARD_BY_ID, BEASTS, FOG_RADIUS } from './constants.js';
+import { PLAYER_LIMIT, CARD_BY_ID, BEASTS, FOG_RADIUS, GOLD_FEATHER_CARDS } from './constants.js';
 import * as rules from './rules.js';
 import { mapSnapshot, reachableCells } from './map.js';
 
@@ -329,7 +329,7 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
       drawnThisTurn: Boolean(game.turn.drawnThisTurn),
     },
     characters: game.characters.map((c) => {
-      const beacon = c.inventory?.includes('gold_feather') ?? false;
+      const beacon = c.inventory?.some((id) => GOLD_FEATHER_CARDS.includes(id)) ?? false;
       // Враг вне радиуса тумана — позицию скрываем (фишка не рисуется)
       const fogged = visible
         && c.owner !== forPlayerId
@@ -388,7 +388,8 @@ function snapshotLegalTargets(game, forPlayerId) {
         .availableMoveTargets(game, forPlayerId, character.id)
         .map((target) => target.cellId);
     }
-  } else if (game.turn.mode === 'split') {
+  }
+  if (game.turn.mode === 'split') {
     for (const dieIndex of [0, 1]) {
       const movementDie = game.turn.movementArea?.mode === 'split'
         && game.turn.movementArea.dieIndex === dieIndex;
@@ -397,6 +398,18 @@ function snapshotLegalTargets(game, forPlayerId) {
         empty.dice[dieIndex][character.id] = rules
           .availableMoveTargets(game, forPlayerId, character.id, dieIndex)
           .map((target) => target.cellId);
+      }
+    }
+  } else {
+    // Вне split (moveSum или режим ещё не выбран после броска): отдаём
+    // одиночную дальность каждого кубика, чтобы клиент мог понять,
+    // дотягивается ли ресурс ОДНИМ кубиком (подсветка «Взять»). На отрисовку
+    // ходов не влияет — в moveSum клиент рисует цели из legalTargets.moveSum.
+    for (const dieIndex of [0, 1]) {
+      if (game.turn.usedDice[dieIndex]) continue;
+      for (const character of characters) {
+        empty.dice[dieIndex][character.id] = rules
+          .singleDieTargets(game, forPlayerId, character.id, dieIndex);
       }
     }
   }

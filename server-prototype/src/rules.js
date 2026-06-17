@@ -19,6 +19,9 @@ import {
   BEASTS,
   BEAST_HIDE_DROP,
   BEAST_TROPHY_DROP,
+  GOLD_FEATHER_CARDS,
+  GOLD_FEATHER_OWN,
+  GOLD_FEATHER_ENEMY,
   RAW_HIDE_TO_CLEAN,
   HIDE_CLEAN_MIN,
   CRAFT_RECIPES,
@@ -30,8 +33,10 @@ import {
 import {
   MAP_ID,
   cellTerrain,
-  cellRole,
   cellDeck,
+  blacksmithStoneSide,
+  enemySide,
+  isBlacksmithStoneCell,
   isBoardCell,
   neighbors,
   reachableCells,
@@ -40,7 +45,7 @@ import {
   pointClassCells,
 } from './map.js';
 
-const GOLD_FEATHER_CARD = 'gold_feather';
+const GOLD_FEATHER_SET = new Set(GOLD_FEATHER_CARDS);
 
 export function createGame(players) {
   const characters = [];
@@ -131,9 +136,33 @@ export function apply(game, playerId, type, payload = {}) {
       return terrainRemove(game, playerId, payload);
     case 'action:terrainFlip':
       return terrainFlip(game, playerId, payload);
+    case 'debug:grantCard':
+      return debugGrantCard(game, playerId, payload);
     default:
       throw new Error(`Команда недоступна в игре: ${type}`);
   }
+}
+
+function debugGrantCard(game, playerId, { characterId, cardId } = {}) {
+  const character = ownCharacter(game, playerId, characterId);
+  const card = CARD_BY_ID[cardId];
+  if (!card) {
+    throw new Error('Неизвестная карта для отладочной выдачи.');
+  }
+  character.inventory.push(cardId);
+  if (card.locked && !character.crafted?.includes(cardId)) {
+    character.crafted ??= [];
+    character.crafted.push(cardId);
+  }
+  return {
+    debugGranted: {
+      characterId,
+      cardId,
+      name: card.name ?? cardId,
+      count: character.inventory.length,
+      crafted: Boolean(card.locked),
+    },
+  };
 }
 
 function roll(game, playerId) {
@@ -158,6 +187,9 @@ function roll(game, playerId) {
   game.turn.hasRolled = true;
   game.turn.movedCharacterId = null;
   game.turn.drawnThisTurn = false;
+  game.turn.rollStartPositions = Object.fromEntries(
+    game.characters.map((character) => [character.id, character.position ?? null]),
+  );
   game.turn.rollsLeft[playerId] -= 1;
 
   return {
@@ -379,23 +411,35 @@ function moveOneCard(game, playerId, fromId, toId, cardIndex) {
 }
 
 function assertCardTransferAllowed(from, to, cardIds) {
-  if (!cardIds.includes(GOLD_FEATHER_CARD)) return;
+  if (!cardIds.some(isGoldFeatherCard)) return;
   if (from.position && to.position && (from.position === to.position || neighbors(from.position).includes(to.position))) {
     return;
   }
   throw new Error('Золотое перо нельзя передать через поле — персонажи должны стоять рядом.');
 }
 
-function isBlacksmithStone(cellId) {
-  return cellTerrain(cellId) === 'start' && cellRole(cellId) === 'K';
+function isGoldFeatherCard(cardId) {
+  return GOLD_FEATHER_SET.has(cardId);
+}
+
+function carriedGoldFeatherId(character) {
+  return character?.inventory?.find(isGoldFeatherCard) ?? null;
+}
+
+function goldFeatherTargetSide(character, cardId) {
+  if (cardId === GOLD_FEATHER_OWN) return character.side;
+  if (cardId === GOLD_FEATHER_ENEMY) return enemySide(character.side);
+  return null;
 }
 
 function checkFeatherVictory(game, character) {
+  const featherId = carriedGoldFeatherId(character);
   if (
     game.over
     || !character?.position
-    || !character.inventory?.includes(GOLD_FEATHER_CARD)
-    || !isBlacksmithStone(character.position)
+    || !featherId
+    || !isBlacksmithStoneCell(character.position)
+    || blacksmithStoneSide(character.position) !== goldFeatherTargetSide(character, featherId)
   ) {
     return null;
   }
@@ -405,7 +449,7 @@ function checkFeatherVictory(game, character) {
     winnerId: character.owner,
     characterId: character.id,
     cellId: character.position,
-    cardId: GOLD_FEATHER_CARD,
+    cardId: featherId,
   };
 }
 
@@ -454,11 +498,12 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
   let maxSteps;
   let origin = character.position;
   if (movementArea) {
+    if (movementArea.locked) return [];
     if (movementArea.characterId !== character.id || character.beastFight) return [];
     if (movementArea.mode === 'split' && dieIndex !== movementArea.dieIndex) {
       // Вторая «нога»: ходим другим свободным кубиком от ТЕКУЩЕЙ клетки.
       // Недоступно после жёсткого коммита (красная клетка / выход из боя / другое действие).
-      if (movementArea.locked || game.turn.usedDice[dieIndex]) return [];
+      if (game.turn.usedDice[dieIndex]) return [];
       maxSteps = dieValue(game, dieIndex);
       origin = character.position;
     } else {
@@ -488,6 +533,28 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
 
   const opponentAdjacent = new Set(neighbors(opponent.position));
   return targets.filter((target) => !opponentAdjacent.has(target.cellId));
+}
+
+// Клетки, достижимые РОВНО одним кубиком из текущей позиции, независимо от
+// выбранного режима хода. В отличие от availableMoveTargets (в moveSum считает
+// по сумме кубиков), здесь всегда одиночная дальность — нужно снапшоту, чтобы
+// клиент понимал, дотягивается ли ресурс одним кубиком (подсветка «Взять»), и
+// не путал это с дальностью по сумме. Возвращает массив cellId.
+export function singleDieTargets(game, playerId, characterId, dieIndex) {
+  const character = ownCharacter(game, playerId, characterId);
+  if (!game.turn.dice || (dieIndex !== 0 && dieIndex !== 1)) return [];
+  if (game.turn.usedDice[dieIndex]) return [];
+  // В бою/схватке карту взять нельзя — планируемый добор неактуален.
+  if (combatOpponent(game, character) || character.beastFight) return [];
+  const maxSteps = game.turn.dice[dieIndex];
+  const blocked = new Set(
+    game.characters
+      .filter((item) => item.id !== character.id && item.position)
+      .map((item) => item.position),
+  );
+  return reachableCells(character.position, maxSteps, blocked)
+    .filter((target) => target.cellId !== character.position)
+    .map((target) => target.cellId);
 }
 
 function move(game, playerId, {
@@ -554,17 +621,49 @@ function move(game, playerId, {
     // Перестановка фишки внутри текущей ноги — кубик не тратится повторно.
     character.position = toCell;
   } else if (game.turn.mode === 'moveSum') {
-    game.turn.movementArea = {
-      characterId,
-      origin: fromCell,
-      mode: 'moveSum',
-      dieIndex: null,
-      maxSteps: game.turn.dice[0] + game.turn.dice[1],
-      locked: false,
-      prev: null,
-    };
-    character.position = toCell;
-    game.turn.usedDice = [true, true];
+    // Автосплит: если ход закончился на клетке добора (ресурс/колода карт, но не
+    // событийной) и путь уложился в один кубик — тратим только ОДИН кубик
+    // (наименьший достаточный), больший оставляем свободным на добор. Режим
+    // переводим в split, чтобы стали доступны добор/передача. Иначе — обычное
+    // движение суммой (оба кубика).
+    // Побег из боя/схватки и вступление в бой — «жёсткий» ход, стоит сумму
+    // (оба кубика). Автосплит на них не распространяется.
+    const maxDie = Math.max(game.turn.dice[0], game.turn.dice[1]);
+    const autoSplit = isDrawCell(toCell)
+      && cellTerrain(toCell) !== 'event'
+      && target.distance <= maxDie
+      && !escapedCombat
+      && !escapedBeast
+      && !engagedTarget;
+    if (autoSplit) {
+      const dieIdx = [0, 1]
+        .filter((i) => game.turn.dice[i] >= target.distance)
+        .reduce((best, i) => (game.turn.dice[i] < game.turn.dice[best] ? i : best));
+      game.turn.mode = 'split';
+      game.turn.movementArea = {
+        characterId,
+        origin: fromCell,
+        mode: 'split',
+        dieIndex: dieIdx,
+        maxSteps: game.turn.dice[dieIdx],
+        locked: false,
+        prev: null,
+      };
+      character.position = toCell;
+      game.turn.usedDice[dieIdx] = true;
+    } else {
+      game.turn.movementArea = {
+        characterId,
+        origin: fromCell,
+        mode: 'moveSum',
+        dieIndex: null,
+        maxSteps: game.turn.dice[0] + game.turn.dice[1],
+        locked: false,
+        prev: null,
+      };
+      character.position = toCell;
+      game.turn.usedDice = [true, true];
+    }
   } else if (game.turn.mode === 'split') {
     const maxSteps = dieValue(game, dieIndex);
     game.turn.movementArea = {
@@ -596,8 +695,10 @@ function move(game, playerId, {
   // (deck 'fairy_glade') — феникс из колоды феникса (квест Иерихон).
   let redEvent = null;
   const terrain = cellTerrain(toCell);
+  const startedRollOnCell = game.turn.rollStartPositions?.[character.id] === toCell;
   if (
     terrain === 'event'
+    && !startedRollOnCell
     && !character.beastFight
     && !combatOpponent(game, character)
   ) {
@@ -820,7 +921,7 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
   if (!character.inventory.includes(TELEPORT_CARD)) {
     throw new Error('У персонажа нет Бус телепортации.');
   }
-  if (character.inventory.includes(GOLD_FEATHER_CARD)) {
+  if (carriedGoldFeatherId(character)) {
     throw new Error('Персонаж с Золотым пером не может телепортироваться.');
   }
   if (character.exhaustedCards?.includes(TELEPORT_CARD)) {

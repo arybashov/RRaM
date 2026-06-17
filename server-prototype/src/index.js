@@ -8,6 +8,9 @@ import { BASE_CARD_CATALOG, BUILD_VERSION, CARD_CATALOG } from './constants.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '127.0.0.1';
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+const DEBUG_COMMANDS_ENABLED = process.env.DEBUG_COMMANDS === '1'
+  || (process.env.NODE_ENV !== 'production' && LOCAL_HOSTS.has(HOST));
 
 const app = Fastify({ logger: true });
 const store = createStore();
@@ -34,6 +37,7 @@ app.get('/ws', { websocket: true }, (socket) => {
   send(socket, ServerEvent.CONNECTED, {
     connectionId,
     serverVersion: BUILD_VERSION,
+    debugCommands: DEBUG_COMMANDS_ENABLED,
     cardCatalog: [...CARD_CATALOG, ...BASE_CARD_CATALOG],
   });
 
@@ -224,6 +228,9 @@ function routeCommand(connectionId, message) {
     default: {
       if (!GAME_COMMANDS.has(message.type)) {
         throw new Error(`Неизвестная команда: ${message.type}`);
+      }
+      if (message.type === ClientCommand.DEBUG_GRANT_CARD && !DEBUG_COMMANDS_ENABLED) {
+        throw new Error('Отладочная выдача карт отключена на этом сервере.');
       }
       assertJoined(client);
       const { result } = store.applyCommand({

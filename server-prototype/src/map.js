@@ -46,6 +46,35 @@ export function cellDeck(id) {
   return cellsById.get(id)?.deck ?? null;
 }
 
+export function cellSide(id) {
+  return cellsById.get(id)?.side ?? null;
+}
+
+export function isBlacksmithStoneCell(id) {
+  const cell = cellsById.get(id);
+  return Boolean(cell && cell.walkable !== false && cell.terrain === 'resource' && cell.deck === 'blueprints');
+}
+
+export function blacksmithStoneCells() {
+  return MAP.cells
+    .filter((cell) => isBlacksmithStoneCell(cell.id))
+    .map((cell) => cell.id);
+}
+
+export function blacksmithStoneSide(id) {
+  const explicitSide = cellSide(id);
+  if (explicitSide) return explicitSide;
+  if (!isBlacksmithStoneCell(id)) return null;
+
+  let best = null;
+  for (const side of Object.keys(STARTS)) {
+    const starts = Object.values(STARTS[side] ?? {}).filter(Boolean);
+    const distance = Math.min(...starts.map((start) => shortestDistance(id, start)));
+    if (!best || distance < best.distance) best = { side, distance };
+  }
+  return best?.side ?? null;
+}
+
 // BFS по графу: клетки, достижимые не более чем за maxSteps шагов.
 export function reachableCells(fromId, maxSteps, blocked = new Set()) {
   if (!isBoardCell(fromId) || maxSteps <= 0) return [];

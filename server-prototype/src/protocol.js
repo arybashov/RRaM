@@ -29,6 +29,7 @@ export const ClientCommand = Object.freeze({
   ACTION_TERRAIN_PLACE: 'action:terrainPlace',
   ACTION_TERRAIN_REMOVE: 'action:terrainRemove',
   ACTION_TERRAIN_FLIP: 'action:terrainFlip',
+  DEBUG_GRANT_CARD: 'debug:grantCard',
 });
 
 // Команды, которые обрабатывает движок правил, а не транспорт.
@@ -50,6 +51,7 @@ export const GAME_COMMANDS = Object.freeze(
     ClientCommand.ACTION_TERRAIN_PLACE,
     ClientCommand.ACTION_TERRAIN_REMOVE,
     ClientCommand.ACTION_TERRAIN_FLIP,
+    ClientCommand.DEBUG_GRANT_CARD,
   ]),
 );
 

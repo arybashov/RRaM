@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260617-07';
+export const BUILD_VERSION = '20260617-24';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -27,6 +27,9 @@ export const CHARACTER_HP = 100;
 // Идентификатор карты телепортации (см. BASE_CARD_CATALOG). Карты в инвентаре
 // и колодах хранятся как id; человекочитаемое имя резолвится через CARD_BY_ID.
 export const TELEPORT_CARD = 'teleport_beads';
+export const GOLD_FEATHER_OWN = 'gold_feather_own';
+export const GOLD_FEATHER_ENEMY = 'gold_feather_enemy';
+export const GOLD_FEATHER_CARDS = Object.freeze([GOLD_FEATHER_OWN, GOLD_FEATHER_ENEMY]);
 
 // Параметры зверей (встречи на красных клетках и в лесу).
 // damage — урон персонажу в начале каждого хода владельца, пока зверь не убит;
@@ -60,8 +63,8 @@ export const BEAST_HIDE_DROP = Object.freeze({
 // phoenix_2 (перо к кузнецу врага) — доставка пера сопернику отложена, пока
 // падает так же владельцу-убийце.
 export const BEAST_TROPHY_DROP = Object.freeze({
-  phoenix_1: 'gold_feather',
-  phoenix_2: 'gold_feather',
+  phoenix_1: GOLD_FEATHER_OWN,
+  phoenix_2: GOLD_FEATHER_ENEMY,
 });
 
 // Сырые шкуры → материалы после обработки шаманом.
@@ -116,7 +119,7 @@ export const CRAFT_RECIPES = Object.freeze({
     role: 'K',
     via: 'blueprint_irikon',
     result: 'irikon',
-    materials: [['task_irikon'], ['gold_feather']],
+    materials: [['task_irikon'], GOLD_FEATHER_CARDS],
     dice: { count: 2, min: 3 },
   },
   // Шерсть барана → Клубок; отдельная карта рецепта не требуется.
@@ -320,16 +323,16 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'marvo',         deck: 'recipes',     type: 'provocation', copies: 2, name: 'Марво трос' },
 
   // --- Чертежи (только кузнец) ---
-  { id: 'blueprint_club',   deck: 'blueprints', type: 'blueprint', copies: 2, name: 'Чертёж на дубину' },
-  { id: 'blueprint_hammer', deck: 'blueprints', type: 'blueprint', copies: 2, name: 'Чертёж на молоток' },
   { id: 'blueprint_irikon', deck: 'blueprints', type: 'blueprint', copies: 1, name: 'Чертёж Ирикон' },
 
   // --- Сказочная опушка ---
   { id: 'phoenix_1',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к своему кузнецу)' },
   { id: 'phoenix_2',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к кузнецу врага)' },
   // copies:0 — не входит в случайную раздачу, появляется только как трофей феникса.
-  { id: 'gold_feather',  deck: 'fairy_glade', type: 'special',     copies: 0, name: 'Золотое перо', public: true,
-    desc: 'Маяк: персонаж-носитель всегда виден всем (игнорирует туман). Материал для Молота Иерихон.' },
+  { id: 'gold_feather_own', deck: 'fairy_glade', type: 'special',  copies: 0, name: 'Золотое перо: к своему кузнецу', public: true,
+    desc: 'Маяк: носитель виден всем и не телепортируется. Доставьте на свой камень кузнеца или используйте для крафта Молота Иерихон.' },
+  { id: 'gold_feather_enemy', deck: 'fairy_glade', type: 'special', copies: 0, name: 'Золотое перо: к кузнецу врага', public: true,
+    desc: 'Маяк: носитель виден всем и не телепортируется. Доставьте на камень кузнеца врага или используйте для крафта Молота Иерихон.' },
 ]);
 
 // Базовые (стартовые) карты персонажей. Не входят в общие колоды — выдаются
@@ -342,7 +345,7 @@ export const BASE_CARD_CATALOG = Object.freeze([
     desc: 'Одноразовая. Кубик 2+ телепортирует на свой старт или фиолетовую точку. После использования карта переворачивается рубашкой вверх.' },
 
   // Кузнец
-  { id: 'bp_hammer_base',   role: 'K', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на молоток',
+  { id: 'bp_hammer_base',   role: 'K', type: 'blueprint',  copies: 1, name: 'Чертёж на молоток',
     desc: 'Материалы: смешанная железная руда. Испытание: два кубика, каждый не меньше 3. Открывает Молоток.' },
   { id: 'hammer',           role: 'K', type: 'tool',       copies: 1, name: 'Молоток', locked: true,
     desc: 'Класс: кузнец. На точке добычи — взять 2 карты вне зависимости от кубика.' },
@@ -354,7 +357,7 @@ export const BASE_CARD_CATALOG = Object.freeze([
     desc: 'Материалы: клубок ×1 + очищенная шкура барана ×1. Кубик 2 раза не менее 3. Открывает Мешок.' },
 
   // Воин
-  { id: 'bp_club_base',     role: 'V', type: 'blueprint',  copies: 1, name: 'Базовый чертёж на дубину',
+  { id: 'bp_club_base',     role: 'V', type: 'blueprint',  copies: 1, name: 'Чертёж на дубину',
     desc: 'Материалы: убить кабана, медведя или волка → шкуру очищает шаман → очищенной шкурой открыть Дубину.' },
   { id: 'club',             role: 'V', type: 'weapon',     copies: 1, name: 'Дубина', locked: true, public: true,
     desc: 'Класс: воин. В начале хода враг теряет 10 HP. Против зверя кубик 4+ побеждает его одной атакой.' },
