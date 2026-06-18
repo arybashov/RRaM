@@ -223,6 +223,33 @@ test('bot attacks an adjacent enemy with both dice before moving', () => {
   assert.match(ranked[0].reason, /damage=7/);
 });
 
+test('bot emits action:result for its attack', async () => {
+  const game = freshGame();
+  game.turn.activePlayerId = 'bot';
+  const attacker = botCharacter(game);
+  const target = game.characters.find(
+    (character) => character.owner === 'p1' && character.role === 'V',
+  );
+  target.position = neighbors(attacker.position)[0];
+
+  const room = { id: 'room', game };
+  const results = [];
+  await runBotTurn({
+    applyCommand: ({ playerId, type, payload }) => apply(game, playerId, type, payload),
+    getRoom: () => room,
+    broadcast: () => {},
+    emitActionResult: (_roomId, result) => results.push(result),
+    roomId: room.id,
+    botPlayerId: 'bot',
+    wait: async () => {},
+  });
+
+  const attackResult = results.find((result) => result?.attacked);
+  assert.ok(attackResult);
+  assert.equal(attackResult.attacked.attackerId, attacker.id);
+  assert.equal(attackResult.attacked.targetId, target.id);
+});
+
 test('bot advances toward the enemy island without a false map victory', async () => {
   const game = freshGame();
   const initialPositions = new Map(

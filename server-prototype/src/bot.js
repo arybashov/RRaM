@@ -451,14 +451,16 @@ export function rankBotActions(
     || JSON.stringify(a.payload).localeCompare(JSON.stringify(b.payload)));
 }
 
-function tryApply(applyCommand, broadcast, roomId, botPlayerId, action) {
+function tryApply(applyCommand, broadcast, emitActionResult, roomId, botPlayerId, action) {
   try {
-    applyCommand({
+    const applied = applyCommand({
       roomId,
       playerId: botPlayerId,
       type: action.type,
       payload: action.payload,
     });
+    const result = applied?.result ?? applied;
+    if (result) emitActionResult?.(roomId, result);
     broadcast(roomId);
     return true;
   } catch {
@@ -467,7 +469,7 @@ function tryApply(applyCommand, broadcast, roomId, botPlayerId, action) {
 }
 
 function applySimple(applyCommand, broadcast, roomId, botPlayerId, type, payload = {}) {
-  return tryApply(applyCommand, broadcast, roomId, botPlayerId, {
+  return tryApply(applyCommand, broadcast, null, roomId, botPlayerId, {
     type,
     payload,
   });
@@ -477,6 +479,7 @@ function performBestAction({
   applyCommand,
   getRoom,
   broadcast,
+  emitActionResult,
   roomId,
   botPlayerId,
   dieIndex,
@@ -486,7 +489,7 @@ function performBestAction({
 
   const ranked = rankBotActions(room.game, botPlayerId, dieIndex, { state: room.game });
   for (const action of ranked) {
-    if (tryApply(applyCommand, broadcast, roomId, botPlayerId, action)) {
+    if (tryApply(applyCommand, broadcast, emitActionResult, roomId, botPlayerId, action)) {
       return true;
     }
   }
@@ -497,6 +500,7 @@ export async function runBotTurn({
   applyCommand,
   getRoom,
   broadcast,
+  emitActionResult = null,
   roomId,
   botPlayerId,
   wait = delay,
@@ -534,6 +538,7 @@ export async function runBotTurn({
     applyCommand,
     getRoom,
     broadcast,
+    emitActionResult,
     roomId,
     botPlayerId,
     dieIndex: 0,
@@ -546,6 +551,7 @@ export async function runBotTurn({
       applyCommand,
       getRoom,
       broadcast,
+      emitActionResult,
       roomId,
       botPlayerId,
       dieIndex: 1,

@@ -292,6 +292,14 @@ function broadcastState(roomId) {
   maybeTriggerBot(roomId);
 }
 
+function broadcastActionResult(roomId, result) {
+  for (const client of clients.values()) {
+    if (client.roomId === roomId) {
+      send(client.socket, 'action:result', result);
+    }
+  }
+}
+
 // Список открытых игр — всем, кто сейчас на экране лобби.
 function broadcastLobby() {
   if (lobbySubscribers.size === 0) return;
@@ -314,6 +322,7 @@ function maybeTriggerBot(roomId) {
     applyCommand: store.applyCommand,
     getRoom:      store.getRoom,
     broadcast:    broadcastState,
+    emitActionResult: broadcastActionResult,
     roomId,
     botPlayerId:  bot.id,
   }).finally(() => botRunning.delete(roomId));

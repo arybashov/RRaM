@@ -462,6 +462,7 @@ let invDrag = null;          // перетаскивание из инвента
 let approachTarget = null;      // { mineId, enemyId, until } — подход к врагу
 let attackFxTargetId = null;
 let attackFxTimer = null;
+let recentDamageLogSkips = [];
 let heartbeatTimer = null;
 let lastServerMsgAt = 0;
 let pingSentAt = 0;         // метка времени последнего ping (для RTT)
@@ -470,7 +471,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-5'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260618-6'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 
 // ── Старт ─────────────────────────────────────────────────────────
 showAppVersion();
@@ -3983,6 +3984,24 @@ function addLog(text, extra = {}) {
   saveLog();
 }
 
+function rememberDamageLogSkip(charId, damage) {
+  if (!charId || damage <= 0) return;
+  const now = Date.now();
+  recentDamageLogSkips = recentDamageLogSkips
+    .filter((item) => now - item.at < 6000)
+    .concat({ charId, damage, at: now });
+}
+
+function consumeDamageLogSkip(charId, damage) {
+  const now = Date.now();
+  recentDamageLogSkips = recentDamageLogSkips.filter((item) => now - item.at < 6000);
+  const index = recentDamageLogSkips.findIndex((item) =>
+    item.charId === charId && item.damage === damage);
+  if (index === -1) return false;
+  recentDamageLogSkips.splice(index, 1);
+  return true;
+}
+
 function initToasts() {
   if (toastContainer) return;
   toastContainer = document.createElement('div');
@@ -4221,6 +4240,10 @@ function handleActionResult(result) {
       showToast(`⚔️ Атака: ${a.damage} урона!`, 'danger');
     }
     addLog(`${attackerName} атаковал ${targetName}: ${breakdown}.`, { type: 'err' });
+    rememberDamageLogSkip(a.targetId, a.dealtDamage ?? a.damage ?? 0);
+    const attackerSelfDamage = (a.traps ?? [])
+      .reduce((total, trap) => total + (trap.attackerSelfDamage ?? 0), 0);
+    rememberDamageLogSkip(a.attackerId, attackerSelfDamage);
 
     if (a.defeated) {
       showToast(`💀 ${targetName} повержен!`, 'danger');
@@ -4379,6 +4402,7 @@ function diffAndLog(prevRoom, nextRoom) {
     const prevChar = prevG.characters.find(c => c.id === char.id);
     if (prevChar && char.hp < prevChar.hp) {
       const damage = prevChar.hp - char.hp;
+      if (consumeDamageLogSkip(char.id, damage)) continue;
       showDamageNumber({
         charId: char.id,
         cellId: characterPosition(char) ?? characterPosition(prevChar),
