@@ -455,6 +455,7 @@ let reconnectTimer = null;
 let cardBoxEl = null;        // оверлей «ящик» с картами команды
 let cbxDrag = null;          // активное перетаскивание: { fromId, cardIndex, ghost, srcEl }
 let cbxTransferPick = null;  // передача без drag-and-drop: { fromId, cardIndex, cardName }
+let cbxSuppressClick = false;
 let terrainCards = new Map(); // uid → { ownerId, cardIndex, cardId, x, y, cardData }
 const beastCardRects = new Map(); // characterId → положение карты зверя на поле
 let invDrag = null;          // перетаскивание из инвентаря: { cardIndex, ghost, srcEl }
@@ -469,7 +470,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-4'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260618-5'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 
 // ── Старт ─────────────────────────────────────────────────────────
 showAppVersion();
@@ -2916,9 +2917,9 @@ function renderCardBox() {
   } else if (cbxTransferPick) {
     hint = `Выбрана карта «${cbxTransferPick.cardName}». Нажмите строку персонажа-получателя.`;
   } else if (left > 0) {
-    hint = `Передача открыта: можно переместить ещё ${left} карт${cardWordTail(left)}. Нажмите ⇄ на карте, затем персонажа-получателя.`;
+    hint = `Передача открыта: можно переместить ещё ${left} карт${cardWordTail(left)}. Нажмите карту, затем персонажа-получателя.`;
   } else {
-    hint = 'Нажмите ⇄ на карте, затем персонажа-получателя. Можно также перетащить карту мышью.';
+    hint = 'Нажмите карту, затем персонажа-получателя. Можно также перетащить карту мышью.';
   }
   cardBoxEl.querySelector('#cardBoxHint').textContent = hint;
 }
@@ -2928,32 +2929,26 @@ function onCardBoxClick(e) {
     closeCardBox();
     return;
   }
-  const pickBtn = e.target.closest('.cbx-transfer-pick');
-  if (pickBtn && cardBoxEl.contains(pickBtn)) {
-    e.preventDefault();
-    if (!canTransferNow()) {
-      renderCardBox();
-      return;
-    }
-    cbxTransferPick = {
-      fromId: pickBtn.dataset.charId,
-      cardIndex: Number(pickBtn.dataset.i),
-      cardName: pickBtn.dataset.cardName || 'карта',
-    };
-    renderCardBox();
+  if (cbxSuppressClick) {
+    cbxSuppressClick = false;
     return;
   }
   const row = e.target.closest('.cbx-row');
-  if (!row || !cbxTransferPick || !cardBoxEl.contains(row)) return;
+  const card = e.target.closest('.cbx-card');
+  if (!row || !cardBoxEl.contains(row)) return;
   const toId = row.dataset.charId;
-  if (toId && toId !== cbxTransferPick.fromId) {
+  if (cbxTransferPick && toId && toId !== cbxTransferPick.fromId) {
     const { fromId, cardIndex } = cbxTransferPick;
     clearCbxTransferPick();
     attemptCardTransfer(fromId, toId, cardIndex);
     return;
   }
-  clearCbxTransferPick();
-  renderCardBox();
+  if (card && canTransferNow()) {
+    selectCbxTransferCard(card);
+  } else if (cbxTransferPick) {
+    clearCbxTransferPick();
+    renderCardBox();
+  }
 }
 
 function clearCbxTransferPick() {
@@ -2964,6 +2959,15 @@ function isValidCbxTransferPick() {
   if (!cbxTransferPick) return true;
   const from = getMyChars().find((char) => char.id === cbxTransferPick.fromId);
   return Boolean(from?.inventory?.[cbxTransferPick.cardIndex]);
+}
+
+function selectCbxTransferCard(cardEl) {
+  cbxTransferPick = {
+    fromId: cardEl.dataset.charId,
+    cardIndex: Number(cardEl.dataset.i),
+    cardName: cardEl.dataset.cardName || cardEl.title || 'карта',
+  };
+  renderCardBox();
 }
 
 // «карт» / «карту» / «карты» по числу
@@ -3012,29 +3016,34 @@ function renderCbxCard(c, charId, i) {
     : renderGeneratedCardArt(c, 'cbx');
   const lock = c.locked ? '<span class="cbx-lock" aria-label="Карта закрыта">🔒</span>' : '';
   const selected = cbxTransferPick?.fromId === charId && cbxTransferPick.cardIndex === i;
-  const pickButton = canTransferNow()
-    ? `<button type="button" class="cbx-transfer-pick" data-char-id="${charId}" data-i="${i}" data-card-name="${escapeHtml(visualMeta.name)}" title="Передать карту">⇄</button>`
-    : '';
   return `<div class="cbx-card card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}${c.exhausted ? ' card-exhausted' : ''}${selected ? ' selected-transfer' : ''}"`
-    + ` data-char-id="${charId}" data-i="${i}" title="${escapeHtml(visualMeta.name)}">`
+    + ` data-char-id="${charId}" data-i="${i}" data-card-name="${escapeHtml(visualMeta.name)}" title="${escapeHtml(visualMeta.name)}">`
     + face
     + lock
-    + pickButton
     + `</div>`;
 }
 
 // ── Перетаскивание (pointer-based, работает на тач и мыши) ──
 function onCbxPointerDown(e) {
-  if (e.target.closest('.cbx-transfer-pick')) return;
   const cardEl = e.target.closest('.cbx-card');
   if (!cardEl || !canTransferNow()) return; // не свой ход / нет кубика → просто просмотр
+  if (cbxTransferPick && cardEl.dataset.charId !== cbxTransferPick.fromId) return;
   clearCbxTransferPick();
   e.preventDefault();
   const ghost = cardEl.cloneNode(true);
   ghost.classList.add('cbx-ghost');
   document.body.appendChild(ghost);
   cardEl.classList.add('dragging');
-  cbxDrag = { fromId: cardEl.dataset.charId, cardIndex: Number(cardEl.dataset.i), ghost, srcEl: cardEl };
+  cbxDrag = {
+    fromId: cardEl.dataset.charId,
+    cardIndex: Number(cardEl.dataset.i),
+    cardName: cardEl.dataset.cardName || cardEl.title || 'карта',
+    ghost,
+    srcEl: cardEl,
+    startX: e.clientX,
+    startY: e.clientY,
+    moved: false,
+  };
   moveGhost(e);
   e.currentTarget.setPointerCapture?.(e.pointerId);
 }
@@ -3042,6 +3051,9 @@ function onCbxPointerDown(e) {
 function onCbxPointerMove(e) {
   if (!cbxDrag) return;
   e.preventDefault();
+  const dx = e.clientX - cbxDrag.startX;
+  const dy = e.clientY - cbxDrag.startY;
+  if ((dx * dx + dy * dy) > 36) cbxDrag.moved = true;
   moveGhost(e);
   const row = rowUnder(e);
   cardBoxEl.querySelectorAll('.cbx-row').forEach(r =>
@@ -3051,8 +3063,14 @@ function onCbxPointerMove(e) {
 function onCbxPointerUp(e) {
   if (!cbxDrag) return;
   const toId = rowUnder(e)?.dataset.charId;
-  const { fromId, cardIndex } = cbxDrag;
+  const { fromId, cardIndex, cardName, moved } = cbxDrag;
   cancelCbxDrag();
+  if (!moved && (!toId || toId === fromId)) {
+    cbxTransferPick = { fromId, cardIndex, cardName };
+    cbxSuppressClick = true;
+    renderCardBox();
+    return;
+  }
   // Передача без ограничения расстояния — любому своему персонажу
   if (toId && toId !== fromId) attemptCardTransfer(fromId, toId, cardIndex);
 }
