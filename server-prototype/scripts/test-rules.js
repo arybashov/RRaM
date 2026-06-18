@@ -1105,6 +1105,86 @@ test('teleport — использованные Бусы нельзя приме
   );
 });
 
+test('teleport — Шкура ритуалов перезаряжает использованные Бусы на 4+', () => {
+  const g = freshGame();
+  g.turn.dice = [4, 2];
+  g.turn.mode = 'split';
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  warrior.exhaustedCards.push('teleport_beads');
+  g.terrainCards.push({
+    id: 'ritual-hide-terrain',
+    ownerId: 'p1',
+    characterId: shaman.id,
+    cardIndex: 0,
+    cardId: 'ritual_hide',
+    faceDown: false,
+    x: 0,
+    y: 0,
+  });
+
+  const result = apply(g, 'p1', 'action:rechargeTeleport', {
+    characterId: shaman.id,
+    targetId: warrior.id,
+    terrainCardId: 'ritual-hide-terrain',
+    dieIndex: 0,
+  });
+
+  assert.equal(result.teleportRecharged.success, true);
+  assert.equal(result.teleportRecharged.value, 4);
+  assert.ok(!warrior.exhaustedCards.includes('teleport_beads'));
+  assert.equal(g.terrainCards[0].faceDown, true);
+  assert.deepEqual(g.turn.usedDice, [true, false]);
+});
+
+test('teleport — провал перезарядки оставляет Бусы использованными', () => {
+  const g = freshGame();
+  g.turn.dice = [3, 6];
+  g.turn.mode = 'split';
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  shaman.exhaustedCards.push('teleport_beads');
+  g.terrainCards.push({
+    id: 'ritual-hide-terrain',
+    ownerId: 'p1',
+    characterId: shaman.id,
+    cardIndex: 0,
+    cardId: 'ritual_hide',
+    faceDown: false,
+    x: 0,
+    y: 0,
+  });
+
+  const result = apply(g, 'p1', 'action:rechargeTeleport', {
+    characterId: shaman.id,
+    targetId: shaman.id,
+    terrainCardId: 'ritual-hide-terrain',
+    dieIndex: 0,
+  });
+
+  assert.equal(result.teleportRecharged.success, false);
+  assert.ok(shaman.exhaustedCards.includes('teleport_beads'));
+  assert.equal(g.terrainCards[0].faceDown, true);
+  assert.deepEqual(g.turn.usedDice, [true, false]);
+});
+
+test('teleport — перезарядка требует открытую Шкуру ритуалов на террейне Шамана', () => {
+  const g = freshGame();
+  g.turn.dice = [4, 2];
+  g.turn.mode = 'split';
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  shaman.inventory.push('ritual_hide');
+  shaman.exhaustedCards.push('teleport_beads');
+
+  assert.throws(
+    () => apply(g, 'p1', 'action:rechargeTeleport', {
+      characterId: shaman.id,
+      targetId: shaman.id,
+      dieIndex: 0,
+    }),
+    /выложить лицом вверх/i,
+  );
+});
+
 test('terrain — карта убирается из руки и возвращается на прежнее место', () => {
   const g = freshGame();
   const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');

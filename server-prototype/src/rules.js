@@ -135,6 +135,8 @@ export function apply(game, playerId, type, payload = {}) {
       return useLakeFrog(game, playerId, payload);
     case 'action:useMarvo':
       return useMarvo(game, playerId, payload);
+    case 'action:rechargeTeleport':
+      return rechargeTeleport(game, playerId, payload);
     case 'action:craft':
       return craft(game, playerId, payload);
     case 'action:dischargeDot':
@@ -1444,6 +1446,54 @@ function useMarvo(game, playerId, { characterId, cardIndex, terrainCardId, dieIn
       discarded: true,
     },
     winnerId: game.winnerId,
+  };
+}
+
+function rechargeTeleport(game, playerId, { characterId, targetId, terrainCardId, dieIndex } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  requireSplit(game);
+  const shaman = ownCharacter(game, playerId, characterId);
+  if (shaman.role !== 'S') {
+    throw new Error('Бусы телепортации перезаряжает только Шаман.');
+  }
+  const target = ownCharacter(game, playerId, targetId ?? characterId);
+  if (!target.inventory.includes(TELEPORT_CARD)) {
+    throw new Error('У цели нет Бус телепортации.');
+  }
+  if (!target.exhaustedCards?.includes(TELEPORT_CARD)) {
+    throw new Error('Бусы телепортации уже заряжены.');
+  }
+  const source = findUsableCard(game, playerId, shaman, 'ritual_hide', { terrainCardId });
+  if (!source || source.source !== 'terrain') {
+    throw new Error('Шкуру ритуалов нужно выложить лицом вверх на террейн у Шамана.');
+  }
+
+  const value = dieValue(game, dieIndex);
+  lockMovement(game);
+  spendDie(game, dieIndex);
+  const ritualCard = game.terrainCards[source.terrainIndex];
+  ritualCard.faceDown = true;
+
+  const success = value >= 4;
+  if (success) {
+    const exhaustedIndex = target.exhaustedCards.indexOf(TELEPORT_CARD);
+    if (exhaustedIndex >= 0) {
+      target.exhaustedCards.splice(exhaustedIndex, 1);
+    }
+  }
+
+  return {
+    teleportRecharged: {
+      shamanId: shaman.id,
+      targetId: target.id,
+      value,
+      success,
+      cardId: TELEPORT_CARD,
+      ritualCardId: 'ritual_hide',
+      terrainCardId: ritualCard.id,
+      terrainCardsTurnedFaceDown: [ritualCard.id],
+    },
   };
 }
 

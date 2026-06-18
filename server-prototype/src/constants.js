@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260618-9';
+export const BUILD_VERSION = '20260618-10';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -336,6 +336,8 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'porcha',        deck: 'recipes',     type: 'provocation', copies: 2, name: 'Порча' },
   { id: 'recipe_obrud',  deck: 'recipes',     type: 'recipe',      copies: 2, name: 'Рецепт на обруд' },
   { id: 'marvo',         deck: 'recipes',     type: 'provocation', copies: 2, name: 'Марво трос' },
+  { id: 'ritual_hide',   deck: 'recipes',     type: 'special',     copies: 1, name: 'Шкура ритуалов',
+    desc: 'Шаман выкладывает лицом вверх. Кубик 4+ перезаряжает использованные Бусы телепортации, после попытки Шкура ритуалов переворачивается рубашкой вверх.' },
 
   // --- Чертежи (только кузнец) ---
   { id: 'blueprint_irikon', deck: 'blueprints', type: 'blueprint', copies: 1, name: 'Чертёж Ирикон' },
