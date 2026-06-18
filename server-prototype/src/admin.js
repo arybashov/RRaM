@@ -116,6 +116,7 @@ const ADMIN_HTML = `<!doctype html>
   <span class="stat">uptime <b id="up">…</b></span>
   <span class="stat">клиентов <b id="cc">…</b></span>
   <span class="stat">комнат <b id="rc">…</b></span>
+  <span class="stat">ваша задержка <b id="ours">…</b></span>
   <span class="stat muted" id="updated"></span>
 </header>
 <main>
@@ -131,8 +132,14 @@ const fmtDur = s => s>=3600 ? Math.floor(s/3600)+'ч '+Math.floor(s%3600/60)+'м
 function idleCls(s){ return s>30 ? 'bad' : s>10 ? 'warn' : 'ok'; }
 function pingCls(ms){ return ms==null ? 'muted' : ms<150 ? 'ok' : ms<600 ? 'warn' : 'bad'; }
 async function tick(){
+  const t0 = performance.now();
   let d; try { d = await (await fetch('/admin/data',{cache:'no-store'})).json(); }
   catch(e){ document.getElementById('updated').textContent = 'ошибка загрузки'; return; }
+  // Наша задержка: round-trip запроса /admin/data (админ-браузер → сервер → назад).
+  const ours = Math.round(performance.now() - t0);
+  const oe = document.getElementById('ours');
+  oe.textContent = ours + ' мс';
+  oe.className = pingCls(ours);
   document.getElementById('ver').textContent = d.serverVersion;
   document.getElementById('up').textContent = fmtDur(d.uptimeSec);
   document.getElementById('cc').textContent = d.counts.clients;
