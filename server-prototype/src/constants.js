@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260617-24';
+export const BUILD_VERSION = '20260618-1';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -112,9 +112,22 @@ export const CRAFT_RECIPES = Object.freeze({
     materials: [['yarn'], ['bear_hide']],
     dice: { count: 1, min: 3 },
   },
-  // Кузнец: Молот Иерикон (квест Иерихон). Чертёж Ирикон + задание + золотое перо
-  // феникса. Испытание: два кубика, каждый не меньше 3. result 'irikon' уже есть
-  // в CARD_CATALOG (красная колода, оружие) — это нормально.
+  // Shaman recipes from the recipes deck.
+  armor_zhest: {
+    role: 'S',
+    via: 'recipe_armor',
+    result: 'armor_zhest',
+    materials: [['ore_medium', 'ore_coarse'], ['raw_hide', 'raw_hide_red', 'wolf_hide', 'boar_hide', 'bear_hide']],
+    dice: { count: 2, min: 3 },
+  },
+  marvo: {
+    role: 'S',
+    via: 'recipe_obrud',
+    result: 'marvo',
+    materials: [['amanita_glade'], ['lake_frog']],
+    dice: { count: 2, min: 2 },
+  },
+  // Irikon quest craft: blueprint + task + golden feather.
   irikon: {
     role: 'K',
     via: 'blueprint_irikon',
@@ -171,6 +184,7 @@ export const TRAP_CARDS = Object.freeze({
   // Ночной филин: нападающий обязан отдать одну карту из инвентаря защищающемуся.
   // (Вариант «забрать карту с поля при пустом инвентаре» — упрощён, отложен.)
   owl_night: { stealCard: true, consume: true, name: 'Ночной филин' },
+  raw_ruby: { stealFromRoles: ['K', 'S'], consume: true, name: 'Необработанный рубин' },
   // Порча: если нанесённый урон ≥25, у всех персонажей нападающего по одной
   // карте-ингредиенту возвращается в сброс. Одноразовая.
   porcha: { purgeIngredientsMin: 25, consume: true, name: 'Порча' },
@@ -186,6 +200,7 @@ export const ARMOR_CARDS = Object.freeze({
   // Щиты/броня §16 — флэт-поглощение. Условные эффекты (защита от зверей,
   // анти-магия, блок побега, отъём оружия) пока упрощены до базового поглощения.
   chainmail_light: { absorb: 15, name: 'Лёгкая кольчуга' },
+  armor_zhest:     { absorb: 15, name: 'Жест' },
   shield_lom:      { absorb: 15, name: 'Ломщит' },
   shield_kalan:    { absorb: 10, name: 'Щит Калан' },
   shield_dr:       { absorb: 20, name: 'Щит Др' },

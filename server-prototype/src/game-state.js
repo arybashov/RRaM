@@ -261,6 +261,17 @@ function beastFightView(beastFight) {
   };
 }
 
+function frogSpellView(frogSpell) {
+  if (!frogSpell) return null;
+  return {
+    cardId: frogSpell.cardId,
+    name: frogSpell.name ?? CARD_BY_ID[frogSpell.cardId]?.name ?? frogSpell.cardId,
+    casterId: frogSpell.casterId ?? null,
+    ownerId: frogSpell.ownerId ?? null,
+    dischargeTotal: frogSpell.dischargeTotal ?? 8,
+  };
+}
+
 // Туман войны: клетки в радиусе FOG_RADIUS от живых персонажей игрока.
 // Вражеские персонажи вне этой зоны скрываются из снапшота (position: null).
 function fogVisibleCells(game, forPlayerId) {
@@ -347,6 +358,7 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
         combatOpponentId: c.combatOpponentId ?? null,
         // схватка со зверем публична — видна обоим игрокам
         beastFight: beastFightView(c.beastFight),
+        frogSpell: frogSpellView(c.frogSpell),
         cardCount: c.inventory.length,
         // Полный инвентарь — только владельцу. Отдельные открытые карты
         // видны сопернику без раскрытия остальной руки.

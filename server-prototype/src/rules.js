@@ -65,6 +65,7 @@ export function createGame(players) {
         beastFight: null, // { cardId, successes } — схватка со зверем с красной клетки
         crafted: [], // id карт, открытых крафтом (напр. 'club' по чертежу)
         dots: [], // дебаффы-ловушки: [{ cardId, damagePerTurn, dischargeMin, name }]
+        frogSpell: null, // Озёрная лягушка: отключает оружие, пока цель не выбросит сумму 8+
       });
     }
   }
@@ -126,6 +127,14 @@ export function apply(game, playerId, type, payload = {}) {
       return fightBeast(game, playerId, payload);
     case 'action:processHide':
       return processHide(game, playerId, payload);
+    case 'action:useGoldNugget':
+      return useGoldNugget(game, playerId, payload);
+    case 'action:useDeadOre':
+      return useDeadOre(game, playerId, payload);
+    case 'action:useLakeFrog':
+      return useLakeFrog(game, playerId, payload);
+    case 'action:useMarvo':
+      return useMarvo(game, playerId, payload);
     case 'action:craft':
       return craft(game, playerId, payload);
     case 'action:dischargeDot':
@@ -191,9 +200,10 @@ function roll(game, playerId) {
     game.characters.map((character) => [character.id, character.position ?? null]),
   );
   game.turn.rollsLeft[playerId] -= 1;
+  const lakeFrogReleased = releaseLakeFrogSpellsForRoll(game, playerId, dice);
 
   return {
-    roll: { dice, total: dice[0] + dice[1], rollsLeft: game.turn.rollsLeft[playerId] },
+    roll: { dice, total: dice[0] + dice[1], rollsLeft: game.turn.rollsLeft[playerId], lakeFrogReleased },
   };
 }
 
@@ -1147,6 +1157,254 @@ function processHide(game, playerId, { characterId, dieIndex, cardIndex } = {}) 
   };
 }
 
+function useGoldNugget(game, playerId, { characterId, cardIndex } = {}) {
+  assertActive(game, playerId);
+  const character = ownCharacter(game, playerId, characterId);
+  const idx = Number.isInteger(cardIndex) ? cardIndex : character.inventory.indexOf('gold_nugget');
+  if (idx < 0 || character.inventory[idx] !== 'gold_nugget') {
+    throw new Error('У персонажа нет малого золотого самородка для лечения.');
+  }
+  if (character.hp >= CHARACTER_HP) {
+    throw new Error('Персонаж уже полностью здоров.');
+  }
+  const before = character.hp;
+  character.hp = Math.min(CHARACTER_HP, character.hp + 20);
+  const [cardId] = character.inventory.splice(idx, 1);
+  game.discard.push(cardId);
+  return {
+    goldNuggetUsed: {
+      characterId,
+      cardId,
+      healed: character.hp - before,
+      hp: character.hp,
+      discarded: true,
+    },
+  };
+}
+
+const DEAD_ORE_ALLOWED_DECKS = Object.freeze(['mixed', 'forest', 'dark_forest', 'sheep', 'lake']);
+
+function useDeadOre(game, playerId, { characterId, cardIndex, deck } = {}) {
+  assertActive(game, playerId);
+  const character = ownCharacter(game, playerId, characterId);
+  if (combatOpponent(game, character)) {
+    throw new Error('Неживую руду нельзя применять в бою.');
+  }
+  if (character.beastFight) {
+    throw new Error('Неживую руду нельзя применять в схватке со зверем.');
+  }
+  if (!DEAD_ORE_ALLOWED_DECKS.includes(deck)) {
+    throw new Error('Этой рудой можно взять карту только из обычной колоды, кроме чертежей и рецептов.');
+  }
+  const idx = Number.isInteger(cardIndex) ? cardIndex : character.inventory.indexOf('dead_ore');
+  if (idx < 0 || character.inventory[idx] !== 'dead_ore') {
+    throw new Error('У персонажа нет неживой руды высокого качества.');
+  }
+  const pile = drawPileForDeck(game, deck);
+  if (pile.length < 1) {
+    throw new Error('Выбранная колода пуста.');
+  }
+  const [spent] = character.inventory.splice(idx, 1);
+  game.discard.push(spent);
+  const cardId = pile.shift();
+  character.inventory.push(cardId);
+  const card = CARD_BY_ID[cardId];
+  return {
+    deadOreUsed: {
+      characterId,
+      spent,
+      deck,
+      card: cardId,
+      name: card?.name,
+      type: card?.type,
+    },
+  };
+}
+
+function useLakeFrog(game, playerId, { characterId, cardIndex, targetId } = {}) {
+  assertActive(game, playerId);
+  const shaman = ownCharacter(game, playerId, characterId);
+  if (shaman.role !== 'S') {
+    throw new Error('Озёрную лягушку применяет только Шаман.');
+  }
+  const idx = Number.isInteger(cardIndex) ? cardIndex : shaman.inventory.indexOf('lake_frog');
+  if (idx < 0 || shaman.inventory[idx] !== 'lake_frog') {
+    throw new Error('У Шамана нет Озёрной лягушки.');
+  }
+
+  if (shaman.beastFight && (!targetId || targetId === shaman.id)) {
+    const [spent] = shaman.inventory.splice(idx, 1);
+    const beastId = shaman.beastFight.cardId;
+    const beastCard = CARD_BY_ID[beastId];
+    shaman.beastFight = null;
+    game.discard.push(beastId);
+
+    const returned = returnLakeFrogCard(game, shaman.id, spent);
+    const hide = addRewardCard(game, shaman, BEAST_HIDE_DROP[beastId] ?? null);
+    const trophy = addRewardCard(game, shaman, BEAST_TROPHY_DROP[beastId] ?? null);
+    return {
+      lakeFrogUsed: {
+        mode: 'beast',
+        casterId: shaman.id,
+        targetId: shaman.id,
+        beastId,
+        beastName: beastCard?.name ?? beastId,
+        hide,
+        trophy,
+        returned,
+      },
+    };
+  }
+
+  const target = game.characters.find((character) => character.id === targetId);
+  if (!target || target.owner === playerId || target.hp <= 0 || !target.position) {
+    throw new Error('Цель для Озёрной лягушки недоступна.');
+  }
+  if (!shaman.position || !neighbors(shaman.position).includes(target.position)) {
+    throw new Error('Озёрную лягушку можно наложить только на соседнего противника.');
+  }
+  if (target.frogSpell) {
+    throw new Error('На этом персонаже уже действует Озёрная лягушка.');
+  }
+
+  const [spent] = shaman.inventory.splice(idx, 1);
+  target.frogSpell = {
+    cardId: spent,
+    casterId: shaman.id,
+    ownerId: playerId,
+    dischargeTotal: 8,
+    name: CARD_BY_ID[spent]?.name ?? 'Озёрная лягушка',
+  };
+  return {
+    lakeFrogUsed: {
+      mode: 'player',
+      casterId: shaman.id,
+      targetId: target.id,
+      targetRole: target.role,
+      name: target.frogSpell.name,
+      dischargeTotal: target.frogSpell.dischargeTotal,
+    },
+  };
+}
+
+function addRewardCard(game, character, cardId) {
+  if (!cardId) return null;
+  if (character.inventory.length < INVENTORY_LIMIT) {
+    character.inventory.push(cardId);
+    return cardId;
+  }
+  game.discard.push(cardId);
+  return null;
+}
+
+function returnLakeFrogCard(game, casterId, cardId = 'lake_frog') {
+  const caster = game.characters.find((character) => character.id === casterId && character.hp > 0);
+  if (caster && caster.inventory.length < INVENTORY_LIMIT) {
+    caster.inventory.push(cardId);
+    return { casterId: caster.id, discarded: false };
+  }
+  game.discard.push(cardId);
+  return { casterId: casterId ?? null, discarded: true };
+}
+
+function releaseLakeFrogSpell(game, target) {
+  const spell = target?.frogSpell;
+  if (!spell) return null;
+  target.frogSpell = null;
+  const returned = returnLakeFrogCard(game, spell.casterId, spell.cardId);
+  return {
+    targetId: target.id,
+    casterId: spell.casterId,
+    name: spell.name ?? CARD_BY_ID[spell.cardId]?.name ?? spell.cardId,
+    returned,
+  };
+}
+
+function releaseLakeFrogSpellsForRoll(game, playerId, dice) {
+  const total = (dice?.[0] ?? 0) + (dice?.[1] ?? 0);
+  const released = [];
+  for (const character of game.characters) {
+    if (character.owner !== playerId || !character.frogSpell) continue;
+    if (total < (character.frogSpell.dischargeTotal ?? 8)) continue;
+    released.push(releaseLakeFrogSpell(game, character));
+  }
+  return released.filter(Boolean);
+}
+
+function useMarvo(game, playerId, { characterId, cardIndex, dieIndex } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  requireSplit(game);
+  const shaman = ownCharacter(game, playerId, characterId);
+  if (shaman.role !== 'S') {
+    throw new Error('Марво трос применяет только Шаман.');
+  }
+  if (!shaman.position) {
+    throw new Error('Шаман не на поле.');
+  }
+  const idx = Number.isInteger(cardIndex) ? cardIndex : shaman.inventory.indexOf('marvo');
+  if (idx < 0 || shaman.inventory[idx] !== 'marvo') {
+    throw new Error('У Шамана нет Марво троса.');
+  }
+  const activeWeapon = (game.terrainCards ?? []).find((card) =>
+    card.ownerId === playerId
+    && card.characterId === shaman.id
+    && !card.faceDown
+    && WEAPON_CARDS[card.cardId]);
+  if (!activeWeapon) {
+    throw new Error('Для Обряда трёх нужно активное оружие, выложенное на террейн у Шамана.');
+  }
+  const targets = game.characters.filter((target) =>
+    target.owner !== playerId
+    && target.hp > 0
+    && target.position
+    && shortestDistance(shaman.position, target.position) <= 2);
+  if (targets.length < 2) {
+    throw new Error('Для Обряда трёх нужно минимум две вражеские цели в радиусе 2 бордов.');
+  }
+
+  const value = dieValue(game, dieIndex);
+  const damage = value * 10;
+  lockMovement(game);
+  spendDie(game, dieIndex);
+  const [spent] = shaman.inventory.splice(idx, 1);
+  game.discard.push(spent);
+
+  const hit = [];
+  for (const target of targets) {
+    target.hp = Math.max(0, target.hp - damage);
+    const defeated = target.hp === 0;
+    let lootCount = 0;
+    let discardedCount = 0;
+    if (defeated) {
+      ({ lootCount, discardedCount } = defeatByPlayer(game, target, shaman));
+    }
+    hit.push({
+      targetId: target.id,
+      role: target.role,
+      damage,
+      hp: target.hp,
+      defeated,
+      lootCount,
+      discardedCount,
+    });
+  }
+
+  return {
+    marvoUsed: {
+      casterId: shaman.id,
+      dieIndex,
+      value,
+      damage,
+      weaponCardId: activeWeapon.cardId,
+      weaponName: CARD_BY_ID[activeWeapon.cardId]?.name ?? activeWeapon.cardId,
+      targets: hit,
+      discarded: true,
+    },
+    winnerId: game.winnerId,
+  };
+}
+
 // Крафт базового изделия по чертежу/рецепту (CRAFT_RECIPES, строго по PnP).
 // Чертёж/рецепт и материалы расходуются, с изделия снимается замок. Бесплатное
 // действие в свой ход (кубик не тратится). item по умолчанию — дубина (совместимость).
@@ -1295,16 +1553,19 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   // Оружие работает из руки и как активная карта на террейне у персонажа. Берём
   // лучшее по урону, доступное атакующему (role — ограничение класса).
   let weapon = null;
+  const weaponDisabledByLakeFrog = Boolean(attacker.frogSpell);
   const activeTerrainWeapons = (game.terrainCards ?? [])
     .filter((card) => card.ownerId === playerId
       && card.characterId === attacker.id
       && !card.faceDown
       && WEAPON_CARDS[card.cardId])
     .map((card) => card.cardId);
-  for (const id of [...attacker.inventory, ...activeTerrainWeapons]) {
-    const w = WEAPON_CARDS[id];
-    if (!w || (w.role && w.role !== attacker.role)) continue;
-    if (!weapon || w.damage > weapon.damage) weapon = { id, ...w };
+  if (!weaponDisabledByLakeFrog) {
+    for (const id of [...attacker.inventory, ...activeTerrainWeapons]) {
+      const w = WEAPON_CARDS[id];
+      if (!w || (w.role && w.role !== attacker.role)) continue;
+      if (!weapon || w.damage > weapon.damage) weapon = { id, ...w };
+    }
   }
   const weaponDamage = weapon ? weapon.damage : 0;
   const weaponPiercing = weapon ? Boolean(weapon.piercing) : false;
@@ -1360,6 +1621,7 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
       weaponDamage,
       weaponName: weapon?.name ?? null,
       weaponPiercing,
+      weaponDisabledByLakeFrog,
       totalDamage,
       armorAbsorbed: armorAbsorb,
       dealtDamage,
@@ -1403,6 +1665,20 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
       stolen = attacker.inventory.shift();
       if (defender.inventory.length < INVENTORY_LIMIT) defender.inventory.push(stolen);
       else game.discard.push(stolen); // нет места — карта в сброс
+    }
+    if (!stolen && Array.isArray(t.stealFromRoles)) {
+      const source = t.stealFromRoles
+        .map((role) => game.characters.find((ch) =>
+          ch.owner === attacker.owner
+          && ch.role === role
+          && ch.hp > 0
+          && ch.inventory.length > 0))
+        .find(Boolean);
+      if (source) {
+        stolen = source.inventory.shift();
+        if (defender.inventory.length < INVENTORY_LIMIT) defender.inventory.push(stolen);
+        else game.discard.push(stolen);
+      }
     }
     // Порча: при уроне ≥ порога у каждого персонажа нападающего по 1 ингредиенту
     // возвращается в сброс (упрощение «обратно в колоды»).
@@ -1596,6 +1872,7 @@ function applyTurnStartEffects(game, playerId) {
     if (beast) {
       character.hp = Math.max(0, character.hp - beast.damage);
       if (character.hp === 0) {
+        releaseLakeFrogSpell(game, character);
         character.position = null;
         character.beastFight = null;
         game.discard.push(...character.inventory.splice(0));
@@ -1612,6 +1889,7 @@ function applyTurnStartEffects(game, playerId) {
       const dotDamage = character.dots.reduce((sum, d) => sum + d.damagePerTurn, 0);
       character.hp = Math.max(0, character.hp - dotDamage);
       if (character.hp === 0) {
+        releaseLakeFrogSpell(game, character);
         character.position = null;
         character.beastFight = null;
         character.dots = [];
@@ -1649,6 +1927,7 @@ function linkCombat(first, second) {
 // инвентаря, излишек — в сброс; гибель последнего персонажа — победа.
 function defeatByPlayer(game, target, looter) {
   clearCombat(game, target);
+  releaseLakeFrogSpell(game, target);
   target.beastFight = null;
   target.position = null;
   const capacity = Math.max(0, INVENTORY_LIMIT - looter.inventory.length);

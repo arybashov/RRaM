@@ -38,7 +38,8 @@
         "green_deck": "#20c56b",
         "battle": "#f44336",
         "teleport": "#a933e8",
-        "dwarf_border": "#ffd928"
+        "dwarf_border": "#ffd928",
+        "dwarf_entry": "#2f7dff"
       },
       "decks": {
         "mixed": "#ffd66b",
@@ -4588,8 +4589,8 @@
         "H246",
         "H247"
       ],
-      "terrain": "path",
-      "pointClass": null,
+      "terrain": "start",
+      "pointClass": "dwarf_entry",
       "deck": null,
       "walkable": true,
       "side": null,
