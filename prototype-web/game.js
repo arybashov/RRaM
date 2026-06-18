@@ -657,6 +657,10 @@ function handleMsg({ type, payload }) {
       }
       break;
 
+    case 'srv:ping': // серверный замер RTT — эхом возвращаем его метку времени
+      wsSend('srv:pong', { t: payload?.t });
+      break;
+
     case 'pong': // keepalive-ответ; живость отмечена в onmessage, тут считаем RTT
       if (pingSentAt) {
         const rtt = Date.now() - pingSentAt;

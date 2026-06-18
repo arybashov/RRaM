@@ -55,6 +55,8 @@ function buildData({ store, clients, lobbySubscribers, version }) {
       ua: c.ua ?? '',
       connectedSec: Math.round((now - (c.connectedAt ?? now)) / 1000),
       idleSec: Math.round((now - (c.lastSeen ?? now)) / 1000),
+      // RTT от сервера до клиента (srv:ping/srv:pong). Только свежий замер (<30с).
+      rtt: (typeof c.rtt === 'number' && (now - (c.rttAt ?? 0)) < 30000) ? c.rtt : null,
       state: c.roomId ? 'в игре' : (lobbySubscribers.has(id) ? 'лобби' : 'подключён'),
       roomCode,
       name,
@@ -118,7 +120,7 @@ const ADMIN_HTML = `<!doctype html>
 </header>
 <main>
   <section><h2>Клиенты</h2><table id="clients"><thead><tr>
-    <th>id</th><th>IP</th><th>версия</th><th>где</th><th>комната</th><th>игрок</th><th>онлайн</th><th>idle</th>
+    <th>id</th><th>IP</th><th>пинг</th><th>версия</th><th>где</th><th>комната</th><th>игрок</th><th>онлайн</th><th>idle</th>
   </tr></thead><tbody></tbody></table></section>
   <section><h2>Комнаты / партии</h2><table id="rooms"><thead><tr>
     <th>код</th><th>тип</th><th>статус</th><th>игроки</th><th>партия</th>
@@ -127,6 +129,7 @@ const ADMIN_HTML = `<!doctype html>
 <script>
 const fmtDur = s => s>=3600 ? Math.floor(s/3600)+'ч '+Math.floor(s%3600/60)+'м' : s>=60 ? Math.floor(s/60)+'м '+(s%60)+'с' : s+'с';
 function idleCls(s){ return s>30 ? 'bad' : s>10 ? 'warn' : 'ok'; }
+function pingCls(ms){ return ms==null ? 'muted' : ms<150 ? 'ok' : ms<600 ? 'warn' : 'bad'; }
 async function tick(){
   let d; try { d = await (await fetch('/admin/data',{cache:'no-store'})).json(); }
   catch(e){ document.getElementById('updated').textContent = 'ошибка загрузки'; return; }
@@ -139,10 +142,11 @@ async function tick(){
   document.querySelector('#clients tbody').innerHTML = d.clients.map(c=>{
     const stale = c.version!=='?' && c.version!==verNow;
     return '<tr><td class=muted>'+c.id+'</td><td>'+c.ip+'</td>'+
+      '<td class='+pingCls(c.rtt)+'>'+(c.rtt==null?'—':c.rtt+' мс')+'</td>'+
       '<td'+(stale?' class=bad title="версия не совпадает с сервером"':'')+'>'+c.version+'</td>'+
       '<td>'+c.state+'</td><td>'+(c.roomCode||'—')+'</td><td>'+(c.name?escapeHtml(c.name):'<span class=muted>—</span>')+(c.side?' <span class=pill>'+c.side+'</span>':'')+'</td>'+
       '<td>'+fmtDur(c.connectedSec)+'</td><td class='+idleCls(c.idleSec)+'>'+fmtDur(c.idleSec)+'</td></tr>';
-  }).join('') || '<tr><td colspan=8 class=muted>нет подключений</td></tr>';
+  }).join('') || '<tr><td colspan=9 class=muted>нет подключений</td></tr>';
   document.querySelector('#rooms tbody').innerHTML = d.rooms.map(r=>{
     const players = r.players.map(p=>escapeHtml(p.name||'?')+(p.isBot?' 🤖':'')+(p.connected?'':' <span class=bad>(off)</span>')).join(', ');
     let game = '<span class=muted>—</span>';

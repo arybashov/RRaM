@@ -72,6 +72,19 @@ app.get('/ws', { websocket: true }, (socket, req) => {
 
 await app.listen({ port: PORT, host: HOST });
 
+// Серверный замер RTT до каждого клиента: шлём srv:ping со своей меткой времени,
+// клиент эхом возвращает srv:pong с той же меткой → RTT = now - t (часы серверные,
+// синхронизация не нужна). Значение показывается в админке. Заодно держит сокет тёплым.
+const RTT_PING_MS = 5000;
+setInterval(() => {
+  const t = Date.now();
+  for (const client of clients.values()) {
+    if (client.socket?.readyState === 1 /* OPEN */) {
+      try { send(client.socket, 'srv:ping', { t }); } catch { /* сокет закрывается */ }
+    }
+  }
+}, RTT_PING_MS).unref();
+
 function handleMessage(connectionId, rawMessage) {
   const client = clients.get(connectionId);
   if (!client) {
@@ -114,6 +127,16 @@ function routeCommand(connectionId, message) {
       // Клиент сообщает свою версию сборки — для админки (видно, кто на старом билде).
       const v = message.payload?.version;
       if (typeof v === 'string') client.version = v.slice(0, 32);
+      break;
+    }
+
+    case 'srv:pong': {
+      // Ответ на серверный srv:ping — считаем RTT по своей же метке времени.
+      const t = message.payload?.t;
+      if (typeof t === 'number') {
+        client.rtt = Date.now() - t;
+        client.rttAt = Date.now();
+      }
       break;
     }
 
