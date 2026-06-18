@@ -1273,7 +1273,9 @@ h2::after {
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 4px;
+  overscroll-behavior-x: contain;
   scrollbar-width: thin;
+  touch-action: pan-x;
 }
 
 .inventory-cards-strip .card.card-face {
@@ -1315,6 +1317,10 @@ h2::after {
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.inventory-cards-strip .card.card-face {
+  touch-action: pan-x;
 }
 
 .inventory-card-art {
@@ -2828,11 +2834,14 @@ h2::after {
 .event-overlay.hidden { display: none; }
 
 .event-card-reveal {
+  display: flex;
+  flex-direction: column;
   background: var(--bg-2);
   border: 1px solid var(--line-strong);
   border-radius: 16px;
   width: 90%;
-  max-width: 320px;
+  max-width: 360px;
+  max-height: 92dvh;
   padding: 24px;
   text-align: center;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
@@ -2848,14 +2857,37 @@ h2::after {
 }
 
 .event-card-display {
+  min-height: 0;
   margin-bottom: 24px;
+  overflow: hidden;
 }
 
 .event-card-display .card {
   display: block;
   margin: 0 auto;
   text-align: left;
-  transform: scale(1.1);
+}
+
+.event-card-display .card.card-face {
+  width: min(72vw, 260px);
+  max-height: calc(92dvh - 170px);
+  overflow-y: auto;
+  transform: none;
+  scrollbar-width: thin;
+}
+
+.event-card-display .card.card-face .inventory-card-art,
+.event-card-display .card.card-face .generated-card-art {
+  max-height: min(52dvh, 390px);
+  object-fit: contain;
+}
+
+.event-card-display .card.card-face .card-desc {
+  max-height: 24dvh;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.35;
+  scrollbar-width: thin;
 }
 
 .event-ok-btn {
