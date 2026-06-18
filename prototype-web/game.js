@@ -379,6 +379,10 @@ function featherMarkerUrl() {
   return `./assets/ui/feather-marker-v2.png?v=${APP_VERSION}`;
 }
 
+function fogTextureUrl() {
+  return `./assets/fog-of-war-clouds.jpg?v=${APP_VERSION}`;
+}
+
 // Клиентский режим → серверный режим (для setMode)
 const TO_SERVER_MODE = {
   moveSum:  'moveSum',
@@ -416,6 +420,8 @@ let boardMap = null;                 // загруженная карта (cells
 let startCellIds = new Set();        // id всех стартовых клеток
 let VBW = 1000, VBH = 750;           // размер viewBox (по пропорции арта)
 let HEX_R = 12;                      // радиус гекса в координатах viewBox
+const FOG_TEXTURE_SOURCE_WIDTH = 1024;
+const FOG_TEXTURE_SOURCE_HEIGHT = 768;
 const STEP_MS = 140;                 // длительность одного шага фишки по клетке
 const WIN_PAUSE_MS = 800;            // пауза после прихода фишки перед показом итога
 const tokenDisplayPos = new Map();   // charId → клетка, где фишка показана СЕЙЧАС (во время анимации)
@@ -433,6 +439,12 @@ const MIN_S = 1, MAX_S = 6;
 let gestureMoved = false;             // был ли drag/pinch (чтобы не считать его тапом)
 const ptrs = new Map();               // активные указатели (touch/mouse)
 let panStart = null, pinchStart = null;
+let gestureSvgMetrics = null;
+let viewFrameId = 0;
+let fogRenderSignature = '';
+let fogRenderWidth = 0;
+let fogRenderHeight = 0;
+let fogRenderBlur = null;
 
 // ── DOM ───────────────────────────────────────────────────────────
 const boardEl        = document.querySelector('#board');
@@ -473,7 +485,8 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-14'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260618-16'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const SINGLE_TAB_INSTANCE_KEY = 'rram_tab_instance_id_v1';
 const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
 const SINGLE_TAB_LOCK_TTL_MS = 15000;
 const SINGLE_TAB_HEARTBEAT_MS = 2000;
@@ -541,10 +554,20 @@ function showAppVersion() {
 
 function createTabInstanceId() {
   try {
-    return crypto.randomUUID();
-  } catch {
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  }
+    const existing = sessionStorage.getItem(SINGLE_TAB_INSTANCE_KEY);
+    if (existing) return existing;
+  } catch {}
+  const nextId = (() => {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+  })();
+  try {
+    sessionStorage.setItem(SINGLE_TAB_INSTANCE_KEY, nextId);
+  } catch {}
+  return nextId;
 }
 
 function readSingleTabLock() {
@@ -3608,9 +3631,18 @@ function fogContainsPoint(circles, x, y) {
 function renderFog(circles) {
   if (!boardVp) return;
   let layer = boardVp.querySelector('#fogLayer');
-  if (!circles) { layer?.remove(); return; }
+  if (!circles) {
+    layer?.remove();
+    fogRenderSignature = '';
+    fogRenderWidth = 0;
+    fogRenderHeight = 0;
+    fogRenderBlur = null;
+    return;
+  }
   const artScaleX = boardMap?.art?.scaleX ?? 1;
   const artScaleY = boardMap?.art?.scaleY ?? 1;
+  const textureWidth = VBW * artScaleX;
+  const textureHeight = VBH * artScaleY;
   if (!layer) {
     layer = document.createElementNS(svgNS, 'g');
     layer.setAttribute('id', 'fogLayer');
@@ -3622,24 +3654,38 @@ function renderFog(circles) {
       + `<mask id="fogMask" maskUnits="userSpaceOnUse" x="0" y="0" width="${VBW}" height="${VBH}">`
       + `<rect x="0" y="0" width="${VBW}" height="${VBH}" fill="white"/>`
       + `<g id="fogHoles" filter="url(#fogEdgeBlur)"></g></mask></defs>`
-      + `<image id="fogTexture" href="./assets/fog-of-war-clouds.jpg" x="0" y="0" `
-      + `width="${VBW * artScaleX}" height="${VBH * artScaleY}" `
+      + `<image id="fogTexture" href="${fogTextureUrl()}" x="0" y="0" `
+      + `width="${textureWidth.toFixed(2)}" height="${textureHeight.toFixed(2)}" `
+      + `data-source-width="${FOG_TEXTURE_SOURCE_WIDTH}" data-source-height="${FOG_TEXTURE_SOURCE_HEIGHT}" `
       + `preserveAspectRatio="none" opacity="0.9" mask="url(#fogMask)"/>`;
     // Арт остаётся под туманом, клетки/маркеры — над ним. Невидимые клетки
     // скрываются классом, а допустимые цели могут подсвечиваться поверх маски.
     boardVp.insertBefore(layer, boardVp.querySelector('.cell'));
   }
   const texture = layer.querySelector('#fogTexture');
-  texture?.setAttribute('width', (VBW * artScaleX).toFixed(2));
-  texture?.setAttribute('height', (VBH * artScaleY).toFixed(2));
+  if (texture && (fogRenderWidth !== textureWidth || fogRenderHeight !== textureHeight)) {
+    fogRenderWidth = textureWidth;
+    fogRenderHeight = textureHeight;
+    texture.setAttribute('width', textureWidth.toFixed(2));
+    texture.setAttribute('height', textureHeight.toFixed(2));
+  }
   // Мягкая кромка шириной примерно в два клеточных шага. Размываются только отверстия
   // маски; сама карта, сетка и фишки остаются резкими.
-  layer.querySelector('#fogEdgeBlurNode')
-    ?.setAttribute('stdDeviation', (fogCellStep() * 0.5).toFixed(2));
+  const blur = isMobilePerfMode() ? 0 : fogCellStep() * 0.5;
+  if (fogRenderBlur !== blur) {
+    fogRenderBlur = blur;
+    layer.querySelector('#fogEdgeBlurNode')?.setAttribute('stdDeviation', blur.toFixed(2));
+  }
   const holes = layer.querySelector('#fogHoles');
-  holes.innerHTML = circles.map(({ cx, cy, r }) =>
-    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="black"/>`,
-  ).join('');
+  const signature = circles.map(({ cx, cy, r }) =>
+    `${cx.toFixed(1)},${cy.toFixed(1)},${r.toFixed(1)}`,
+  ).join('|');
+  if (holes && fogRenderSignature !== signature) {
+    fogRenderSignature = signature;
+    holes.innerHTML = circles.map(({ cx, cy, r }) =>
+      `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="black"/>`,
+    ).join('');
+  }
 }
 
 // Кратчайшая дистанция по графу с учётом занятых клеток (зеркало серверного BFS)
@@ -4022,6 +4068,14 @@ function applyView() {
   }
 }
 
+function requestApplyView() {
+  if (viewFrameId) return;
+  viewFrameId = requestAnimationFrame(() => {
+    viewFrameId = 0;
+    applyView();
+  });
+}
+
 function clampView() {
   view.s = Math.max(MIN_S, Math.min(MAX_S, view.s));
   view.tx = Math.max(VBW - VBW * view.s, Math.min(0, view.tx));
@@ -4032,6 +4086,15 @@ function clampView() {
 function svgK() {
   const rect = boardSvg.getBoundingClientRect();
   return { rect, k: (rect.width / VBW) || 1 };
+}
+
+function gestureSvgK() {
+  if (!gestureSvgMetrics) gestureSvgMetrics = svgK();
+  return gestureSvgMetrics;
+}
+
+function isMobilePerfMode() {
+  return window.matchMedia?.('(hover: none), (pointer: coarse), (max-width: 720px)').matches ?? false;
 }
 
 function attachBoardGestures() {
@@ -4057,13 +4120,14 @@ function onWheel(e) {
   view.tx = vbX - cpX * view.s;
   view.ty = vbY - cpY * view.s;
   clampView();
-  applyView();
+  requestApplyView();
 }
 
 function onPtrDown(e) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   gestureMoved = false;
+  gestureSvgMetrics = svgK();
   if (ptrs.size === 1) {
     panStart = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
     pinchStart = null;
@@ -4075,7 +4139,7 @@ function onPtrDown(e) {
 function startPinch() {
   const [a, b] = [...ptrs.values()];
   const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-  const { rect, k } = svgK();
+  const { rect, k } = gestureSvgK();
   const vbMidX = ((a.x + b.x) / 2 - rect.left) / k;
   const vbMidY = ((a.y + b.y) / 2 - rect.top) / k;
   pinchStart = {
@@ -4095,25 +4159,25 @@ function onPtrMove(e) {
     boardEl.setPointerCapture?.(e.pointerId);
     const [a, b] = [...ptrs.values()];
     const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-    const { rect, k } = svgK();
+    const { rect, k } = gestureSvgK();
     view.s = Math.max(MIN_S, Math.min(MAX_S, pinchStart.s * (dist / pinchStart.dist)));
     const vbMidX = ((a.x + b.x) / 2 - rect.left) / k;
     const vbMidY = ((a.y + b.y) / 2 - rect.top) / k;
     view.tx = vbMidX - pinchStart.cpX * view.s;
     view.ty = vbMidY - pinchStart.cpY * view.s;
     clampView();
-    applyView();
+    requestApplyView();
     gestureMoved = true;
   } else if (ptrs.size === 1 && panStart) {
     const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
     if (!gestureMoved && Math.hypot(dx, dy) <= 8) return;
     gestureMoved = true;
     boardEl.setPointerCapture?.(e.pointerId);
-    const { k } = svgK();
+    const { k } = gestureSvgK();
     view.tx = panStart.tx + dx / k;
     view.ty = panStart.ty + dy / k;
     clampView();
-    applyView();
+    requestApplyView();
   }
 }
 
@@ -4128,6 +4192,7 @@ function onPtrUp(e) {
     pinchStart = null;
   } else if (ptrs.size === 0) {
     panStart = null; pinchStart = null;
+    gestureSvgMetrics = null;
   }
 }
 
