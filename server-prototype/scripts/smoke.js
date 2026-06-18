@@ -121,7 +121,7 @@ check('свои стартовые позиции опубликованы',
 const enemyAStart = snapA.game.characters.filter(c => c.owner !== playerA);
 check('вражеские фишки согласованы с туманом',
   enemyAStart.every(c => (c.position === null) === Boolean(c.hidden)));
-check('колода конечная (mixed+forest+dark_forest = 41)', snapA.game.deckCount === 41);
+check('стартовая колода mixed = 14', snapA.game.deckCount === 14);
 check('ход у первого игрока', snapA.game.turn.activePlayerId === playerA);
 
 // --- Чужой ход запрещен ---
@@ -135,16 +135,18 @@ await a.waitFor('state:snapshot');
 check('кубики брошены, осталось 9 бросков', a.lastSnapshot.game.turn.rollsLeft[playerA] === 9);
 check('два кубика на столе', Array.isArray(a.lastSnapshot.game.turn.dice) && a.lastSnapshot.game.turn.dice.length === 2);
 
-// движение пока заглушка (карты нет)
+// Ведём кузнеца на соседнюю клетку добычи (H014, рубашка mixed): по правилу
+// «добор только на ресурсе» карту во втором броске можно взять лишь там.
+const DRAW_CELL = 'H014';
 a.send('turn:setMode', { mode: 'moveSum' });
 await a.waitFor('state:snapshot');
-const moveTarget = a.lastSnapshot.game.legalTargets.moveSum[`${playerA}:V`]?.[0];
-check('сервер опубликовал легальные цели движения', typeof moveTarget === 'string');
-a.send('action:move', { characterId: `${playerA}:V`, toCell: moveTarget });
+const kMoveTargets = a.lastSnapshot.game.legalTargets.moveSum[`${playerA}:K`] ?? [];
+check('сервер опубликовал легальные цели движения', kMoveTargets.includes(DRAW_CELL));
+a.send('action:move', { characterId: `${playerA}:K`, toCell: DRAW_CELL });
 await a.waitFor('state:snapshot');
 check(
   'движение подтверждено сервером',
-  a.lastSnapshot.game.characters.find(c => c.id === `${playerA}:V`)?.position === moveTarget,
+  a.lastSnapshot.game.characters.find(c => c.id === `${playerA}:K`)?.position === DRAW_CELL,
 );
 
 // Один бросок на ход: перед вторым броском делаем полный круг ходов.
@@ -166,7 +168,7 @@ await a.waitFor('state:snapshot');
 // K стартует с 3 базовыми картами (чертёж + руда + бусы), после добора — 4
 const myK = a.lastSnapshot.game.characters.find((c) => c.id === blacksmithA);
 check('кузнец A добрал карту (3 базовых + 1 = 4)', myK.cardCount === 4 && Array.isArray(myK.inventory) && myK.inventory.length === 4);
-check('колода уменьшилась (41-1=40)', a.lastSnapshot.game.deckCount === 40);
+check('колода уменьшилась (14-1=13)', a.lastSnapshot.game.deckCount === 13);
 
 // --- Скрытие чужих карт (ждем тот же снимок у B) ---
 const bSnap = await snapshotAtLeast(b, a.lastSnapshot.revision);
