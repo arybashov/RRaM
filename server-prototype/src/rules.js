@@ -1108,7 +1108,7 @@ function terrainFlip(game, playerId, { id, faceDown } = {}) {
 }
 
 export function availableAttackTargets(game, playerId, characterId) {
-  if (!game.turn.dice || game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
+  if (!game.turn.dice || (game.turn.usedDice[0] && game.turn.usedDice[1])) return [];
   const attacker = ownCharacter(game, playerId, characterId);
   if (attacker.beastFight) return []; // занят зверем — игроков не атакует
   const currentOpponent = combatOpponent(game, attacker);
@@ -1634,8 +1634,9 @@ function dischargeDot(game, playerId, { characterId, dotIndex = 0, dieIndex } = 
 function attack(game, playerId, { attackerId, targetId } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
-  if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
-    throw new Error('Для атаки нужны оба неиспользованных кубика.');
+  const dieIndex = firstFreeDieIndex(game);
+  if (dieIndex === -1) {
+    throw new Error('Для атаки нужен свободный кубик.');
   }
 
   const attacker = ownCharacter(game, playerId, attackerId);
@@ -1775,11 +1776,13 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
     defeatByPlayer(game, attacker, target);
   }
 
-  spendAllDice(game);
+  lockMovement(game);
+  spendDie(game, dieIndex);
   return {
     attacked: {
       attackerId,
       targetId,
+      dieIndex,
       damage,
       griffinDamage,
       griffinTurnedFaceDown: griffinDamage > 0,
@@ -2111,6 +2114,13 @@ function spendDie(game, dieIndex) {
     if (game.turn.movementArea) return;
     game.turn.mode = null;
   }
+}
+
+function firstFreeDieIndex(game) {
+  if (!game.turn.dice) return -1;
+  if (!game.turn.usedDice[0]) return 0;
+  if (!game.turn.usedDice[1]) return 1;
+  return -1;
 }
 
 function spendAllDice(game) {

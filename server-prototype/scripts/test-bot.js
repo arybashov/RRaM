@@ -204,7 +204,7 @@ test('bot returns no action for a spent die', () => {
   assert.deepEqual(rankBotActions(game, 'bot', 0), []);
 });
 
-test('bot attacks an adjacent enemy with both dice before moving', () => {
+test('bot attacks an adjacent enemy before moving', () => {
   const game = freshGame();
   prepareBotTurn(game, [3, 4]);
   const attacker = botCharacter(game);
