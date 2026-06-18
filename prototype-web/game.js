@@ -473,47 +473,62 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-12'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260618-14'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
+const SINGLE_TAB_LOCK_TTL_MS = 15000;
+const SINGLE_TAB_HEARTBEAT_MS = 2000;
+const TAB_INSTANCE_ID = createTabInstanceId();
+const singleTabGuard = {
+  enabled: true,
+  blocked: false,
+  owns: false,
+  heartbeat: null,
+};
 
 // ── Старт ─────────────────────────────────────────────────────────
+initSingleTabGuard();
 showAppVersion();
-inventoryEl?.addEventListener('click', onInventoryClick);
-// Игровой чат — поле в шторке журнала
-{
-  const gameChatInput = document.querySelector('#gameChatInput');
-  const gameChatSendBtn = document.querySelector('#gameChatSend');
-  const sendGameChat = () => {
-    const text = gameChatInput?.value.trim();
-    if (!text) return;
-    wsSend('chat:send', { text, name: name() });
-    gameChatInput.value = '';
-    gameChatSendBtn?.classList.remove('visible');
-  };
-  gameChatSendBtn?.addEventListener('click', sendGameChat);
-  gameChatInput?.addEventListener('input', () => {
-    if (gameChatInput.value.trim()) {
-      gameChatSendBtn?.classList.add('visible');
-    } else {
+if (singleTabGuard.blocked) {
+  showDuplicateTabOverlay();
+} else {
+  inventoryEl?.addEventListener('click', onInventoryClick);
+  // Игровой чат — поле в шторке журнала
+  {
+    const gameChatInput = document.querySelector('#gameChatInput');
+    const gameChatSendBtn = document.querySelector('#gameChatSend');
+    const sendGameChat = () => {
+      const text = gameChatInput?.value.trim();
+      if (!text) return;
+      wsSend('chat:send', { text, name: name() });
+      gameChatInput.value = '';
       gameChatSendBtn?.classList.remove('visible');
-    }
-  });
-  gameChatInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); sendGameChat(); }
+    };
+    gameChatSendBtn?.addEventListener('click', sendGameChat);
+    gameChatInput?.addEventListener('input', () => {
+      if (gameChatInput.value.trim()) {
+        gameChatSendBtn?.classList.add('visible');
+      } else {
+        gameChatSendBtn?.classList.remove('visible');
+      }
+    });
+    gameChatInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); sendGameChat(); }
+    });
+  }
+  buildCardBox();
+  buildEventOverlay();
+  buildLobbyOverlay();
+  connect();
+  document.getElementById('fitBtn')?.addEventListener('click', fitAll);
+  document.getElementById('focusBtn')?.addEventListener('click', focusMine);
+  loadBoardMap().then(() => {
+    buildBoard();
+    requestAnimationFrame(() => {
+      fitBoard();
+      if (serverRoom?.game) { render(); focusMine(); }
+    });
   });
 }
-buildCardBox();
-buildEventOverlay();
-buildLobbyOverlay();
-connect();
-document.getElementById('fitBtn')?.addEventListener('click', fitAll);
-document.getElementById('focusBtn')?.addEventListener('click', focusMine);
-loadBoardMap().then(() => {
-  buildBoard();
-  requestAnimationFrame(() => {
-    fitBoard();
-    if (serverRoom?.game) { render(); focusMine(); }
-  });
-});
 
 // Версия в углу мелким шрифтом (для отладки «какая сборка у игрока»).
 function showAppVersion() {
@@ -522,6 +537,118 @@ function showAppVersion() {
   el.setAttribute('aria-hidden', 'true');
   el.textContent = `v${APP_VERSION}`;
   document.body.appendChild(el);
+}
+
+function createTabInstanceId() {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function readSingleTabLock() {
+  try {
+    return JSON.parse(localStorage.getItem(SINGLE_TAB_LOCK_KEY) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+function writeSingleTabLock() {
+  try {
+    localStorage.setItem(SINGLE_TAB_LOCK_KEY, JSON.stringify({
+      tabId: TAB_INSTANCE_ID,
+      updatedAt: Date.now(),
+      version: APP_VERSION,
+    }));
+    singleTabGuard.owns = true;
+    return true;
+  } catch {
+    singleTabGuard.enabled = false;
+    return true;
+  }
+}
+
+function tryAcquireSingleTabLock() {
+  if (!singleTabGuard.enabled) return true;
+  const current = readSingleTabLock();
+  const freshOther = current
+    && current.tabId !== TAB_INSTANCE_ID
+    && Date.now() - Number(current.updatedAt ?? 0) < SINGLE_TAB_LOCK_TTL_MS;
+  if (freshOther) return false;
+  writeSingleTabLock();
+  const confirmed = readSingleTabLock();
+  return !confirmed || confirmed.tabId === TAB_INSTANCE_ID;
+}
+
+function refreshSingleTabLock() {
+  if (singleTabGuard.blocked) return false;
+  if (!singleTabGuard.enabled) return true;
+  if (!tryAcquireSingleTabLock()) {
+    blockDuplicateTab();
+    return false;
+  }
+  return true;
+}
+
+function initSingleTabGuard() {
+  if (!tryAcquireSingleTabLock()) {
+    singleTabGuard.blocked = true;
+    return;
+  }
+  singleTabGuard.heartbeat = setInterval(refreshSingleTabLock, SINGLE_TAB_HEARTBEAT_MS);
+  window.addEventListener('beforeunload', releaseSingleTabLock);
+}
+
+function releaseSingleTabLock() {
+  if (!singleTabGuard.owns || !singleTabGuard.enabled) return;
+  const current = readSingleTabLock();
+  if (current?.tabId === TAB_INSTANCE_ID) {
+    try { localStorage.removeItem(SINGLE_TAB_LOCK_KEY); } catch {}
+  }
+  singleTabGuard.owns = false;
+  if (singleTabGuard.heartbeat) {
+    clearInterval(singleTabGuard.heartbeat);
+    singleTabGuard.heartbeat = null;
+  }
+}
+
+function blockDuplicateTab() {
+  singleTabGuard.blocked = true;
+  if (singleTabGuard.heartbeat) {
+    clearInterval(singleTabGuard.heartbeat);
+    singleTabGuard.heartbeat = null;
+  }
+  stopHeartbeat();
+  const sock = ws;
+  ws = null;
+  if (sock) { try { sock.onclose = null; sock.close(); } catch {} }
+  showDuplicateTabOverlay();
+}
+
+function showDuplicateTabOverlay() {
+  if (document.getElementById('duplicateTabOverlay')) return;
+  document.body.classList.add('duplicate-tab-blocked');
+  const el = document.createElement('div');
+  el.id = 'duplicateTabOverlay';
+  el.className = 'duplicate-tab-overlay';
+  el.innerHTML = `
+    <div class="duplicate-tab-card">
+      <div class="duplicate-tab-title">RRaM уже открыт</div>
+      <div class="duplicate-tab-text">Закройте эту вкладку или основную вкладку игры. После закрытия основной можно проверить снова.</div>
+      <div class="duplicate-tab-actions">
+        <button id="duplicateRetryBtn" type="button">Проверить снова</button>
+        <button id="duplicateCloseBtn" type="button">Закрыть вкладку</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#duplicateRetryBtn')?.addEventListener('click', () => {
+    if (tryAcquireSingleTabLock()) location.reload();
+  });
+  el.querySelector('#duplicateCloseBtn')?.addEventListener('click', () => {
+    window.close();
+  });
 }
 
 // Загрузка граф-карты (статический asset, один раз).
@@ -541,6 +668,7 @@ async function loadBoardMap() {
 // ═════════════════════════════════════════════════════════════════
 
 function connect() {
+  if (!refreshSingleTabLock()) return;
   if (ws) return; // уже подключены
   clearTimeout(reconnectTimer);
   setConnStatus('connecting');
@@ -608,6 +736,7 @@ function forceReconnect() {
 }
 
 function scheduleReconnect() {
+  if (singleTabGuard.blocked) return;
   clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(() => {
     if (!ws) connect();
@@ -622,6 +751,7 @@ function scheduleReconnect() {
 // обходит залипание `if (ws) return` в connect).
 function onResume() {
   if (document.hidden) return;
+  if (!refreshSingleTabLock()) return;
   // Нет сокета — просто подключаемся (не рвём несуществующее соединение).
   if (!ws) { connect(); return; }
   // Сокет ЕЩЁ ПОДКЛЮЧАЕТСЯ — не трогаем! На медленном мобильном коннект идёт
