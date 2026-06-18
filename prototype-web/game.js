@@ -422,6 +422,9 @@ let VBW = 1000, VBH = 750;           // размер viewBox (по пропор�
 let HEX_R = 12;                      // радиус гекса в координатах viewBox
 const FOG_TEXTURE_SOURCE_WIDTH = 1024;
 const FOG_TEXTURE_SOURCE_HEIGHT = 768;
+const FOG_EDGE_BLUR_MIN = 1.25;
+const FOG_EDGE_BLUR_MAX = 3;
+const FOG_EDGE_BLUR_FACTOR = 0.12;
 const STEP_MS = 140;                 // длительность одного шага фишки по клетке
 const WIN_PAUSE_MS = 800;            // пауза после прихода фишки перед показом итога
 const tokenDisplayPos = new Map();   // charId → клетка, где фишка показана СЕЙЧАС (во время анимации)
@@ -485,7 +488,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-16'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260618-17'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const SINGLE_TAB_INSTANCE_KEY = 'rram_tab_instance_id_v1';
 const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
 const SINGLE_TAB_LOCK_TTL_MS = 15000;
@@ -3671,7 +3674,9 @@ function renderFog(circles) {
   }
   // Мягкая кромка шириной примерно в два клеточных шага. Размываются только отверстия
   // маски; сама карта, сетка и фишки остаются резкими.
-  const blur = isMobilePerfMode() ? 0 : fogCellStep() * 0.5;
+  const blur = isMobilePerfMode()
+    ? FOG_EDGE_BLUR_MIN
+    : Math.max(FOG_EDGE_BLUR_MIN, Math.min(FOG_EDGE_BLUR_MAX, fogCellStep() * FOG_EDGE_BLUR_FACTOR));
   if (fogRenderBlur !== blur) {
     fogRenderBlur = blur;
     layer.querySelector('#fogEdgeBlurNode')?.setAttribute('stdDeviation', blur.toFixed(2));
