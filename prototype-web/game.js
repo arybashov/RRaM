@@ -379,10 +379,6 @@ function featherMarkerUrl() {
   return `./assets/ui/feather-marker-v2.png?v=${APP_VERSION}`;
 }
 
-function fogTextureUrl() {
-  return `./assets/fog-of-war-clouds.jpg?v=${APP_VERSION}`;
-}
-
 // Клиентский режим → серверный режим (для setMode)
 const TO_SERVER_MODE = {
   moveSum:  'moveSum',
@@ -420,11 +416,6 @@ let boardMap = null;                 // загруженная карта (cells
 let startCellIds = new Set();        // id всех стартовых клеток
 let VBW = 1000, VBH = 750;           // размер viewBox (по пропорции арта)
 let HEX_R = 12;                      // радиус гекса в координатах viewBox
-const FOG_TEXTURE_SOURCE_WIDTH = 1024;
-const FOG_TEXTURE_SOURCE_HEIGHT = 768;
-const FOG_EDGE_BLUR_MIN = 1.25;
-const FOG_EDGE_BLUR_MAX = 3;
-const FOG_EDGE_BLUR_FACTOR = 0.12;
 const STEP_MS = 140;                 // длительность одного шага фишки по клетке
 const WIN_PAUSE_MS = 800;            // пауза после прихода фишки перед показом итога
 const tokenDisplayPos = new Map();   // charId → клетка, где фишка показана СЕЙЧАС (во время анимации)
@@ -442,12 +433,6 @@ const MIN_S = 1, MAX_S = 6;
 let gestureMoved = false;             // был ли drag/pinch (чтобы не считать его тапом)
 const ptrs = new Map();               // активные указатели (touch/mouse)
 let panStart = null, pinchStart = null;
-let gestureSvgMetrics = null;
-let viewFrameId = 0;
-let fogRenderSignature = '';
-let fogRenderWidth = 0;
-let fogRenderHeight = 0;
-let fogRenderBlur = null;
 
 // ── DOM ───────────────────────────────────────────────────────────
 const boardEl        = document.querySelector('#board');
@@ -488,8 +473,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-20'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
-const SINGLE_TAB_INSTANCE_KEY = 'rram_tab_instance_id_v1';
+const APP_VERSION = '20260618-14'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
 const SINGLE_TAB_LOCK_TTL_MS = 15000;
 const SINGLE_TAB_HEARTBEAT_MS = 2000;
@@ -557,20 +541,10 @@ function showAppVersion() {
 
 function createTabInstanceId() {
   try {
-    const existing = sessionStorage.getItem(SINGLE_TAB_INSTANCE_KEY);
-    if (existing) return existing;
-  } catch {}
-  const nextId = (() => {
-    try {
-      return crypto.randomUUID();
-    } catch {
-      return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    }
-  })();
-  try {
-    sessionStorage.setItem(SINGLE_TAB_INSTANCE_KEY, nextId);
-  } catch {}
-  return nextId;
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
 }
 
 function readSingleTabLock() {
@@ -910,16 +884,8 @@ function handleMsg({ type, payload }) {
         animateMovesFromDiff(prevRoom, serverRoom);
       }
 
-      const g = getGame();
-      const activeChanged = prevActive !== g?.turn.activePlayerId;
-      if (!g?.turn.dice || activeChanged) {
-        autoModeSent = false;
-        localMode = 'moveSum';
-        selectedDieIdx = 0;
-        pendingTeleport = null;
-      }
-
       // Авто-setMode: отправляем один раз после броска кубиков
+      const g = getGame();
       if (g && !getSelChar()) {
         const nextSelectable = getMyChars().find(c => c.hp > 0 && characterPosition(c));
         selectedCharId = nextSelectable?.id ?? null;
@@ -928,6 +894,11 @@ function handleMsg({ type, payload }) {
       if (g && isMyTurn() && g.turn.dice && !allDiceSpent && !g.turn.mode && !autoModeSent) {
         const sm = TO_SERVER_MODE[localMode];
         if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
+      }
+      if (!g?.turn.dice || prevActive !== g.turn.activePlayerId) {
+        autoModeSent = false;
+        localMode = 'moveSum';
+        selectedDieIdx = 0;
       }
 
       render();
@@ -1879,7 +1850,9 @@ endTurnBtn.addEventListener('click', () => wsSend('turn:end'));
 function setLocalMode(mode) {
   if (getGame()?.turn.movementArea) return;
   localMode = mode;
-  syncModeButtons();
+  document.querySelectorAll('.mode').forEach((button) => {
+    button.classList.toggle('active', button.dataset.mode === mode);
+  });
 
   const game = getGame();
   if (!game?.turn.dice || !isMyTurn()) return;
@@ -1891,13 +1864,6 @@ function setLocalMode(mode) {
     autoModeSent = true;
     wsSend('turn:setMode', { mode: serverMode });
   }
-}
-
-function syncModeButtons() {
-  const activeMode = localMode === 'moveDie' ? 'moveSum' : localMode;
-  document.querySelectorAll('.mode').forEach((button) => {
-    button.classList.toggle('active', button.dataset.mode === activeMode);
-  });
 }
 
 // Прямое карточное действие (без отдельной кнопки «Выполнить»):
@@ -2091,7 +2057,6 @@ function syncDieSelection() {
 
 function render() {
   syncDieSelection();
-  syncModeButtons();
   renderTopbar();
   renderDice();
   renderBoard();
@@ -3643,18 +3608,9 @@ function fogContainsPoint(circles, x, y) {
 function renderFog(circles) {
   if (!boardVp) return;
   let layer = boardVp.querySelector('#fogLayer');
-  if (!circles) {
-    layer?.remove();
-    fogRenderSignature = '';
-    fogRenderWidth = 0;
-    fogRenderHeight = 0;
-    fogRenderBlur = null;
-    return;
-  }
+  if (!circles) { layer?.remove(); return; }
   const artScaleX = boardMap?.art?.scaleX ?? 1;
   const artScaleY = boardMap?.art?.scaleY ?? 1;
-  const textureWidth = VBW * artScaleX;
-  const textureHeight = VBH * artScaleY;
   if (!layer) {
     layer = document.createElementNS(svgNS, 'g');
     layer.setAttribute('id', 'fogLayer');
@@ -3666,40 +3622,24 @@ function renderFog(circles) {
       + `<mask id="fogMask" maskUnits="userSpaceOnUse" x="0" y="0" width="${VBW}" height="${VBH}">`
       + `<rect x="0" y="0" width="${VBW}" height="${VBH}" fill="white"/>`
       + `<g id="fogHoles" filter="url(#fogEdgeBlur)"></g></mask></defs>`
-      + `<image id="fogTexture" href="${fogTextureUrl()}" x="0" y="0" `
-      + `width="${textureWidth.toFixed(2)}" height="${textureHeight.toFixed(2)}" `
-      + `data-source-width="${FOG_TEXTURE_SOURCE_WIDTH}" data-source-height="${FOG_TEXTURE_SOURCE_HEIGHT}" `
+      + `<image id="fogTexture" href="./assets/fog-of-war-clouds.jpg" x="0" y="0" `
+      + `width="${VBW * artScaleX}" height="${VBH * artScaleY}" `
       + `preserveAspectRatio="none" opacity="0.9" mask="url(#fogMask)"/>`;
     // Арт остаётся под туманом, клетки/маркеры — над ним. Невидимые клетки
     // скрываются классом, а допустимые цели могут подсвечиваться поверх маски.
     boardVp.insertBefore(layer, boardVp.querySelector('.cell'));
   }
   const texture = layer.querySelector('#fogTexture');
-  if (texture && (fogRenderWidth !== textureWidth || fogRenderHeight !== textureHeight)) {
-    fogRenderWidth = textureWidth;
-    fogRenderHeight = textureHeight;
-    texture.setAttribute('width', textureWidth.toFixed(2));
-    texture.setAttribute('height', textureHeight.toFixed(2));
-  }
+  texture?.setAttribute('width', (VBW * artScaleX).toFixed(2));
+  texture?.setAttribute('height', (VBH * artScaleY).toFixed(2));
   // Мягкая кромка шириной примерно в два клеточных шага. Размываются только отверстия
   // маски; сама карта, сетка и фишки остаются резкими.
-  const blur = isMobilePerfMode()
-    ? FOG_EDGE_BLUR_MIN
-    : Math.max(FOG_EDGE_BLUR_MIN, Math.min(FOG_EDGE_BLUR_MAX, fogCellStep() * FOG_EDGE_BLUR_FACTOR));
-  if (fogRenderBlur !== blur) {
-    fogRenderBlur = blur;
-    layer.querySelector('#fogEdgeBlurNode')?.setAttribute('stdDeviation', blur.toFixed(2));
-  }
+  layer.querySelector('#fogEdgeBlurNode')
+    ?.setAttribute('stdDeviation', (fogCellStep() * 0.5).toFixed(2));
   const holes = layer.querySelector('#fogHoles');
-  const signature = circles.map(({ cx, cy, r }) =>
-    `${cx.toFixed(1)},${cy.toFixed(1)},${r.toFixed(1)}`,
-  ).join('|');
-  if (holes && fogRenderSignature !== signature) {
-    fogRenderSignature = signature;
-    holes.innerHTML = circles.map(({ cx, cy, r }) =>
-      `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="black"/>`,
-    ).join('');
-  }
+  holes.innerHTML = circles.map(({ cx, cy, r }) =>
+    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="black"/>`,
+  ).join('');
 }
 
 // Кратчайшая дистанция по графу с учётом занятых клеток (зеркало серверного BFS)
@@ -3717,92 +3657,6 @@ function pathDistance(from, to, blocked) {
     }
   }
   return Infinity;
-}
-
-function clientReachableTargets(from, maxSteps, blocked) {
-  const result = new Set();
-  if (!from || !Number.isFinite(maxSteps) || maxSteps <= 0) return result;
-
-  const dist = new Map([[from, 0]]);
-  const queue = [from];
-  while (queue.length) {
-    const cur = queue.shift();
-    const curDist = dist.get(cur);
-    if (curDist >= maxSteps) continue;
-    for (const nb of hexNeighbors(cur)) {
-      if (dist.has(nb) || blocked.has(nb)) continue;
-      const nextDist = curDist + 1;
-      dist.set(nb, nextDist);
-      result.add(nb);
-      queue.push(nb);
-    }
-  }
-  return result;
-}
-
-function clientCombatOpponent(game, char) {
-  if (!char?.combatOpponentId) return null;
-  const opponent = game?.characters.find(item => item.id === char.combatOpponentId);
-  if (
-    !opponent
-    || opponent.hp <= 0
-    || !characterPosition(opponent)
-    || opponent.combatOpponentId !== char.id
-  ) {
-    return null;
-  }
-  return opponent;
-}
-
-function clientMoveTargets(char) {
-  const result = new Set();
-  const game = getGame();
-  const dice = game?.turn.dice;
-  if (!game || !dice || !char || char.owner !== myPlayerId || char.hp <= 0) return result;
-
-  const area = game.turn.movementArea;
-  const used = game.turn.usedDice ?? [false, false];
-  let origin = characterPosition(char);
-  let maxSteps = 0;
-
-  if (area) {
-    if (area.locked || area.characterId !== char.id || char.beastFight) return result;
-    if (area.mode === 'split' && selectedDieIdx !== area.dieIndex) {
-      if (used[selectedDieIdx]) return result;
-      origin = characterPosition(char);
-      maxSteps = dice[selectedDieIdx] ?? 0;
-    } else {
-      origin = area.origin;
-      maxSteps = area.maxSteps;
-    }
-  } else if (localMode === 'moveSum') {
-    if (used[0] || used[1]) return result;
-    maxSteps = (dice[0] ?? 0) + (dice[1] ?? 0);
-  } else if (localMode === 'moveDie') {
-    if (used[selectedDieIdx]) return result;
-    if (clientCombatOpponent(game, char)) return result;
-    if (game.turn.movedCharacterId && game.turn.movedCharacterId !== char.id) return result;
-    maxSteps = dice[selectedDieIdx] ?? 0;
-  } else {
-    return result;
-  }
-
-  if (!origin) return result;
-  const blocked = new Set(
-    game.characters
-      .filter(item => item.id !== char.id && characterPosition(item))
-      .map(item => characterPosition(item)),
-  );
-  const targets = clientReachableTargets(origin, maxSteps, blocked);
-  targets.delete(characterPosition(char));
-
-  const opponent = clientCombatOpponent(game, char);
-  if (!opponent) return targets;
-  const opponentAdjacent = new Set(hexNeighbors(characterPosition(opponent)));
-  for (const target of targets) {
-    if (!opponentAdjacent.has(target)) result.add(target);
-  }
-  return result;
 }
 
 // План подхода к врагу: свободная клетка рядом с ним, достижимая этим броском.
@@ -3894,7 +3748,7 @@ function validTargets(char) {
     const targets = localMode === 'moveSum'
       ? legal?.moveSum?.[char.id]
       : legal?.dice?.[selectedDieIdx]?.[char.id];
-    return Array.isArray(targets) ? new Set(targets) : clientMoveTargets(char);
+    return new Set(targets ?? []);
   }
   const maxDist = getMoveDistance();
   const from    = positions.get(char.id);
@@ -4168,14 +4022,6 @@ function applyView() {
   }
 }
 
-function requestApplyView() {
-  if (viewFrameId) return;
-  viewFrameId = requestAnimationFrame(() => {
-    viewFrameId = 0;
-    applyView();
-  });
-}
-
 function clampView() {
   view.s = Math.max(MIN_S, Math.min(MAX_S, view.s));
   view.tx = Math.max(VBW - VBW * view.s, Math.min(0, view.tx));
@@ -4186,15 +4032,6 @@ function clampView() {
 function svgK() {
   const rect = boardSvg.getBoundingClientRect();
   return { rect, k: (rect.width / VBW) || 1 };
-}
-
-function gestureSvgK() {
-  if (!gestureSvgMetrics) gestureSvgMetrics = svgK();
-  return gestureSvgMetrics;
-}
-
-function isMobilePerfMode() {
-  return window.matchMedia?.('(hover: none), (pointer: coarse), (max-width: 720px)').matches ?? false;
 }
 
 function attachBoardGestures() {
@@ -4220,14 +4057,13 @@ function onWheel(e) {
   view.tx = vbX - cpX * view.s;
   view.ty = vbY - cpY * view.s;
   clampView();
-  requestApplyView();
+  applyView();
 }
 
 function onPtrDown(e) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   gestureMoved = false;
-  gestureSvgMetrics = svgK();
   if (ptrs.size === 1) {
     panStart = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
     pinchStart = null;
@@ -4239,7 +4075,7 @@ function onPtrDown(e) {
 function startPinch() {
   const [a, b] = [...ptrs.values()];
   const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-  const { rect, k } = gestureSvgK();
+  const { rect, k } = svgK();
   const vbMidX = ((a.x + b.x) / 2 - rect.left) / k;
   const vbMidY = ((a.y + b.y) / 2 - rect.top) / k;
   pinchStart = {
@@ -4259,25 +4095,25 @@ function onPtrMove(e) {
     boardEl.setPointerCapture?.(e.pointerId);
     const [a, b] = [...ptrs.values()];
     const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-    const { rect, k } = gestureSvgK();
+    const { rect, k } = svgK();
     view.s = Math.max(MIN_S, Math.min(MAX_S, pinchStart.s * (dist / pinchStart.dist)));
     const vbMidX = ((a.x + b.x) / 2 - rect.left) / k;
     const vbMidY = ((a.y + b.y) / 2 - rect.top) / k;
     view.tx = vbMidX - pinchStart.cpX * view.s;
     view.ty = vbMidY - pinchStart.cpY * view.s;
     clampView();
-    requestApplyView();
+    applyView();
     gestureMoved = true;
   } else if (ptrs.size === 1 && panStart) {
     const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
     if (!gestureMoved && Math.hypot(dx, dy) <= 8) return;
     gestureMoved = true;
     boardEl.setPointerCapture?.(e.pointerId);
-    const { k } = gestureSvgK();
+    const { k } = svgK();
     view.tx = panStart.tx + dx / k;
     view.ty = panStart.ty + dy / k;
     clampView();
-    requestApplyView();
+    applyView();
   }
 }
 
@@ -4292,7 +4128,6 @@ function onPtrUp(e) {
     pinchStart = null;
   } else if (ptrs.size === 0) {
     panStart = null; pinchStart = null;
-    gestureSvgMetrics = null;
   }
 }
 
