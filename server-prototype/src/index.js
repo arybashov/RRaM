@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createStore } from './game-state.js';
 import { ClientCommand, ServerEvent, GAME_COMMANDS } from './protocol.js';
 import { runBotTurn } from './bot.js';
+import { registerAdmin } from './admin.js';
 import { BASE_CARD_CATALOG, BUILD_VERSION, CARD_CATALOG } from './constants.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -12,7 +13,8 @@ const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 const DEBUG_COMMANDS_ENABLED = process.env.DEBUG_COMMANDS === '1'
   || (process.env.NODE_ENV !== 'production' && LOCAL_HOSTS.has(HOST));
 
-const app = Fastify({ logger: true });
+// trustProxy: за nginx реальный IP клиента приходит в X-Forwarded-For (req.ip).
+const app = Fastify({ logger: true, trustProxy: true });
 const store = createStore();
 const clients = new Map();
 const botRunning = new Set();        // roomId → бот сейчас ходит
@@ -20,18 +22,28 @@ const lobbySubscribers = new Set();  // connectionId → смотрит спис
 
 await app.register(websocket);
 
+// Админ-панель (/admin, /admin/data) под Basic Auth — диагностика клиентов и комнат.
+registerAdmin(app, { store, clients, lobbySubscribers, version: BUILD_VERSION });
+
 app.get('/health', async () => ({
   ok: true,
   service: 'rram-server-prototype',
 }));
 
-app.get('/ws', { websocket: true }, (socket) => {
+app.get('/ws', { websocket: true }, (socket, req) => {
   const connectionId = randomUUID();
+  const now = Date.now();
   clients.set(connectionId, {
     socket,
     roomId: null,
     playerId: null,
     fogEnabled: true,
+    // Диагностика для админки
+    ip: req?.ip ?? '?',
+    ua: String(req?.headers?.['user-agent'] ?? '').slice(0, 120),
+    version: null,
+    connectedAt: now,
+    lastSeen: now,
   });
 
   send(socket, ServerEvent.CONNECTED, {
@@ -65,6 +77,7 @@ function handleMessage(connectionId, rawMessage) {
   if (!client) {
     return;
   }
+  client.lastSeen = Date.now(); // для админки: «idle» клиента
 
   let message;
   try {
@@ -94,6 +107,13 @@ function routeCommand(connectionId, message) {
     case 'ping': {
       // keepalive: клиент проверяет живость сокета (нужно без входа в комнату)
       send(client.socket, 'pong', {});
+      break;
+    }
+
+    case 'client:hello': {
+      // Клиент сообщает свою версию сборки — для админки (видно, кто на старом билде).
+      const v = message.payload?.version;
+      if (typeof v === 'string') client.version = v.slice(0, 32);
       break;
     }
 

@@ -204,6 +204,40 @@ export function createStore() {
     };
   }
 
+  // Диагностический срез ВСЕХ комнат для админки (без скрытия — это серверная
+  // сторона, отдаётся только под Basic Auth). Лёгкий, без карт инвентаря.
+  function adminRooms() {
+    const out = [];
+    for (const room of rooms.values()) {
+      out.push({
+        code: room.code,
+        status: room.status,
+        type: room.vsBot ? 'vsBot' : (room.public ? 'public' : 'private'),
+        players: room.players.map((p) => ({
+          name: p.name,
+          side: p.side ?? null,
+          isBot: p.isBot ?? false,
+          connected: p.connected ?? false,
+        })),
+        game: room.game ? {
+          over: room.game.over ?? false,
+          winnerId: room.game.winnerId ?? null,
+          activePlayerId: room.game.turn?.activePlayerId ?? null,
+          characters: (room.game.characters ?? []).map((c) => ({
+            role: c.role,
+            owner: c.owner,
+            hp: c.hp,
+            pos: c.position ?? null,
+            dead: c.hp <= 0 || !c.position,
+            beast: c.beastFight ? (c.beastFight.cardId ?? true) : null,
+            combat: Boolean(c.combatOpponentId),
+          })),
+        } : null,
+      });
+    }
+    return out;
+  }
+
   return {
     createRoom,
     joinRoom,
@@ -215,6 +249,7 @@ export function createStore() {
     applyCommand,
     getRoom,
     snapshot,
+    adminRooms,
   };
 }
 
