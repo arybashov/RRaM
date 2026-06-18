@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260619-4';
+export const BUILD_VERSION = '20260619-5';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
