@@ -277,22 +277,7 @@ function lockMovement(game) {
   }
 }
 
-function draw(game, playerId, { characterId, dieIndex } = {}) {
-  assertActive(game, playerId);
-  assertRolled(game);
-  requireSplit(game);
-  dieValue(game, dieIndex); // только валидируем доступность; значение на добор не влияет
-
-  const character = ownCharacter(game, playerId, characterId);
-  if (game.turn.drawnThisTurn) {
-    throw new Error('Взять карту можно один раз за бросок — второй кубик потратьте на другое действие.');
-  }
-  if (combatOpponent(game, character)) {
-    throw new Error('В бою персонаж не может брать карты: атакуйте, передайте карты или убегайте.');
-  }
-  if (character.beastFight) {
-    throw new Error('В схватке со зверем персонаж не может брать карты: добейте зверя или убегайте.');
-  }
+function drawCardsFromCurrentCell(game, playerId, character) {
   if (!isDrawCell(character.position)) {
     throw new Error('Взять карту можно только на точке ресурса.');
   }
@@ -327,26 +312,47 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
   const cardIds = drawPile.splice(0, drawCount);
   character.inventory.push(...cardIds);
   for (const card of placedTools) card.faceDown = true;
-  game.turn.drawnThisTurn = true;
-  lockMovement(game); // движение в этот бросок зафиксировано — откат недоступен
-  spendDie(game, dieIndex);
 
   const cards = cardIds.map((cardId) => {
     const card = CARD_BY_ID[cardId];
     return { card: cardId, name: card?.name, type: card?.type, desc: card?.desc };
   });
   return {
-    drawn: {
-      characterId,
-      ...cards[0],
-      cards,
-      count: cards.length,
-      bonusTool: bonusToolCount > 0 ? bonusTool : null,
-      bonusToolCount,
-      deck: drawDeckName,
-      hammerUsed: bonusToolCount > 0 && character.role === 'K',
-      terrainCardsTurnedFaceDown: placedTools.map((card) => card.cardId),
-    },
+    characterId: character.id,
+    ...cards[0],
+    cards,
+    count: cards.length,
+    bonusTool: bonusToolCount > 0 ? bonusTool : null,
+    bonusToolCount,
+    deck: drawDeckName,
+    hammerUsed: bonusToolCount > 0 && character.role === 'K',
+    terrainCardsTurnedFaceDown: placedTools.map((card) => card.cardId),
+  };
+}
+
+function draw(game, playerId, { characterId, dieIndex } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  requireSplit(game);
+  dieValue(game, dieIndex); // только валидируем доступность; значение на добор не влияет
+
+  const character = ownCharacter(game, playerId, characterId);
+  if (game.turn.drawnThisTurn) {
+    throw new Error('Взять карту можно один раз за бросок — второй кубик потратьте на другое действие.');
+  }
+  if (combatOpponent(game, character)) {
+    throw new Error('В бою персонаж не может брать карты: атакуйте, передайте карты или убегайте.');
+  }
+  if (character.beastFight) {
+    throw new Error('В схватке со зверем персонаж не может брать карты: добейте зверя или убегайте.');
+  }
+  const drawn = drawCardsFromCurrentCell(game, playerId, character);
+  game.turn.drawnThisTurn = true;
+  lockMovement(game); // движение в этот бросок зафиксировано — откат недоступен
+  spendDie(game, dieIndex);
+
+  return {
+    drawn,
   };
 }
 
@@ -480,6 +486,35 @@ function drawPileForDeck(game, deckName) {
   if (!game.decks) game.decks = buildDecks();
   if (!game.decks[deckName]) game.decks[deckName] = buildDeck(deckName);
   return game.decks[deckName];
+}
+
+function autoDrawAfterMove(game, playerId, character, {
+  escapedCombat = false,
+  escapedBeast = false,
+  engagedTarget = null,
+  redEvent = null,
+} = {}) {
+  if (
+    game.turn.drawnThisTurn
+    || escapedCombat
+    || escapedBeast
+    || engagedTarget
+    || redEvent
+    || !isDrawCell(character.position)
+    || cellTerrain(character.position) === 'event'
+    || combatOpponent(game, character)
+    || character.beastFight
+  ) {
+    return null;
+  }
+  try {
+    const drawn = drawCardsFromCurrentCell(game, playerId, character);
+    game.turn.drawnThisTurn = true;
+    lockMovement(game);
+    return drawn;
+  } catch {
+    return null;
+  }
 }
 
 function moveExhaustedCards(from, to, cardIds) {
@@ -717,6 +752,13 @@ function move(game, playerId, {
       : drawRedEvent(game, character);
   }
 
+  const drawn = autoDrawAfterMove(game, playerId, character, {
+    escapedCombat,
+    escapedBeast,
+    engagedTarget,
+    redEvent,
+  });
+
   // Жёсткий коммит: после необратимого события (зверь на красной, выход из боя
   // или от зверя) откат и смена кубика недоступны — ход зафиксирован.
   if (game.turn.movementArea && (redEvent || escapedCombat || escapedBeast || engagedTarget)) {
@@ -735,6 +777,7 @@ function move(game, playerId, {
       engagedTargetId: engagedTarget?.id ?? null,
     },
     redEvent,
+    drawn,
     featherVictory,
     winnerId: game.winnerId,
   };

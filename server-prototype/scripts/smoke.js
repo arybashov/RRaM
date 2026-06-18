@@ -148,6 +148,9 @@ check(
   'движение подтверждено сервером',
   a.lastSnapshot.game.characters.find(c => c.id === `${playerA}:K`)?.position === DRAW_CELL,
 );
+const movedK = a.lastSnapshot.game.characters.find(c => c.id === `${playerA}:K`);
+check('вход на точку добычи сразу добирает карту', movedK.cardCount === 4);
+check('автодобор уменьшил колоду (14-1=13)', a.lastSnapshot.game.deckCount === 13);
 
 // Один бросок на ход: перед вторым броском делаем полный круг ходов.
 a.send('turn:end', {});
@@ -165,15 +168,15 @@ check('режим split установлен', a.lastSnapshot.game.turn.mode ===
 const blacksmithA = `${playerA}:K`;
 a.send('action:draw', { characterId: blacksmithA, dieIndex: 0 });
 await a.waitFor('state:snapshot');
-// K стартует с 3 базовыми картами (чертёж + руда + бусы), после добора — 4
+// K стартует с 3 базовыми картами, 1 взял автодобором при входе на H014 и ещё 1 — ручным добором.
 const myK = a.lastSnapshot.game.characters.find((c) => c.id === blacksmithA);
-check('кузнец A добрал карту (3 базовых + 1 = 4)', myK.cardCount === 4 && Array.isArray(myK.inventory) && myK.inventory.length === 4);
-check('колода уменьшилась (14-1=13)', a.lastSnapshot.game.deckCount === 13);
+check('кузнец A добрал карту повторно в новом броске (3 базовых + 2 = 5)', myK.cardCount === 5 && Array.isArray(myK.inventory) && myK.inventory.length === 5);
+check('колода уменьшилась (14-2=12)', a.lastSnapshot.game.deckCount === 12);
 
 // --- Скрытие чужих карт (ждем тот же снимок у B) ---
 const bSnap = await snapshotAtLeast(b, a.lastSnapshot.revision);
 const bSeesA = bSnap.game.characters.find((c) => c.id === blacksmithA);
-check('B видит счетчик карт A (4)', bSeesA.cardCount === 4);
+check('B видит счетчик карт A (5)', bSeesA.cardCount === 5);
 check('B НЕ видит инвентарь A', bSeesA.inventory === undefined);
 const bSeesAHunter = bSnap.game.characters.find((c) => c.id === `${playerA}:O`);
 check(

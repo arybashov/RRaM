@@ -99,19 +99,16 @@ check('бот.isBot === true', bot?.isBot === true);
 check('бот на красной стороне', bot?.side === 'red');
 check('у бота нет sessionToken в снимке', !('sessionToken' in (bot ?? {})));
 
-// --- Ход игрока: бросок + добор одним кубиком + завершение ---
+// --- Ход игрока: бросок + вход на ресурс с автодобором + завершение ---
 a.send('turn:roll', {});
 await a.waitFor('state:snapshot');
 
 a.send('turn:setMode', { mode: 'split' });
 await a.waitFor('state:snapshot');
 
-// Кузнец стартует не на ресурсе — первым кубиком ведём его на соседнюю клетку
-// добычи H014, вторым берём карту (правило «добор только на ресурсе»).
+// Кузнец стартует не на ресурсе — ведём его на соседнюю клетку добычи H014.
+// По текущему правилу карта берётся сразу при входе на точку.
 a.send('action:move', { characterId: `${playerId}:K`, toCell: 'H014', dieIndex: 0 });
-await a.waitFor('state:snapshot');
-
-a.send('action:draw', { characterId: `${playerId}:K`, dieIndex: 1 });
 await a.waitFor('state:snapshot');
 check('кузнец добрал карту (3 базовых + 1 = 4)', a.lastSnapshot.game.characters.find(c => c.id === `${playerId}:K`)?.inventory?.length === 4);
 
