@@ -351,8 +351,7 @@ h2::after {
   display: flex;
 }
 
-.character-die,
-.character-dice-prompt {
+.character-die {
   display: grid;
   place-items: center;
   width: 44px;
@@ -394,13 +393,6 @@ h2::after {
   filter: grayscale(0.5) brightness(0.62);
   opacity: 0.7;
   cursor: default;
-}
-
-.character-dice-prompt {
-  min-width: 66px;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .character-dice-set {
@@ -1265,16 +1257,28 @@ h2::after {
 
 /* ---------- Inventory ---------- */
 .inventory {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  display: flex;
+  flex-direction: column;
   align-items: start;
   gap: 9px;
+  min-height: 0;
 }
 
-.inventory > .beast-info,
-.inventory > .craft-info,
-.inventory > .inventory-actions {
-  grid-column: 1 / -1;
+.inventory-cards-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  max-height: 168px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.inventory-cards-strip .card.card-face {
+  flex: 0 0 104px;
+  width: 104px;
 }
 
 /* Сводка боя со зверем — первым блоком над картами инвентаря */
