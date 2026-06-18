@@ -256,6 +256,59 @@ test('dead_ore — нельзя применять в бою', () => {
   );
 });
 
+test('use cards — самородок на террейне лечит и уходит в сброс', () => {
+  const g = freshGame();
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  warrior.hp = 80;
+  g.terrainCards.push({
+    id: 'terrain-gold',
+    ownerId: 'p1',
+    characterId: warrior.id,
+    cardIndex: 0,
+    cardId: 'gold_nugget',
+    faceDown: false,
+    x: 0,
+    y: 0,
+  });
+
+  const result = apply(g, 'p1', 'action:useGoldNugget', {
+    characterId: warrior.id,
+    terrainCardId: 'terrain-gold',
+  });
+
+  assert.equal(result.goldNuggetUsed.source, 'terrain');
+  assert.equal(warrior.hp, 100);
+  assert.equal(g.terrainCards.length, 0);
+  assert.ok(g.discard.includes('gold_nugget'));
+});
+
+test('use cards — неживая руда на террейне берёт карту и уходит в сброс', () => {
+  const g = freshGame();
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  g.decks.forest = ['bark'];
+  g.terrainCards.push({
+    id: 'terrain-dead-ore',
+    ownerId: 'p1',
+    characterId: warrior.id,
+    cardIndex: 0,
+    cardId: 'dead_ore',
+    faceDown: false,
+    x: 0,
+    y: 0,
+  });
+
+  const result = apply(g, 'p1', 'action:useDeadOre', {
+    characterId: warrior.id,
+    terrainCardId: 'terrain-dead-ore',
+    deck: 'forest',
+  });
+
+  assert.equal(result.deadOreUsed.source, 'terrain');
+  assert.ok(warrior.inventory.includes('bark'));
+  assert.equal(g.terrainCards.length, 0);
+  assert.ok(g.discard.includes('dead_ore'));
+});
+
 // ── Эффекты карт: Ковёр шамана (начало хода) ─────────────────────
 
 test('Ковёр шамана — восстанавливает +2 HP в начале хода', () => {
@@ -1849,6 +1902,35 @@ test('Озёрная лягушка — против игрока отключа
   assert.equal(attack.attacked.totalDamage, 7);
 });
 
+test('Озёрная лягушка — активная карта на террейне отключает оружие цели', () => {
+  const g = freshGame();
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  const enemySmith = g.characters.find(c => c.owner === 'p2' && c.role === 'K');
+  enemySmith.position = neighbors(shaman.position)[0];
+  enemySmith.inventory.push('irikon');
+  g.terrainCards.push({
+    id: 'terrain-frog',
+    ownerId: 'p1',
+    characterId: shaman.id,
+    cardIndex: 0,
+    cardId: 'lake_frog',
+    faceDown: false,
+    x: 0,
+    y: 0,
+  });
+
+  const cast = apply(g, 'p1', 'action:useLakeFrog', {
+    characterId: shaman.id,
+    terrainCardId: 'terrain-frog',
+    targetId: enemySmith.id,
+  });
+
+  assert.equal(cast.lakeFrogUsed.source, 'terrain');
+  assert.ok(enemySmith.frogSpell);
+  assert.equal(g.terrainCards.length, 0);
+  assert.ok(!g.discard.includes('lake_frog'));
+});
+
 test('Озёрная лягушка — бросок суммы 8+ снимает заклятие и возвращает карту Шаману', () => {
   const g = freshGame();
   const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
@@ -2457,6 +2539,51 @@ test('Марво трос — Обряд трёх наносит кубик ×10
   assert.ok(g.discard.includes('marvo'));
   assert.ok(!shaman.inventory.includes('marvo'));
   assert.deepEqual(g.turn.usedDice, [true, false]);
+});
+
+test('Марво трос — активная карта на террейне тоже запускает Обряд трёх', () => {
+  const g = freshGame();
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  const enemyWarrior = g.characters.find(c => c.owner === 'p2' && c.role === 'V');
+  const enemySmith = g.characters.find(c => c.owner === 'p2' && c.role === 'K');
+  enemyWarrior.position = neighbors(shaman.position)[0];
+  enemySmith.position = neighbors(shaman.position)[1];
+  g.terrainCards.push({
+    id: 'terrain-marvo',
+    ownerId: shaman.owner,
+    characterId: shaman.id,
+    cardIndex: 0,
+    cardId: 'marvo',
+    faceDown: false,
+    x: 0,
+    y: 0,
+  });
+  g.terrainCards.push({
+    id: 'weapon-for-terrain-marvo',
+    ownerId: shaman.owner,
+    characterId: shaman.id,
+    cardIndex: 1,
+    cardId: 'sword_sech',
+    faceDown: false,
+    x: 0,
+    y: 0,
+  });
+  g.turn.dice = [4, 2];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:useMarvo', {
+    characterId: shaman.id,
+    terrainCardId: 'terrain-marvo',
+    dieIndex: 0,
+  });
+
+  assert.equal(result.marvoUsed.source, 'terrain');
+  assert.equal(result.marvoUsed.damage, 40);
+  assert.equal(enemyWarrior.hp, 60);
+  assert.equal(enemySmith.hp, 60);
+  assert.ok(g.discard.includes('marvo'));
+  assert.deepEqual(g.terrainCards.map(card => card.id), ['weapon-for-terrain-marvo']);
 });
 
 test('Марво трос — без активного оружия на террейне не срабатывает', () => {

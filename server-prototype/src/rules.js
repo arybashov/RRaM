@@ -1194,11 +1194,11 @@ function processHide(game, playerId, { characterId, dieIndex, cardIndex } = {}) 
   };
 }
 
-function useGoldNugget(game, playerId, { characterId, cardIndex } = {}) {
+function useGoldNugget(game, playerId, { characterId, cardIndex, terrainCardId } = {}) {
   assertActive(game, playerId);
   const character = ownCharacter(game, playerId, characterId);
-  const idx = Number.isInteger(cardIndex) ? cardIndex : character.inventory.indexOf('gold_nugget');
-  if (idx < 0 || character.inventory[idx] !== 'gold_nugget') {
+  const source = findUsableCard(game, playerId, character, 'gold_nugget', { cardIndex, terrainCardId });
+  if (!source) {
     throw new Error('У персонажа нет малого золотого самородка для лечения.');
   }
   if (character.hp >= CHARACTER_HP) {
@@ -1206,12 +1206,13 @@ function useGoldNugget(game, playerId, { characterId, cardIndex } = {}) {
   }
   const before = character.hp;
   character.hp = Math.min(CHARACTER_HP, character.hp + 20);
-  const [cardId] = character.inventory.splice(idx, 1);
+  const cardId = spendUsableCard(game, character, source);
   game.discard.push(cardId);
   return {
     goldNuggetUsed: {
       characterId,
       cardId,
+      source: source.source,
       healed: character.hp - before,
       hp: character.hp,
       discarded: true,
@@ -1221,7 +1222,7 @@ function useGoldNugget(game, playerId, { characterId, cardIndex } = {}) {
 
 const DEAD_ORE_ALLOWED_DECKS = Object.freeze(['mixed', 'forest', 'dark_forest', 'sheep', 'lake']);
 
-function useDeadOre(game, playerId, { characterId, cardIndex, deck } = {}) {
+function useDeadOre(game, playerId, { characterId, cardIndex, terrainCardId, deck } = {}) {
   assertActive(game, playerId);
   const character = ownCharacter(game, playerId, characterId);
   if (combatOpponent(game, character)) {
@@ -1233,15 +1234,15 @@ function useDeadOre(game, playerId, { characterId, cardIndex, deck } = {}) {
   if (!DEAD_ORE_ALLOWED_DECKS.includes(deck)) {
     throw new Error('Этой рудой можно взять карту только из обычной колоды, кроме чертежей и рецептов.');
   }
-  const idx = Number.isInteger(cardIndex) ? cardIndex : character.inventory.indexOf('dead_ore');
-  if (idx < 0 || character.inventory[idx] !== 'dead_ore') {
+  const source = findUsableCard(game, playerId, character, 'dead_ore', { cardIndex, terrainCardId });
+  if (!source) {
     throw new Error('У персонажа нет неживой руды высокого качества.');
   }
   const pile = drawPileForDeck(game, deck);
   if (pile.length < 1) {
     throw new Error('Выбранная колода пуста.');
   }
-  const [spent] = character.inventory.splice(idx, 1);
+  const spent = spendUsableCard(game, character, source);
   game.discard.push(spent);
   const cardId = pile.shift();
   character.inventory.push(cardId);
@@ -1250,6 +1251,7 @@ function useDeadOre(game, playerId, { characterId, cardIndex, deck } = {}) {
     deadOreUsed: {
       characterId,
       spent,
+      source: source.source,
       deck,
       card: cardId,
       name: card?.name,
@@ -1258,19 +1260,19 @@ function useDeadOre(game, playerId, { characterId, cardIndex, deck } = {}) {
   };
 }
 
-function useLakeFrog(game, playerId, { characterId, cardIndex, targetId } = {}) {
+function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, targetId } = {}) {
   assertActive(game, playerId);
   const shaman = ownCharacter(game, playerId, characterId);
   if (shaman.role !== 'S') {
     throw new Error('Озёрную лягушку применяет только Шаман.');
   }
-  const idx = Number.isInteger(cardIndex) ? cardIndex : shaman.inventory.indexOf('lake_frog');
-  if (idx < 0 || shaman.inventory[idx] !== 'lake_frog') {
+  const source = findUsableCard(game, playerId, shaman, 'lake_frog', { cardIndex, terrainCardId });
+  if (!source) {
     throw new Error('У Шамана нет Озёрной лягушки.');
   }
 
   if (shaman.beastFight && (!targetId || targetId === shaman.id)) {
-    const [spent] = shaman.inventory.splice(idx, 1);
+    const spent = spendUsableCard(game, shaman, source);
     const beastId = shaman.beastFight.cardId;
     const beastCard = CARD_BY_ID[beastId];
     shaman.beastFight = null;
@@ -1284,6 +1286,7 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, targetId } = {}) 
         mode: 'beast',
         casterId: shaman.id,
         targetId: shaman.id,
+        source: source.source,
         beastId,
         beastName: beastCard?.name ?? beastId,
         hide,
@@ -1304,7 +1307,7 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, targetId } = {}) 
     throw new Error('На этом персонаже уже действует Озёрная лягушка.');
   }
 
-  const [spent] = shaman.inventory.splice(idx, 1);
+  const spent = spendUsableCard(game, shaman, source);
   target.frogSpell = {
     cardId: spent,
     casterId: shaman.id,
@@ -1317,6 +1320,7 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, targetId } = {}) 
       mode: 'player',
       casterId: shaman.id,
       targetId: target.id,
+      source: source.source,
       targetRole: target.role,
       name: target.frogSpell.name,
       dischargeTotal: target.frogSpell.dischargeTotal,
@@ -1368,7 +1372,7 @@ function releaseLakeFrogSpellsForRoll(game, playerId, dice) {
   return released.filter(Boolean);
 }
 
-function useMarvo(game, playerId, { characterId, cardIndex, dieIndex } = {}) {
+function useMarvo(game, playerId, { characterId, cardIndex, terrainCardId, dieIndex } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
   requireSplit(game);
@@ -1379,8 +1383,8 @@ function useMarvo(game, playerId, { characterId, cardIndex, dieIndex } = {}) {
   if (!shaman.position) {
     throw new Error('Шаман не на поле.');
   }
-  const idx = Number.isInteger(cardIndex) ? cardIndex : shaman.inventory.indexOf('marvo');
-  if (idx < 0 || shaman.inventory[idx] !== 'marvo') {
+  const source = findUsableCard(game, playerId, shaman, 'marvo', { cardIndex, terrainCardId });
+  if (!source) {
     throw new Error('У Шамана нет Марво троса.');
   }
   const activeWeapon = (game.terrainCards ?? []).find((card) =>
@@ -1404,7 +1408,7 @@ function useMarvo(game, playerId, { characterId, cardIndex, dieIndex } = {}) {
   const damage = value * 10;
   lockMovement(game);
   spendDie(game, dieIndex);
-  const [spent] = shaman.inventory.splice(idx, 1);
+  const spent = spendUsableCard(game, shaman, source);
   game.discard.push(spent);
 
   const hit = [];
@@ -1433,6 +1437,7 @@ function useMarvo(game, playerId, { characterId, cardIndex, dieIndex } = {}) {
       dieIndex,
       value,
       damage,
+      source: source.source,
       weaponCardId: activeWeapon.cardId,
       weaponName: CARD_BY_ID[activeWeapon.cardId]?.name ?? activeWeapon.cardId,
       targets: hit,
@@ -1440,6 +1445,39 @@ function useMarvo(game, playerId, { characterId, cardIndex, dieIndex } = {}) {
     },
     winnerId: game.winnerId,
   };
+}
+
+function findUsableCard(game, playerId, character, cardId, { cardIndex, terrainCardId } = {}) {
+  if (typeof terrainCardId === 'string') {
+    const terrainIndex = (game.terrainCards ?? []).findIndex((card) =>
+      card.id === terrainCardId
+      && card.ownerId === playerId
+      && card.characterId === character.id
+      && card.cardId === cardId
+      && !card.faceDown);
+    if (terrainIndex >= 0) return { source: 'terrain', terrainIndex };
+    return null;
+  }
+  const inventoryIndex = Number.isInteger(cardIndex) ? cardIndex : character.inventory.indexOf(cardId);
+  if (inventoryIndex >= 0 && character.inventory[inventoryIndex] === cardId) {
+    return { source: 'inventory', inventoryIndex };
+  }
+  const terrainIndex = (game.terrainCards ?? []).findIndex((card) =>
+    card.ownerId === playerId
+    && card.characterId === character.id
+    && card.cardId === cardId
+    && !card.faceDown);
+  if (terrainIndex >= 0) return { source: 'terrain', terrainIndex };
+  return null;
+}
+
+function spendUsableCard(game, character, source) {
+  if (source.source === 'terrain') {
+    const [card] = game.terrainCards.splice(source.terrainIndex, 1);
+    return card.cardId;
+  }
+  const [cardId] = character.inventory.splice(source.inventoryIndex, 1);
+  return cardId;
 }
 
 // Крафт базового изделия по чертежу/рецепту (CRAFT_RECIPES, строго по PnP).
