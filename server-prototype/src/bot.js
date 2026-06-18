@@ -163,13 +163,23 @@ function roleRotationBonus(role, game, botPlayerId, dieIndex) {
   return roleIndex === preferredIndex ? 5 : 0;
 }
 
+function diceFor(game, characterId) {
+  return game.turn.diceByCharacter?.[characterId] ?? game.turn.dice ?? null;
+}
+
+function usedDiceFor(game) {
+  return game.turn.usedDice ?? [false, false];
+}
+
 function collectDrawActions({ game, botPlayerId, dieIndex }) {
   if ((game.deck?.length ?? 0) === 0) return [];
   if (game.turn.drawnThisTurn) return []; // добор — раз за бросок
 
   return ownCharacters(game, botPlayerId)
     .filter((character) => character.inventory.length < INVENTORY_LIMIT
-      && !character.beastFight) // в схватке со зверем добор запрещён
+      && !character.beastFight
+      && diceFor(game, character.id)
+      && !usedDiceFor(game, character.id)[dieIndex]) // в схватке со зверем добор запрещён
     .map((character) => ({
       type: 'action:draw',
       payload: { characterId: character.id, dieIndex },
@@ -181,13 +191,12 @@ function collectDrawActions({ game, botPlayerId, dieIndex }) {
 }
 
 function collectTransferActions({ game, botPlayerId, dieIndex }) {
-  const dieValue = game.turn.dice?.[dieIndex];
-  if (!Number.isFinite(dieValue)) return [];
-
   const characters = ownCharacters(game, botPlayerId);
   const actions = [];
 
   for (const from of characters) {
+    const dieValue = diceFor(game, from.id)?.[dieIndex];
+    if (!Number.isFinite(dieValue) || usedDiceFor(game, from.id)[dieIndex]) continue;
     for (const to of characters) {
       if (from.id === to.id || from.inventory.length === 0) continue;
       const capacity = INVENTORY_LIMIT - to.inventory.length;
@@ -210,14 +219,13 @@ function collectTransferActions({ game, botPlayerId, dieIndex }) {
 }
 
 function collectAttackActions({ game, botPlayerId }) {
-  if (game.turn.usedDice?.some(Boolean)) return [];
-
-  const damage = (game.turn.dice ?? []).reduce((total, value) => total + value, 0);
-  if (!Number.isInteger(damage) || damage <= 0) return [];
-
   const actions = [];
   for (const attacker of ownCharacters(game, botPlayerId)) {
     if (attacker.hp <= 0 || !attacker.position) continue;
+    const used = usedDiceFor(game, attacker.id);
+    if (used.some(Boolean)) continue;
+    const damage = (diceFor(game, attacker.id) ?? []).reduce((total, value) => total + value, 0);
+    if (!Number.isInteger(damage) || damage <= 0) continue;
 
     for (const targetId of availableAttackTargets(
       game,
@@ -243,12 +251,11 @@ function collectAttackActions({ game, botPlayerId }) {
 }
 
 function collectMoveActions({ game, botPlayerId, dieIndex, state }) {
-  const dieValue = game.turn.dice?.[dieIndex];
-  if (!Number.isInteger(dieValue) || dieValue <= 0) return [];
-
   if (game.mapId) {
     const actions = [];
     for (const character of ownCharacters(game, botPlayerId)) {
+      const dieValue = diceFor(game, character.id)?.[dieIndex];
+      if (!Number.isInteger(dieValue) || dieValue <= 0 || usedDiceFor(game, character.id)[dieIndex]) continue;
       const enemyStarts = enemyIslandCells(character.side);
       const before = Math.min(
         ...enemyStarts.map((target) => shortestDistance(character.position, target)),
@@ -293,6 +300,8 @@ function collectMoveActions({ game, botPlayerId, dieIndex, state }) {
 
   const actions = [];
   for (const character of ownCharacters(game, botPlayerId)) {
+    const dieValue = diceFor(game, character.id)?.[dieIndex];
+    if (!Number.isInteger(dieValue) || dieValue <= 0 || usedDiceFor(game, character.id)[dieIndex]) continue;
     const fromId = positionId(character.position);
     if (!fromId || !cellIndex.has(fromId)) continue;
 
@@ -327,15 +336,19 @@ function collectMoveActions({ game, botPlayerId, dieIndex, state }) {
 
 // Схватка со зверем: бьём зверя доступным кубиком (режим split).
 function collectFightBeastActions({ game, botPlayerId, dieIndex }) {
-  const value = game.turn.dice?.[dieIndex];
-  if (!Number.isFinite(value)) return [];
-
   return ownCharacters(game, botPlayerId)
-    .filter((character) => character.beastFight && character.hp > 0 && character.position)
+    .filter((character) => {
+      const value = diceFor(game, character.id)?.[dieIndex];
+      return character.beastFight
+        && character.hp > 0
+        && character.position
+        && Number.isFinite(value)
+        && !usedDiceFor(game, character.id)[dieIndex];
+    })
     .map((character) => ({
       type: 'action:fightBeast',
       payload: { characterId: character.id, dieIndex },
-      facts: { character, value },
+      facts: { character, value: diceFor(game, character.id)[dieIndex] },
     }));
 }
 
@@ -433,8 +446,11 @@ export function rankBotActions(
   dieIndex,
   { state = game, goals = DEFAULT_GOALS } = {},
 ) {
-  if (!game?.turn?.dice || game.turn.usedDice?.[dieIndex]) return [];
   if (dieIndex !== 0 && dieIndex !== 1) return [];
+  const hasUsableDie = ownCharacters(game, botPlayerId).some((character) =>
+    diceFor(game, character.id)?.[dieIndex] != null
+    && !usedDiceFor(game, character.id)[dieIndex]);
+  if (!hasUsableDie) return [];
 
   const context = { game, state, botPlayerId, dieIndex };
   // Каждый генератор — в try/catch, чтобы одна осечка не сваливала весь список

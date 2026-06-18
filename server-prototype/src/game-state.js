@@ -360,6 +360,8 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
       rollsLeft: game.turn.rollsLeft,
       dice: game.turn.dice,
       usedDice: game.turn.usedDice,
+      diceByCharacter: game.turn.diceByCharacter ?? {},
+      usedDiceByCharacter: game.turn.usedDiceByCharacter ?? {},
       movementArea: game.turn.movementArea
         ? {
             characterId: game.turn.movementArea.characterId,
@@ -410,12 +412,15 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
 }
 
 function snapshotLegalTargets(game, forPlayerId) {
+  const previousDice = game.turn.dice;
+  const previousUsedDice = game.turn.usedDice;
+  const previousActiveDiceCharacterId = game.turn.activeDiceCharacterId;
   const empty = { moveSum: {}, dice: [{}, {}], attacks: {} };
   if (
     !forPlayerId
     || game.over
     || game.turn.activePlayerId !== forPlayerId
-    || !game.turn.dice
+    || !hasAnyTurnDice(game)
   ) {
     return empty;
   }
@@ -423,6 +428,7 @@ function snapshotLegalTargets(game, forPlayerId) {
   const characters = game.characters.filter((character) =>
     character.owner === forPlayerId && character.hp > 0 && character.position);
   for (const character of characters) {
+    bindSnapshotDice(game, character.id);
     empty.attacks[character.id] = rules.availableAttackTargets(
       game,
       forPlayerId,
@@ -431,6 +437,7 @@ function snapshotLegalTargets(game, forPlayerId) {
   }
   if (game.turn.mode === 'moveSum') {
     for (const character of characters) {
+      bindSnapshotDice(game, character.id);
       empty.moveSum[character.id] = rules
         .availableMoveTargets(game, forPlayerId, character.id)
         .map((target) => target.cellId);
@@ -440,8 +447,9 @@ function snapshotLegalTargets(game, forPlayerId) {
     for (const dieIndex of [0, 1]) {
       const movementDie = game.turn.movementArea?.mode === 'split'
         && game.turn.movementArea.dieIndex === dieIndex;
-      if (game.turn.usedDice[dieIndex] && !movementDie) continue;
       for (const character of characters) {
+        bindSnapshotDice(game, character.id);
+        if (game.turn.usedDice[dieIndex] && !movementDie) continue;
         empty.dice[dieIndex][character.id] = rules
           .availableMoveTargets(game, forPlayerId, character.id, dieIndex)
           .map((target) => target.cellId);
@@ -453,14 +461,44 @@ function snapshotLegalTargets(game, forPlayerId) {
     // дотягивается ли ресурс ОДНИМ кубиком (подсветка «Взять»). На отрисовку
     // ходов не влияет — в moveSum клиент рисует цели из legalTargets.moveSum.
     for (const dieIndex of [0, 1]) {
-      if (game.turn.usedDice[dieIndex]) continue;
       for (const character of characters) {
+        bindSnapshotDice(game, character.id);
+        if (game.turn.usedDice[dieIndex]) continue;
         empty.dice[dieIndex][character.id] = rules
           .singleDieTargets(game, forPlayerId, character.id, dieIndex);
       }
     }
   }
+  game.turn.dice = previousDice;
+  game.turn.usedDice = previousUsedDice;
+  game.turn.activeDiceCharacterId = previousActiveDiceCharacterId;
   return empty;
+}
+
+function hasAnyTurnDice(game) {
+  return Boolean(
+    game.turn.dice
+    || Object.keys(game.turn.diceByCharacter ?? {}).length > 0,
+  );
+}
+
+function bindSnapshotDice(game, characterId) {
+  syncExternalSnapshotDice(game);
+  const dice = game.turn.diceByCharacter?.[characterId];
+  if (!dice) return;
+  game.turn.dice = dice;
+  game.turn.activeDiceCharacterId = characterId;
+}
+
+function syncExternalSnapshotDice(game) {
+  const activeId = game?.turn?.activeDiceCharacterId;
+  if (!activeId) return;
+  const diceMap = game.turn.diceByCharacter ?? {};
+  if (game.turn.dice && diceMap[activeId] && game.turn.dice !== diceMap[activeId]) {
+    for (const characterId of Object.keys(diceMap)) {
+      diceMap[characterId] = [...game.turn.dice];
+    }
+  }
 }
 
 function makePlayer({ playerName, connectionId, seatIndex }) {

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>RRaM</title>
-    <link rel="stylesheet" href="./styles.css?v=20260618-15" />
+    <link rel="stylesheet" href="./styles.css?v=20260619-4" />
   </head>
   <body>
     <main class="app">
@@ -24,6 +24,7 @@
           <button class="die" id="die1" data-die="0">–</button>
           <button class="die" id="die2" data-die="1">–</button>
         </div>
+        <div id="characterDice" class="character-dice" aria-label="Кубики хода"></div>
         <nav id="characters" class="character-nav" aria-label="Мои персонажи"></nav>
         <nav class="action-rail" aria-label="Действия">
           <button class="mode active action-art-btn" data-mode="moveSum" aria-label="Движение" title="Движение">
@@ -38,8 +39,8 @@
           <button class="mode action-art-btn" data-mode="teleport" aria-label="Телепорт" title="Телепорт">
             <img src="./assets/ui/action-icons/teleport-v1.png" alt="" draggable="false" />
           </button>
-          <button id="endTurnBtn" class="action-art-btn end-turn-art-btn" aria-label="Конец хода" title="Конец хода">
-            <img src="./assets/ui/action-icons/end-turn-v1.png" alt="" draggable="false" />
+          <button id="endTurnBtn" class="action-art-btn end-turn-art-btn" aria-label="Бросить кубики / конец хода" title="Бросить кубики / конец хода">
+            <img src="./assets/ui/action-icons/roll-end-turn-v6.png" alt="" draggable="false" />
           </button>
         </nav>
         <div class="board-controls">
@@ -49,23 +50,17 @@
       </section>
 
       <!-- Шторка: инвентарь + журнал (сворачиваемая) -->
-      <section class="sheet" id="sheet" aria-label="Инвентарь и журнал">
+      <section class="sheet" id="sheet" aria-label="Инвентарь">
         <button class="sheet-handle" id="sheetHandle" aria-expanded="false">
-          <span class="sheet-handle-arrow">▲</span> Журнал · Инвентарь
+          <span class="sheet-handle-arrow">▲</span> Инвентарь
         </button>
         <div class="sheet-body">
           <h2 id="inventoryTitle">Персонаж</h2>
           <div id="inventory" class="inventory empty">Выберите персонажа.</div>
-          <h2>Журнал</h2>
-          <div class="chat-input-row sheet-chat">
-            <input id="gameChatInput" type="text" placeholder="Сообщение сопернику…" maxlength="200" autocomplete="off" />
-            <button id="gameChatSend" aria-label="Отправить">➤</button>
-          </div>
-          <div id="log" class="log" aria-live="polite"></div>
         </div>
       </section>
     </main>
 
-    <script src="./game.js?v=20260618-15"></script>
+    <script src="./game.js?v=20260619-4"></script>
   </body>
 </html>

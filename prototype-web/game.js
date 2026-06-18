@@ -380,6 +380,11 @@ function featherMarkerUrl() {
   return `./assets/ui/feather-marker-v2.png?v=${APP_VERSION}`;
 }
 
+function cubeFaceArt(value) {
+  const face = Math.max(1, Math.min(6, Number(value) || 1));
+  return `./assets/cube/cube_${face - 1}.png?v=${APP_VERSION}`;
+}
+
 // Клиентский режим → серверный режим (для setMode)
 const TO_SERVER_MODE = {
   moveSum:  'moveSum',
@@ -438,6 +443,7 @@ let panStart = null, pinchStart = null;
 // ── DOM ───────────────────────────────────────────────────────────
 const boardEl        = document.querySelector('#board');
 const charactersEl   = document.querySelector('#characters');
+const characterDiceEl = document.querySelector('#characterDice');
 const inventoryEl    = document.querySelector('#inventory');
 const inventoryTitleEl = document.querySelector('#inventoryTitle');
 const logEl          = document.querySelector('#log');
@@ -474,7 +480,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-15'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260619-4'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
 const SINGLE_TAB_LOCK_TTL_MS = 15000;
 const SINGLE_TAB_HEARTBEAT_MS = 2000;
@@ -860,7 +866,7 @@ function handleMsg({ type, payload }) {
 
       // Сброс локального трекинга кубиков при смене состояния
       const newDice = serverRoom?.game?.turn?.dice;
-      if (!newDice || prevDice?.[0] !== newDice[0] || prevDice?.[1] !== newDice[1]) {
+      if (!turnHasAnyDice(serverRoom?.game?.turn) || prevDice?.[0] !== newDice?.[0] || prevDice?.[1] !== newDice?.[1]) {
         localUsedDice = [false, false];
       }
 
@@ -891,12 +897,13 @@ function handleMsg({ type, payload }) {
         const nextSelectable = getMyChars().find(c => c.hp > 0 && characterPosition(c));
         selectedCharId = nextSelectable?.id ?? null;
       }
-      const allDiceSpent = g?.turn.usedDice?.every(Boolean);
-      if (g && isMyTurn() && g.turn.dice && !allDiceSpent && !g.turn.mode && !autoModeSent) {
+      const selForMode = getSelChar();
+      const allDiceSpent = getUsedDice(selForMode?.id).every(Boolean);
+      if (g && isMyTurn() && getDice(selForMode?.id) && !allDiceSpent && !g.turn.mode && !autoModeSent) {
         const sm = TO_SERVER_MODE[localMode];
         if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
       }
-      if (!g?.turn.dice || prevActive !== g.turn.activePlayerId) {
+      if (!hasAnyDice() || prevActive !== g.turn.activePlayerId) {
         autoModeSent = false;
         localMode = 'moveSum';
         selectedDieIdx = 0;
@@ -947,7 +954,23 @@ function handleMsg({ type, payload }) {
 
 const getGame     = () => serverRoom?.game ?? null;
 const isMyTurn    = () => getGame()?.turn.activePlayerId === myPlayerId;
-const getDice     = () => getGame()?.turn.dice ?? null;
+const getDice     = (characterId = selectedCharId) => {
+  const turn = getGame()?.turn;
+  if (!turn) return null;
+  return turn.diceByCharacter?.[characterId] ?? turn.dice ?? null;
+};
+const getUsedDice = () => {
+  const turn = getGame()?.turn;
+  if (!turn) return [false, false];
+  return turn.usedDice ?? [false, false];
+};
+const turnHasAnyDice = (turn) => Boolean(
+  turn?.dice || Object.keys(turn?.diceByCharacter ?? {}).length > 0,
+);
+const hasAnyDice = () => {
+  const turn = getGame()?.turn;
+  return turnHasAnyDice(turn);
+};
 const getServMode = () => getGame()?.turn.mode ?? null;
 
 function getMyChars() {
@@ -988,13 +1011,57 @@ function syncTerrainCards() {
 function selectCharacter(charId) {
   const char = getGame()?.characters.find(c => c.id === charId);
   if (!char || char.owner !== myPlayerId) return;
+  const area = getGame()?.turn.movementArea;
+  if (
+    isMyTurn()
+    && area
+    && !area.locked
+    && area.characterId
+    && area.characterId !== char.id
+  ) {
+    wsSend('turn:resetMove', { characterId: area.characterId });
+  }
   selectedCharId = char.id;
+  render();
+}
+
+function selectCharacterDie(characterId, dieIndex) {
+  const char = getGame()?.characters.find(c => c.id === characterId);
+  if (!char || char.owner !== myPlayerId) return;
+  if (!isMyTurn()) return;
+  const dice = getDice(char.id);
+  if (!dice) return;
+  const used = getUsedDice();
+  const area = getGame()?.turn.movementArea;
+
+  if (area && !area.locked) {
+    if (area.characterId !== char.id) {
+      selectCharacter(char.id);
+      selectedDieIdx = dieIndex;
+      localMode = 'moveDie';
+      return;
+    }
+    const activeDie = area.mode === 'split' ? area.dieIndex : null;
+    if (area.mode === 'moveSum' || dieIndex === activeDie || used[dieIndex]) {
+      wsSend('turn:resetMove', { characterId: area.characterId });
+      return;
+    }
+  }
+
+  selectedCharId = char.id;
+  selectedDieIdx = dieIndex;
+  if (used[dieIndex]) {
+    render();
+    return;
+  }
+  setLocalMode('moveDie');
+  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
   render();
 }
 
 function getSelDieVal() {
   const dice = getDice(); if (!dice) return null;
-  const used = getGame().turn.usedDice;
+  const used = getUsedDice();
   return used[selectedDieIdx] ? null : dice[selectedDieIdx];
 }
 
@@ -1053,14 +1120,17 @@ function plannedResourceDraw(preferred = getSelChar()) {
   // Работает в любом режиме (в т.ч. moveSum) — сервер теперь отдаёт одиночную
   // дальность по каждому кубику. Считаем план «дойти одним кубиком до ресурса,
   // взять карту вторым» именно по ОДИНОЧНОЙ дальности, а не по сумме.
-  if (!g?.turn.dice || g.turn.drawnThisTurn) return null;
+  if (!hasAnyDice() || g.turn.drawnThisTurn) return null;
   if (g.turn.movementArea) return null;
   const chars = preferred ? [preferred] : getMyChars();
   for (const char of chars) {
     if (!char || char.owner !== myPlayerId || char.hp <= 0) continue;
+    const dice = getDice(char.id);
+    const used = getUsedDice(char.id);
+    if (!dice) continue;
     for (const moveDieIndex of [0, 1]) {
       const drawDieIndex = moveDieIndex === 0 ? 1 : 0;
-      if (g.turn.usedDice[moveDieIndex] || g.turn.usedDice[drawDieIndex]) continue;
+      if (used[moveDieIndex] || used[drawDieIndex]) continue;
       const targets = g.legalTargets?.dice?.[moveDieIndex]?.[char.id] ?? [];
       const resourceCell = targets.find(isResourceCell);
       if (resourceCell) return { character: char, moveDieIndex, drawDieIndex, cellId: resourceCell };
@@ -1073,10 +1143,10 @@ function hasDrawOpportunity(preferred = getSelChar()) {
   return canDrawWithCharacter(getDrawCharacter(preferred)) || Boolean(plannedResourceDraw(preferred));
 }
 
-function drawDieIndex() {
+function drawDieIndex(characterId = selectedCharId) {
   const g = getGame();
-  if (!g?.turn.dice) return null;
-  const used = g.turn.usedDice;
+  if (!getDice(characterId)) return null;
+  const used = getUsedDice(characterId);
   const area = g.turn.movementArea;
   if (area && !area.locked) {
     if (area.mode === 'split') {
@@ -1793,7 +1863,7 @@ dieButtons.forEach((btn, i) => {
     if (!isMyTurn()) return;
     const g = getGame();
     const area = g.turn.movementArea;
-    const used = g.turn.usedDice;
+    const used = getUsedDice(g.turn.movementArea?.characterId ?? selectedCharId);
 
     // Есть незавершённое движение → клик по кубику работает как откат / смена ноги.
     if (area && !area.locked) {
@@ -1827,6 +1897,17 @@ dieButtons.forEach((btn, i) => {
   });
 });
 
+characterDiceEl?.addEventListener('click', (event) => {
+  const dieEl = event.target.closest('.character-die');
+  if (!dieEl || !characterDiceEl.contains(dieEl)) return;
+  event.stopPropagation();
+  const setEl = dieEl.closest('.character-dice-set');
+  const characterId = setEl?.dataset.characterId;
+  const dieIndex = Number(dieEl.dataset.dieIndex);
+  if (!characterId || !Number.isInteger(dieIndex)) return;
+  selectCharacterDie(characterId, dieIndex);
+});
+
 document.querySelectorAll('.mode').forEach(btn => {
   btn.addEventListener('click', () => {
     const mode = btn.dataset.mode;
@@ -1846,7 +1927,24 @@ document.querySelectorAll('.mode').forEach(btn => {
   });
 });
 
-endTurnBtn.addEventListener('click', () => wsSend('turn:end'));
+endTurnBtn.addEventListener('click', () => {
+  const g = getGame();
+  if (canRollTurnDice(g)) {
+    wsSend('turn:roll');
+    return;
+  }
+  if (g && isMyTurn()) wsSend('turn:end');
+});
+
+function canRollTurnDice(g = getGame()) {
+  return Boolean(
+    g
+    && isMyTurn()
+    && !hasAnyDice()
+    && !g.turn.hasRolled
+    && (g.turn.rollsLeft[myPlayerId] ?? 0) > 0,
+  );
+}
 
 function setLocalMode(mode) {
   if (getGame()?.turn.movementArea) return;
@@ -1856,9 +1954,10 @@ function setLocalMode(mode) {
   });
 
   const game = getGame();
-  if (!game?.turn.dice || !isMyTurn()) return;
-  if (game.turn.usedDice[0] && game.turn.usedDice[1]) return;
-  if (mode !== 'attack' && (game.turn.usedDice[0] || game.turn.usedDice[1])) return;
+  const used = getUsedDice();
+  if (!getDice() || !isMyTurn()) return;
+  if (used[0] && used[1]) return;
+  if (mode !== 'attack' && (used[0] || used[1])) return;
 
   const serverMode = TO_SERVER_MODE[mode];
   if (serverMode && getServMode() !== serverMode) {
@@ -1921,7 +2020,7 @@ function fightBeast() {
   const hasRam = char?.inventory?.some(card => card.id === 'sheep_ram');
   if (!char || (!char.beastFight && !hasRam)) return;
 
-  const used = getGame().turn.usedDice;
+  const used = getUsedDice(char.id);
   const dieIndex = used[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
   if (used[dieIndex]) { addLog('Оба кубика потрачены.', { type: 'err' }); render(); return; }
 
@@ -1968,7 +2067,7 @@ function handleCellClick(targetId) {
     }
     if (usesServerPositions()) {
       teleportedChars.add(char.id); // не анимировать шагами — это прыжок
-      const used = getGame().turn.usedDice;
+      const used = getUsedDice(char.id);
       const dieIndex = used[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
       if (used[dieIndex]) return;
       if (getServMode() !== 'split') {
@@ -2020,7 +2119,7 @@ function handleCellClick(targetId) {
 
 function getMoveDistance() {
   const dice = getDice(); if (!dice) return 0;
-  const srv  = getGame().turn.usedDice;
+  const srv  = getUsedDice();
   const used = [srv[0] || localUsedDice[0], srv[1] || localUsedDice[1]];
   if (localMode === 'moveSum') return (used[0] || used[1]) ? 0 : dice[0] + dice[1];
   if (used[selectedDieIdx]) return 0;
@@ -2035,7 +2134,7 @@ function getMoveDistance() {
 // и показать клетки хода сразу, без лишнего клика по кубику.
 function syncDieSelection() {
   const g = getGame();
-  if (!g?.turn.dice) return;
+  if (!getDice()) return;
   if (g.turn.movementArea) {
     const area = g.turn.movementArea;
     localMode = area.mode === 'moveSum' ? 'moveSum' : 'moveDie';
@@ -2043,13 +2142,14 @@ function syncDieSelection() {
       // Если игрок выбрал ДРУГОЙ свободный кубик (превью второй ноги) — уважаем
       // выбор; иначе держим выделение на активной ноге.
       const other = 1 - area.dieIndex;
-      if (!(selectedDieIdx === other && !g.turn.usedDice[other] && !area.locked)) {
+      const used = getUsedDice(area.characterId);
+      if (!(selectedDieIdx === other && !used[other] && !area.locked)) {
         selectedDieIdx = area.dieIndex;
       }
     }
     return;
   }
-  const used = g.turn.usedDice;
+  const used = getUsedDice();
   if (used[selectedDieIdx] && !used[1 - selectedDieIdx]) {
     selectedDieIdx = 1 - selectedDieIdx;
     if (localMode === 'moveSum') localMode = 'moveDie';
@@ -2096,6 +2196,7 @@ const drawModeBtn     = document.querySelector('.mode[data-mode="draw"]');
 function renderDice() {
   const g = getGame();
   if (!g) {
+    renderCharacterDice(false);
     dieButtons.forEach(b => { b.textContent = '–'; b.disabled = true; b.className = 'die'; });
     if (transferModeBtn) transferModeBtn.disabled = true;
     if (drawModeBtn) drawModeBtn.disabled = true;
@@ -2104,16 +2205,17 @@ function renderDice() {
   }
   const myTurn  = isMyTurn();
   const dice    = getDice();
-  const used    = g.turn.usedDice;
+  const used    = getUsedDice();
   const sel     = getSelChar();
   const movementArea = g.turn.movementArea;
   const effectiveUsed = movementArea && movementArea.mode === 'moveSum' && !movementArea.locked
     ? [false, false]
     : used;
   const canRoll = myTurn
-    && !dice
+    && !hasAnyDice()
     && !g.turn.hasRolled
     && (g.turn.rollsLeft[myPlayerId] ?? 0) > 0;
+  renderCharacterDice(canRoll);
 
   // Пока движение не зафиксировано — потраченные кубики остаются кликабельны
   // (клик по ним = откат ноги к старту). После жёсткого коммита — недоступны.
@@ -2133,13 +2235,21 @@ function renderDice() {
   });
 
   // Кубики потрачены, бросать больше нельзя — подсветить «Конец хода»
-  const allSpent = Boolean(dice) && used.every(Boolean);
+  const activeChars = getMyChars().filter(c => c.hp > 0 && characterPosition(c));
+  const allSpent = hasAnyDice() && activeChars.every(c => {
+    const charDice = getDice(c.id);
+    const charUsed = getUsedDice(c.id);
+    return !charDice || charUsed.every(Boolean);
+  });
   endTurnBtn.classList.toggle('attention', myTurn && allSpent && g.turn.hasRolled);
+  endTurnBtn.classList.toggle('roll-ready', canRoll);
+  endTurnBtn.title = canRoll ? 'Бросить кубики' : 'Конец хода';
+  endTurnBtn.setAttribute('aria-label', endTurnBtn.title);
 
   // «Передать» открывает «ящик» — теперь всегда доступно для просмотра карт команды
   if (transferModeBtn) {
     transferModeBtn.disabled = false;
-    const canTrans = myTurn && (dice || transferRemaining() > 0);
+    const canTrans = myTurn && (hasAnyDice() || transferRemaining() > 0);
     transferModeBtn.title = canTrans ? 'Передача карт между персонажами' : 'Просмотр карт команды (передача недоступна)';
   }
   // «Карта» — кнопка всегда активна; проверку и причину отказа показываем по
@@ -2176,6 +2286,36 @@ function renderDice() {
       : 'Телепорт: выберите персонажа, бросьте кубики и укажите точку';
   }
 
+}
+
+function renderCharacterDice(canRoll) {
+  if (!characterDiceEl) return;
+  if (!getGame()) {
+    characterDiceEl.innerHTML = '';
+    characterDiceEl.classList.remove('visible');
+    return;
+  }
+  if (!hasAnyDice()) {
+    characterDiceEl.innerHTML = canRoll
+      ? '<span class="character-dice-prompt">Бросок</span>'
+      : '';
+    characterDiceEl.classList.toggle('visible', Boolean(canRoll));
+    return;
+  }
+  characterDiceEl.innerHTML = getMyChars().map((char) => {
+    const dice = getDice(char.id);
+    const used = getUsedDice(char.id);
+    if (!dice) return '<span class="character-dice-set empty"></span>';
+    const selected = char.id === selectedCharId;
+    return `<span class="character-dice-set${selected ? ' active' : ''}" data-character-id="${char.id}">`
+      + dice.map((value, index) => (
+        `<span class="character-die${used?.[index] ? ' used' : ''}${selected && selectedDieIdx === index ? ' selected' : ''}" data-die-index="${index}" title="Кубик ${index + 1}: ${value}" aria-label="Кубик ${index + 1}: ${value}" role="button">`
+          + `<img class="character-die-art" src="${cubeFaceArt(value)}" alt="" draggable="false" />`
+        + `</span>`
+      )).join('')
+      + '</span>';
+  }).join('');
+  characterDiceEl.classList.add('visible');
 }
 
 function renderBoard() {
@@ -2287,10 +2427,6 @@ function renderBoard() {
         }
         if (attacker.combatOpponentId && attacker.combatOpponentId !== char.id) {
           showActionWarning('Выбранный персонаж уже сражается с другим противником.');
-          return;
-        }
-        if (char.combatOpponentId && char.combatOpponentId !== attacker.id) {
-          showActionWarning('Этот противник уже участвует в другом бою.');
           return;
         }
         if (isAttackable && attacker) {
@@ -2499,7 +2635,7 @@ function renderInventory() {
   // Обработка шкуры: шаман с «Шкурой убитого зверя» делает из неё очищенную
   // (бросок кубика ≥2). Нужен свободный кубик в свой ход.
   const dice = getDice();
-  const used = getGame()?.turn.usedDice ?? [true, true];
+  const used = getUsedDice(char.id);
   const hasFreeDie = Boolean(dice) && (!used[0] || !used[1]);
   const hasRam = !bf && inv.some(card => card.id === 'sheep_ram');
   const actionRows = [];
@@ -2679,7 +2815,7 @@ function renderInventory() {
     : (beastInfo || 'Инвентарь пуст.');
   inventoryEl.querySelectorAll('.craft-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation(); // не раскрывать карту под кнопкой
-    const u = getGame().turn.usedDice;
+    const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     wsSend('action:craft', {
       characterId: char.id,
@@ -2689,7 +2825,7 @@ function renderInventory() {
   }));
   inventoryEl.querySelectorAll('.process-hide-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation();
-    const u = getGame().turn.usedDice;
+    const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     if (u[dieIndex]) { addLog('Нет свободного кубика для обработки.', { type: 'err' }); return; }
     if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
@@ -2728,7 +2864,7 @@ function renderInventory() {
   }));
   inventoryEl.querySelectorAll('.use-marvo-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation();
-    const u = getGame().turn.usedDice;
+    const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     if (u[dieIndex]) { addLog('Нет свободного кубика для Обряда трёх.', { type: 'err' }); return; }
     if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
@@ -2739,7 +2875,7 @@ function renderInventory() {
   }));
   inventoryEl.querySelectorAll('.recharge-teleport-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation();
-    const u = getGame().turn.usedDice;
+    const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     if (u[dieIndex]) { addLog('Нет свободного кубика для перезарядки Бус телепортации.', { type: 'err' }); return; }
     if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
@@ -2751,7 +2887,7 @@ function renderInventory() {
   }));
   inventoryEl.querySelectorAll('.discharge-dot-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation();
-    const u = getGame().turn.usedDice;
+    const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     if (u[dieIndex]) { addLog('Нет свободного кубика, чтобы стряхнуть ловушку.', { type: 'err' }); return; }
     if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
@@ -3110,8 +3246,11 @@ function transferRemaining() {
 }
 
 function hasFreeDie() {
-  const g = getGame();
-  return Boolean(g?.turn.dice && !(g.turn.usedDice[0] && g.turn.usedDice[1]));
+  return getMyChars().some((char) => {
+    const dice = getDice(char.id);
+    const used = getUsedDice(char.id);
+    return Boolean(dice && !(used[0] && used[1]));
+  });
 }
 
 function canTransferNow() {
@@ -3319,7 +3458,7 @@ function attemptCardTransfer(fromId, toId, cardIndex) {
     return;
   }
   // Первый перенос за ход — тратим свободный кубик, его значение задаёт бюджет
-  const used = getGame().turn.usedDice;
+  const used = getUsedDice(fromId);
   const dieIndex = used[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
   if (used[dieIndex]) { addLog('Нет свободного кубика для передачи.', { type: 'err' }); renderCardBox(); return; }
   if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
@@ -3664,7 +3803,8 @@ function pathDistance(from, to, blocked) {
 // Предпочитаем один кубик (второй останется на действия), иначе сумму обоих.
 function planApproach(sel, enemy) {
   const g = getGame();
-  if (!g?.turn.dice) return null;
+  const dice = getDice(sel?.id);
+  if (!dice) return null;
   const from = characterPosition(sel);
   const enemyPos = characterPosition(enemy);
   if (!from || !enemyPos) return null;
@@ -3680,7 +3820,7 @@ function planApproach(sel, enemy) {
     if (Number.isFinite(d) && (!best || d < best.steps)) best = { cell, steps: d };
   }
   if (!best) return null;
-  const { dice, usedDice } = g.turn;
+  const usedDice = getUsedDice(sel.id);
   for (const i of [selectedDieIdx, 1 - selectedDieIdx]) {
     if (usedDice[i]) continue;
     if (best.steps <= dice[i]) {
@@ -3711,6 +3851,7 @@ function planApproach(sel, enemy) {
 
 
 function renderLog() {
+  if (!logEl) return;
   logEl.innerHTML = eventLog.map(e => {
     const cls = e.type ? ` log-${e.type}` : '';
     return `<div class="log-entry${cls}">${e.msg ?? e}</div>`;
@@ -4662,7 +4803,7 @@ function diffAndLog(prevRoom, nextRoom) {
       const prefix = char.owner === myPlayerId ? '' : `${owner?.name ?? 'Противник'}: `;
       // Урон в момент броска — это пассивы начала хода вроде укуса зверя.
       // Помечаем источник, иначе выглядит как «HP убыло само».
-      const rolledNow = !prevG.turn.dice && nextG.turn.dice;
+      const rolledNow = !turnHasAnyDice(prevG.turn) && turnHasAnyDice(nextG.turn);
       if (rolledNow && char.owner === myPlayerId && char.beastFight) {
         addLog(`🐗 ${escapeHtml(char.beastFight.name)} кусает: ${ROLE_NAMES[char.role]} теряет ${damage} HP. HP: ${char.hp}.`, { type: 'my' });
       } else {
@@ -4728,8 +4869,12 @@ function diffAndLog(prevRoom, nextRoom) {
   // Действия противника в его ход
   if (nextActive !== myPlayerId) {
     // Бросок кубиков
-    if (!prevG.turn.dice && nextG.turn.dice) {
-      addLog(`${oppName} бросил [${nextG.turn.dice[0]}, ${nextG.turn.dice[1]}].`, { type: 'opp' });
+    if (!turnHasAnyDice(prevG.turn) && turnHasAnyDice(nextG.turn)) {
+      const firstDice = Object.values(nextG.turn.diceByCharacter ?? {})[0] ?? nextG.turn.dice;
+      addLog(firstDice
+        ? `${oppName} бросил кубики персонажей. Первый бросок: [${firstDice[0]}, ${firstDice[1]}].`
+        : `${oppName} бросил кубики персонажей.`,
+        { type: 'opp' });
     }
     // Изменения инвентаря (добор / передача)
     for (const char of nextG.characters.filter(c => c.owner === oppId)) {

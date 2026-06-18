@@ -91,6 +91,8 @@ export function createGame(players) {
       rollsLeft,
       dice: null,
       usedDice: [false, false],
+      diceByCharacter: {},
+      usedDiceByCharacter: {},
       movementArea: null, // { characterId, origin, mode, dieIndex, maxSteps }
       mode: null, // 'moveSum' | 'split'
       hasRolled: false,
@@ -102,6 +104,7 @@ export function createGame(players) {
 }
 
 export function apply(game, playerId, type, payload = {}) {
+  bindPayloadDice(game, payload);
   switch (type) {
     case 'turn:roll':
       return roll(game, playerId);
@@ -178,7 +181,7 @@ function debugGrantCard(game, playerId, { characterId, cardId } = {}) {
 
 function roll(game, playerId) {
   assertActive(game, playerId);
-  if (game.turn.dice) {
+  if (hasRolledDice(game)) {
     throw new Error('Кубики уже брошены — потратьте их или завершите ход.');
   }
   if (game.turn.hasRolled) {
@@ -190,9 +193,20 @@ function roll(game, playerId) {
 
   applyTurnStartEffects(game, playerId);
 
-  const dice = [rollDie(), rollDie()];
+  const activeCharacters = game.characters.filter((character) =>
+    character.owner === playerId
+    && character.hp > 0
+    && character.position);
+  const diceByCharacter = Object.fromEntries(
+    activeCharacters.map((character) => [character.id, [rollDie(), rollDie()]]),
+  );
+  game.turn.diceByCharacter = diceByCharacter;
+  game.turn.usedDiceByCharacter = {};
+  const firstCharacter = activeCharacters[0];
+  const dice = firstCharacter ? diceByCharacter[firstCharacter.id] : [rollDie(), rollDie()];
   game.turn.dice = dice;
   game.turn.usedDice = [false, false];
+  game.turn.activeDiceCharacterId = firstCharacter?.id ?? null;
   game.turn.movementArea = null;
   game.turn.mode = null;
   game.turn.hasRolled = true;
@@ -205,7 +219,7 @@ function roll(game, playerId) {
   const lakeFrogReleased = releaseLakeFrogSpellsForRoll(game, playerId, dice);
 
   return {
-    roll: { dice, total: dice[0] + dice[1], rollsLeft: game.turn.rollsLeft[playerId], lakeFrogReleased },
+    roll: { dice, diceByCharacter, total: dice[0] + dice[1], rollsLeft: game.turn.rollsLeft[playerId], lakeFrogReleased },
   };
 }
 
@@ -247,7 +261,7 @@ function resetMove(game, playerId, { characterId } = {}) {
 
   character.position = area.origin;
   if (area.mode === 'moveSum') {
-    game.turn.usedDice = [false, false];
+    setCurrentUsedDice(game, [false, false]);
     game.turn.movementArea = null;
     game.turn.movedCharacterId = null;
   } else {
@@ -634,7 +648,6 @@ function move(game, playerId, {
   let engagedTarget = null;
   if (engageTargetId) {
     engagedTarget = game.characters.find((item) => item.id === engageTargetId);
-    const targetOpponent = combatOpponent(game, engagedTarget);
     if (
       escapedCombat
       || escapedBeast
@@ -643,7 +656,6 @@ function move(game, playerId, {
       || engagedTarget.hp <= 0
       || !engagedTarget.position
       || engagedTarget.beastFight
-      || targetOpponent
       || !neighbors(toCell).includes(engagedTarget.position)
     ) {
       throw new Error('Не удалось вступить в бой с выбранным противником.');
@@ -709,7 +721,7 @@ function move(game, playerId, {
         prev: null,
       };
       character.position = toCell;
-      game.turn.usedDice = [true, true];
+      setCurrentUsedDice(game, [true, true]);
     }
   } else if (game.turn.mode === 'split') {
     const maxSteps = dieValue(game, dieIndex);
@@ -1111,15 +1123,12 @@ export function availableAttackTargets(game, playerId, characterId) {
   if (!game.turn.dice || (game.turn.usedDice[0] && game.turn.usedDice[1])) return [];
   const attacker = ownCharacter(game, playerId, characterId);
   if (attacker.beastFight) return []; // занят зверем — игроков не атакует
-  const currentOpponent = combatOpponent(game, attacker);
   const adjacent = new Set(neighbors(attacker.position));
   return game.characters
     .filter((character) =>
       character.owner !== playerId
       && character.hp > 0
       && character.position
-      && (!currentOpponent || character.id === currentOpponent.id)
-      && (!combatOpponent(game, character) || character.combatOpponentId === attacker.id)
       && adjacent.has(character.position))
     .map((character) => character.id);
 }
@@ -1141,9 +1150,6 @@ function engage(game, playerId, { attackerId, targetId } = {}) {
       return { engaged: { attackerId, targetId, alreadyEngaged: true } };
     }
     throw new Error('Персонаж уже сражается с другим противником.');
-  }
-  if (combatOpponent(game, target)) {
-    throw new Error('Противник уже участвует в другом бою.');
   }
   if (!neighbors(attacker.position).includes(target.position)) {
     throw new Error('Вступить в бой можно только с противником на соседней клетке.');
@@ -1934,6 +1940,9 @@ function endTurn(game, playerId) {
   game.turn.activePlayerId = other ?? playerId;
   game.turn.dice = null;
   game.turn.usedDice = [false, false];
+  game.turn.diceByCharacter = {};
+  game.turn.usedDiceByCharacter = {};
+  game.turn.activeDiceCharacterId = null;
   game.turn.movementArea = null;
   game.turn.mode = null;
   game.turn.hasRolled = false;
@@ -1953,6 +1962,47 @@ function endTurn(game, playerId) {
 }
 
 // --- помощники валидации ---
+
+function payloadCharacterId(payload = {}) {
+  return payload.characterId
+    ?? payload.attackerId
+    ?? payload.fromId
+    ?? null;
+}
+
+function bindPayloadDice(game, payload = {}) {
+  const characterId = payloadCharacterId(payload);
+  if (characterId) bindTurnDice(game, characterId);
+}
+
+function bindTurnDice(game, characterId) {
+  syncExternalTurnOverrides(game);
+  if (!characterId || !game?.turn?.diceByCharacter?.[characterId]) return;
+  game.turn.dice = game.turn.diceByCharacter[characterId];
+  game.turn.activeDiceCharacterId = characterId;
+}
+
+function syncExternalTurnOverrides(game) {
+  const activeId = game?.turn?.activeDiceCharacterId;
+  if (!activeId) return;
+  const diceMap = game.turn.diceByCharacter ?? {};
+  if (game.turn.dice && diceMap[activeId] && game.turn.dice !== diceMap[activeId]) {
+    for (const characterId of Object.keys(diceMap)) {
+      diceMap[characterId] = [...game.turn.dice];
+    }
+  }
+}
+
+function hasRolledDice(game) {
+  return Boolean(
+    game.turn.dice
+    || Object.keys(game.turn.diceByCharacter ?? {}).length > 0,
+  );
+}
+
+function setCurrentUsedDice(game, usedDice) {
+  game.turn.usedDice = usedDice;
+}
 
 function assertActive(game, playerId) {
   if (game.over) {
@@ -2124,7 +2174,7 @@ function firstFreeDieIndex(game) {
 }
 
 function spendAllDice(game) {
-  game.turn.usedDice = [true, true];
+  setCurrentUsedDice(game, [true, true]);
   game.turn.movementArea = null;
   game.turn.mode = null;
 }
