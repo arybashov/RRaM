@@ -904,12 +904,6 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   const previousSuccesses = character.beastFight.successes;
   let successes = previousSuccesses;
   const clubUsed = placedClubs.length > 0 && effectiveValue >= 4;
-  if (clubUsed) {
-    for (const card of placedClubs) {
-      card.faceDown = true;
-      deactivatedTerrainCards.push(card.cardId);
-    }
-  }
   if (clubUsed || effectiveValue >= beast.killOn) {
     killed = true;
   } else if (effectiveValue >= beast.successOn) {
@@ -1612,10 +1606,18 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   }
   const weaponDamage = weapon ? weapon.damage : 0;
   const weaponPiercing = weapon ? Boolean(weapon.piercing) : false;
+  const activeClubs = attacker.role === 'V'
+    ? (game.terrainCards ?? []).filter((card) =>
+      card.ownerId === playerId
+      && card.characterId === attacker.id
+      && card.cardId === 'club'
+      && !card.faceDown)
+    : [];
+  const clubDamage = CLUB_DAMAGE * activeClubs.length;
 
   // Урон делится на обычный (кубики + Гриффон + непробивающее оружие) и пробивающий
   // («без учёта защиты»). Активная броня цели поглощает только обычную часть.
-  const normalDamage = damage + griffinDamage + (weaponPiercing ? 0 : weaponDamage);
+  const normalDamage = damage + griffinDamage + clubDamage + (weaponPiercing ? 0 : weaponDamage);
   const piercingDamage = weaponPiercing ? weaponDamage : 0;
   const armorAbsorb = (game.terrainCards ?? [])
     .filter((card) => card.ownerId === target.owner
@@ -1661,6 +1663,8 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
       damage,
       griffinDamage,
       griffinTurnedFaceDown: griffinDamage > 0,
+      clubDamage,
+      clubCount: activeClubs.length,
       weaponDamage,
       weaponName: weapon?.name ?? null,
       weaponPiercing,
@@ -1872,8 +1876,7 @@ function ownCharacter(game, playerId, characterId) {
   return character;
 }
 
-// Пассивные эффекты карт на начало хода игрока. Точка расширения: сюда же
-// позже встанут Дубина (−10 HP врагу в бою), регенерация и т.п.
+// Пассивные эффекты карт на начало хода игрока.
 // Ковёр шамана: каждое начало хода восстанавливает владельцу +2 HP.
 const SHAMAN_CARPET_HEAL = 2;
 
@@ -1894,20 +1897,6 @@ function applyTurnStartEffects(game, playerId) {
     if (carpetCount > 0 && character.hp < CHARACTER_HP) {
       character.hp = Math.min(CHARACTER_HP, character.hp + SHAMAN_CARPET_HEAL * carpetCount);
       for (const card of placedCarpets) card.faceDown = true;
-    }
-    // Активная Дубина на террейне: враг в бою теряет 10 HP в начало хода владельца.
-    const placedClubs = (game.terrainCards ?? []).filter((card) =>
-      card.ownerId === playerId
-      && card.characterId === character.id
-      && card.cardId === 'club'
-      && !card.faceDown);
-    if (character.role === 'V' && placedClubs.length > 0) {
-      const opponent = combatOpponent(game, character);
-      if (opponent) {
-        opponent.hp = Math.max(0, opponent.hp - CLUB_DAMAGE * placedClubs.length);
-        for (const card of placedClubs) card.faceDown = true;
-        if (opponent.hp === 0) defeatByPlayer(game, opponent, character);
-      }
     }
     // Зверь кусает в начале каждого хода владельца, пока его не убили
     // или от него не убежали.
