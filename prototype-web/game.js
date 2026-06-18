@@ -151,6 +151,7 @@ const CARD_FACE_ART = {
   porcha: 'recipes/porcha-v1',
   recipe_obrud: 'recipes/recipe-obrud-v1',
   marvo: 'recipes/marvo-v1',
+  ritual_hide: 'recipes/ritual-hide-v1',
   blueprint_irikon: 'blueprints/blueprint-irikon-v1',
   phoenix_1: 'fairy-glade/phoenix-own-v1',
   phoenix_2: 'fairy-glade/phoenix-enemy-v1',
@@ -473,7 +474,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-14'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260618-15'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
 const SINGLE_TAB_LOCK_TTL_MS = 15000;
 const SINGLE_TAB_HEARTBEAT_MS = 2000;
