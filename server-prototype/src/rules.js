@@ -1591,14 +1591,26 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   // лучшее по урону, доступное атакующему (role — ограничение класса).
   let weapon = null;
   const weaponDisabledByLakeFrog = Boolean(attacker.frogSpell);
-  const activeTerrainWeapons = (game.terrainCards ?? [])
+  const terrainCards = game.terrainCards ?? [];
+  const activeTerrainWeapons = terrainCards
     .filter((card) => card.ownerId === playerId
       && card.characterId === attacker.id
       && !card.faceDown
       && WEAPON_CARDS[card.cardId])
     .map((card) => card.cardId);
+  const faceDownTerrainWeapons = terrainCards
+    .filter((card) => card.ownerId === playerId
+      && card.characterId === attacker.id
+      && card.faceDown
+      && WEAPON_CARDS[card.cardId])
+    .map((card) => card.cardId);
+  const weaponCandidateIds = [...attacker.inventory, ...activeTerrainWeapons]
+    .filter((id) => WEAPON_CARDS[id]);
+  const roleBlockedWeapon = weaponCandidateIds
+    .map((id) => ({ id, ...WEAPON_CARDS[id] }))
+    .find((candidate) => candidate.role && candidate.role !== attacker.role);
   if (!weaponDisabledByLakeFrog) {
-    for (const id of [...attacker.inventory, ...activeTerrainWeapons]) {
+    for (const id of weaponCandidateIds) {
       const w = WEAPON_CARDS[id];
       if (!w || (w.role && w.role !== attacker.role)) continue;
       if (!weapon || w.damage > weapon.damage) weapon = { id, ...w };
@@ -1606,8 +1618,28 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   }
   const weaponDamage = weapon ? weapon.damage : 0;
   const weaponPiercing = weapon ? Boolean(weapon.piercing) : false;
+  let weaponSuppressedReason = null;
+  let weaponSuppressedName = null;
+  let weaponSuppressedRole = null;
+  if (!weapon) {
+    if (weaponDisabledByLakeFrog && weaponCandidateIds.length > 0) {
+      const id = weaponCandidateIds[0];
+      weaponSuppressedReason = 'lake_frog';
+      weaponSuppressedName = WEAPON_CARDS[id].name;
+      weaponSuppressedRole = WEAPON_CARDS[id].role ?? null;
+    } else if (roleBlockedWeapon) {
+      weaponSuppressedReason = 'wrong_role';
+      weaponSuppressedName = roleBlockedWeapon.name;
+      weaponSuppressedRole = roleBlockedWeapon.role ?? null;
+    } else if (faceDownTerrainWeapons.length > 0) {
+      const id = faceDownTerrainWeapons[0];
+      weaponSuppressedReason = 'face_down';
+      weaponSuppressedName = WEAPON_CARDS[id].name;
+      weaponSuppressedRole = WEAPON_CARDS[id].role ?? null;
+    }
+  }
   const activeClubs = attacker.role === 'V'
-    ? (game.terrainCards ?? []).filter((card) =>
+    ? terrainCards.filter((card) =>
       card.ownerId === playerId
       && card.characterId === attacker.id
       && card.cardId === 'club'
@@ -1669,6 +1701,9 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
       weaponName: weapon?.name ?? null,
       weaponPiercing,
       weaponDisabledByLakeFrog,
+      weaponSuppressedReason,
+      weaponSuppressedName,
+      weaponSuppressedRole,
       totalDamage,
       armorAbsorbed: armorAbsorb,
       dealtDamage,
