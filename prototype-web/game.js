@@ -488,7 +488,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260618-18'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260618-20'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const SINGLE_TAB_INSTANCE_KEY = 'rram_tab_instance_id_v1';
 const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
 const SINGLE_TAB_LOCK_TTL_MS = 15000;
@@ -1879,9 +1879,7 @@ endTurnBtn.addEventListener('click', () => wsSend('turn:end'));
 function setLocalMode(mode) {
   if (getGame()?.turn.movementArea) return;
   localMode = mode;
-  document.querySelectorAll('.mode').forEach((button) => {
-    button.classList.toggle('active', button.dataset.mode === mode);
-  });
+  syncModeButtons();
 
   const game = getGame();
   if (!game?.turn.dice || !isMyTurn()) return;
@@ -1893,6 +1891,13 @@ function setLocalMode(mode) {
     autoModeSent = true;
     wsSend('turn:setMode', { mode: serverMode });
   }
+}
+
+function syncModeButtons() {
+  const activeMode = localMode === 'moveDie' ? 'moveSum' : localMode;
+  document.querySelectorAll('.mode').forEach((button) => {
+    button.classList.toggle('active', button.dataset.mode === activeMode);
+  });
 }
 
 // Прямое карточное действие (без отдельной кнопки «Выполнить»):
@@ -2086,6 +2091,7 @@ function syncDieSelection() {
 
 function render() {
   syncDieSelection();
+  syncModeButtons();
   renderTopbar();
   renderDice();
   renderBoard();
@@ -3713,6 +3719,92 @@ function pathDistance(from, to, blocked) {
   return Infinity;
 }
 
+function clientReachableTargets(from, maxSteps, blocked) {
+  const result = new Set();
+  if (!from || !Number.isFinite(maxSteps) || maxSteps <= 0) return result;
+
+  const dist = new Map([[from, 0]]);
+  const queue = [from];
+  while (queue.length) {
+    const cur = queue.shift();
+    const curDist = dist.get(cur);
+    if (curDist >= maxSteps) continue;
+    for (const nb of hexNeighbors(cur)) {
+      if (dist.has(nb) || blocked.has(nb)) continue;
+      const nextDist = curDist + 1;
+      dist.set(nb, nextDist);
+      result.add(nb);
+      queue.push(nb);
+    }
+  }
+  return result;
+}
+
+function clientCombatOpponent(game, char) {
+  if (!char?.combatOpponentId) return null;
+  const opponent = game?.characters.find(item => item.id === char.combatOpponentId);
+  if (
+    !opponent
+    || opponent.hp <= 0
+    || !characterPosition(opponent)
+    || opponent.combatOpponentId !== char.id
+  ) {
+    return null;
+  }
+  return opponent;
+}
+
+function clientMoveTargets(char) {
+  const result = new Set();
+  const game = getGame();
+  const dice = game?.turn.dice;
+  if (!game || !dice || !char || char.owner !== myPlayerId || char.hp <= 0) return result;
+
+  const area = game.turn.movementArea;
+  const used = game.turn.usedDice ?? [false, false];
+  let origin = characterPosition(char);
+  let maxSteps = 0;
+
+  if (area) {
+    if (area.locked || area.characterId !== char.id || char.beastFight) return result;
+    if (area.mode === 'split' && selectedDieIdx !== area.dieIndex) {
+      if (used[selectedDieIdx]) return result;
+      origin = characterPosition(char);
+      maxSteps = dice[selectedDieIdx] ?? 0;
+    } else {
+      origin = area.origin;
+      maxSteps = area.maxSteps;
+    }
+  } else if (localMode === 'moveSum') {
+    if (used[0] || used[1]) return result;
+    maxSteps = (dice[0] ?? 0) + (dice[1] ?? 0);
+  } else if (localMode === 'moveDie') {
+    if (used[selectedDieIdx]) return result;
+    if (clientCombatOpponent(game, char)) return result;
+    if (game.turn.movedCharacterId && game.turn.movedCharacterId !== char.id) return result;
+    maxSteps = dice[selectedDieIdx] ?? 0;
+  } else {
+    return result;
+  }
+
+  if (!origin) return result;
+  const blocked = new Set(
+    game.characters
+      .filter(item => item.id !== char.id && characterPosition(item))
+      .map(item => characterPosition(item)),
+  );
+  const targets = clientReachableTargets(origin, maxSteps, blocked);
+  targets.delete(characterPosition(char));
+
+  const opponent = clientCombatOpponent(game, char);
+  if (!opponent) return targets;
+  const opponentAdjacent = new Set(hexNeighbors(characterPosition(opponent)));
+  for (const target of targets) {
+    if (!opponentAdjacent.has(target)) result.add(target);
+  }
+  return result;
+}
+
 // План подхода к врагу: свободная клетка рядом с ним, достижимая этим броском.
 // Предпочитаем один кубик (второй останется на действия), иначе сумму обоих.
 function planApproach(sel, enemy) {
@@ -3802,7 +3894,7 @@ function validTargets(char) {
     const targets = localMode === 'moveSum'
       ? legal?.moveSum?.[char.id]
       : legal?.dice?.[selectedDieIdx]?.[char.id];
-    return new Set(targets ?? []);
+    return Array.isArray(targets) ? new Set(targets) : clientMoveTargets(char);
   }
   const maxDist = getMoveDistance();
   const from    = positions.get(char.id);
