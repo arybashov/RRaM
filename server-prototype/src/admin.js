@@ -120,6 +120,20 @@ const ADMIN_HTML = `<!doctype html>
   <span class="stat muted" id="updated"></span>
 </header>
 <main>
+  <section>
+    <h2>График задержки / соединения
+      <span style="float:right;font-weight:400;color:#9fb4d4">
+        интервал <input id="interval" type="number" min="1" max="60" value="3" style="width:48px;background:#1b2a47;color:#dbe4f0;border:1px solid #2c416b;border-radius:6px;padding:2px 6px"> с
+        · <label><input id="pause" type="checkbox"> пауза</label>
+      </span>
+    </h2>
+    <canvas id="chart" width="1100" height="200" style="width:100%;height:200px;background:#13203a;border-radius:10px"></canvas>
+    <div style="margin-top:6px;font-size:12px;color:#9fb4d4">
+      <span style="color:#5fe3b0">▬ ваша задержка</span> &nbsp;
+      <span style="color:#ffb454">▬ макс. пинг клиентов</span> &nbsp;
+      <span style="color:#6aa6ff">▬ клиентов (шт)</span>
+    </div>
+  </section>
   <section><h2>Клиенты</h2><table id="clients"><thead><tr>
     <th>id</th><th>IP</th><th>пинг</th><th>версия</th><th>где</th><th>комната</th><th>игрок</th><th>онлайн</th><th>idle</th>
   </tr></thead><tbody></tbody></table></section>
@@ -131,6 +145,31 @@ const ADMIN_HTML = `<!doctype html>
 const fmtDur = s => s>=3600 ? Math.floor(s/3600)+'ч '+Math.floor(s%3600/60)+'м' : s>=60 ? Math.floor(s/60)+'м '+(s%60)+'с' : s+'с';
 function idleCls(s){ return s>30 ? 'bad' : s>10 ? 'warn' : 'ok'; }
 function pingCls(ms){ return ms==null ? 'muted' : ms<150 ? 'ok' : ms<600 ? 'warn' : 'bad'; }
+
+// История сэмплов для графика (кольцевой буфер). Каждый тик добавляет точку.
+const MAX_POINTS = 240;
+const history = [];
+function drawChart(){
+  const cv = document.getElementById('chart'); if(!cv) return;
+  const ctx = cv.getContext('2d'); const W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const padL=40,padR=10,padT=10,padB=8, plotW=W-padL-padR, plotH=H-padT-padB;
+  let maxV=50, maxCl=2;
+  for(const s of history){ if(s.ours>maxV)maxV=s.ours; if(s.maxRtt!=null&&s.maxRtt>maxV)maxV=s.maxRtt; if((s.clients||0)>maxCl)maxCl=s.clients; }
+  maxV=Math.ceil(maxV/50)*50;
+  ctx.strokeStyle='#1f2f4d'; ctx.fillStyle='#6b7c99'; ctx.font='10px system-ui'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){ const y=padT+plotH*i/4; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke(); ctx.fillText(Math.round(maxV*(1-i/4))+'мс',2,y+3); }
+  const n=history.length; if(n<2) return;
+  const x=i=> padL+plotW*(i/(n-1));
+  const yMs=v=> padT+plotH*(1-Math.min(v,maxV)/maxV);
+  const yCl=v=> padT+plotH*(1-Math.min(v,maxCl)/maxCl);
+  const line=(get,color,scale)=>{ ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.beginPath(); let on=false;
+    for(let i=0;i<n;i++){ const v=get(history[i]); if(v==null){on=false;continue;} const px=x(i),py=scale(v); on?ctx.lineTo(px,py):ctx.moveTo(px,py); on=true; } ctx.stroke(); };
+  line(s=>s.ours,'#5fe3b0',yMs);
+  line(s=>s.maxRtt,'#ffb454',yMs);
+  line(s=>s.clients,'#6aa6ff',yCl);
+}
+
 async function tick(){
   const t0 = performance.now();
   let d; try { d = await (await fetch('/admin/data',{cache:'no-store'})).json(); }
@@ -163,8 +202,23 @@ async function tick(){
     }
     return '<tr><td><b>'+r.code+'</b></td><td><span class=pill>'+r.type+'</span></td><td>'+r.status+'</td><td>'+players+'</td><td>'+game+'</td></tr>';
   }).join('') || '<tr><td colspan=5 class=muted>нет комнат</td></tr>';
+
+  // Точка в историю графика: ваша задержка, макс. пинг клиентов, число клиентов.
+  const rtts = d.clients.map(c=>c.rtt).filter(v=>typeof v==='number');
+  history.push({ ours, maxRtt: rtts.length?Math.max(...rtts):null, clients: d.counts.clients });
+  if (history.length > MAX_POINTS) history.shift();
+  drawChart();
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-tick(); setInterval(tick, 3000);
+
+// Регулируемый интервал опроса/сэмплирования (1–60 с) + пауза.
+let timer = null;
+function schedule(){
+  if (timer) clearInterval(timer);
+  const s = Math.max(1, Math.min(60, parseInt(document.getElementById('interval').value,10) || 3));
+  timer = setInterval(() => { if (!document.getElementById('pause').checked) tick(); }, s * 1000);
+}
+document.getElementById('interval').addEventListener('change', schedule);
+tick(); schedule();
 </script>
 </body></html>`;
