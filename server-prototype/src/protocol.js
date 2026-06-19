@@ -18,6 +18,7 @@ export const ClientCommand = Object.freeze({
   TURN_END: 'turn:end',
   // действия с картами и фишками
   ACTION_DRAW: 'action:draw',
+  ACTION_DISCARD_CARD: 'action:discardCard',
   ACTION_TRANSFER: 'action:transfer',
   ACTION_MOVE: 'action:move',
   ACTION_TELEPORT: 'action:teleport',
@@ -45,6 +46,7 @@ export const GAME_COMMANDS = Object.freeze(
     ClientCommand.TURN_RESET_MOVE,
     ClientCommand.TURN_END,
     ClientCommand.ACTION_DRAW,
+    ClientCommand.ACTION_DISCARD_CARD,
     ClientCommand.ACTION_TRANSFER,
     ClientCommand.ACTION_MOVE,
     ClientCommand.ACTION_TELEPORT,

@@ -124,12 +124,12 @@ test('createGame — ресурсный добор не содержит кар�
   assert.ok(!g.deck.includes('blueprint_irikon'));
 });
 
-test('dwarves — выходят из ворот после 5-го хода', () => {
+test('dwarves — настроены на выход с 1-го хода', () => {
   const g = freshGame();
   const route = dwarfRoute();
   assert.ok(route.length > 0);
   assert.equal(g.dwarves.enabled, true);
-  assert.equal(g.dwarves.entryTurn, 5);
+  assert.equal(g.dwarves.entryTurn, 1);
   assert.equal(g.dwarves.active, false);
   assert.equal(g.dwarves.routeIndex, -1);
   assert.equal(g.dwarves.route.length, route.length);
@@ -137,24 +137,18 @@ test('dwarves — выходят из ворот после 5-го хода', ()
   assert.ok(g.dwarves.units.every(unit => unit.position === null));
 });
 
-test('dwarves — до 5-го хода не активны и не выходят, на 5-м выходят из ворот', () => {
+test('dwarves — выходят из ворот после первого полного хода игроков', () => {
   const g = freshGame();
   for (const character of g.characters) character.position = null;
-  // 4 полных хода (p1+p2 => +1 к счётчику дварфов за раунд) — дварфы ещё в воротах.
-  for (let round = 0; round < 4; round += 1) {
-    apply(g, 'p1', 'turn:end');
-    const r = apply(g, 'p2', 'turn:end');
-    assert.equal(r.dwarves, null);
-  }
+  const p1End = apply(g, 'p1', 'turn:end');
+  assert.equal(p1End.dwarves, null);
   assert.equal(g.dwarves.active, false);
   assert.ok(g.dwarves.units.every(unit => unit.position === null));
 
-  // 5-й ход — активируются и выходят на маршрут.
-  apply(g, 'p1', 'turn:end');
-  const fifth = apply(g, 'p2', 'turn:end');
+  const first = apply(g, 'p2', 'turn:end');
   assert.equal(g.dwarves.active, true);
-  assert.equal(fifth.dwarves.type, 'dwarfTurn');
-  assert.ok(fifth.dwarves.entries.length > 0);
+  assert.equal(first.dwarves.type, 'dwarfTurn');
+  assert.ok(first.dwarves.entries.length > 0);
   assert.ok(g.dwarves.units.some(unit => unit.position));
 });
 
@@ -575,24 +569,38 @@ test('use cards — неживая руда на террейне берёт к�
 
 // ── Эффекты карт: Ковёр шамана (начало хода) ─────────────────────
 
-test('Ковёр шамана — восстанавливает +2 HP в начале хода', () => {
+test('Ковёр шамана — восстанавливает +5 HP Шаману в начале хода', () => {
   const g = freshGame();
   const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
   shaman.inventory.push('shaman_carpet');
   shaman.crafted.push('shaman_carpet');
   shaman.hp = 50;
   apply(g, 'p1', 'turn:roll');
-  assert.equal(shaman.hp, 52);
+  assert.equal(shaman.hp, 55);
 });
 
-test('Ковёр шамана — не лечит выше 100', () => {
+test('Ковёр шамана — лечит союзника на соседней клетке на 5 HP', () => {
+  const g = freshGame();
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  shaman.inventory.push('shaman_carpet');
+  shaman.crafted.push('shaman_carpet');
+  warrior.position = neighbors(shaman.position)[0];
+  shaman.hp = 80;
+  warrior.hp = 70;
+  apply(g, 'p1', 'turn:roll');
+  assert.equal(shaman.hp, 85);
+  assert.equal(warrior.hp, 75);
+});
+
+test('Ковёр шамана — может лечить выше 100', () => {
   const g = freshGame();
   const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
   shaman.inventory.push('shaman_carpet');
   shaman.crafted.push('shaman_carpet');
   shaman.hp = 99;
   apply(g, 'p1', 'turn:roll');
-  assert.equal(shaman.hp, 100);
+  assert.equal(shaman.hp, 104);
 });
 
 test('Клубок — отсутствует на старте', () => {
@@ -610,6 +618,18 @@ test('Ковёр шамана — не лечит кузнеца', () => {
   const smith = g.characters.find(c => c.owner === 'p1' && c.role === 'K');
   smith.inventory.push('shaman_carpet');
   smith.crafted.push('shaman_carpet');
+  smith.hp = 50;
+  apply(g, 'p1', 'turn:roll');
+  assert.equal(smith.hp, 50);
+});
+
+test('Ковёр шамана — не лечит союзника вне соседней клетки', () => {
+  const g = freshGame();
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  const smith = g.characters.find(c => c.owner === 'p1' && c.role === 'K');
+  shaman.inventory.push('shaman_carpet');
+  shaman.crafted.push('shaman_carpet');
+  smith.position = 'H1';
   smith.hp = 50;
   apply(g, 'p1', 'turn:roll');
   assert.equal(smith.hp, 50);
@@ -953,6 +973,26 @@ test('draw — нельзя добрать сверх лимита инвент�
 });
 
 // ── Передача карт ────────────────────────────────────────────────
+
+test('discardCard — удаляет выбранную карту в сброс без траты кубика', () => {
+  const g = freshGame();
+  const char = g.characters.find(c => c.owner === 'p1' && c.role === 'K');
+  char.inventory = ['ore_medium', 'bark', 'yarn'];
+  g.turn.dice = [3, 4];
+  g.turn.usedDice = [false, false];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:discardCard', {
+    characterId: char.id,
+    cardIndex: 1,
+  });
+
+  assert.equal(result.discardedCard.cardId, 'bark');
+  assert.deepEqual(char.inventory, ['ore_medium', 'yarn']);
+  assert.ok(g.discard.includes('bark'));
+  assert.deepEqual(g.turn.usedDice, [false, false]);
+});
 
 test('transfer — карта переходит от одного персонажа к другому', () => {
   const g = freshGame();
@@ -2852,11 +2892,11 @@ test('Мешок — Помощник на точке добычи берёт д
   assert.equal(helper.inventory.length, before + 2);
 });
 
-test('craft Ковёр шамана — расходует Клубок и шкуру медведя при кубике 3+', () => {
+test('craft Ковёр шамана — расходует Клубок и любую шкуру при кубике 3+', () => {
   const g = freshGame();
   const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
   shaman.inventory.push('yarn');
-  shaman.inventory.push('bear_hide');
+  shaman.inventory.push('boar_hide');
   g.turn.dice = [3, 1];
   g.turn.mode = 'split';
   g.turn.hasRolled = true;
@@ -2870,7 +2910,7 @@ test('craft Ковёр шамана — расходует Клубок и шк�
   assert.ok(shaman.crafted.includes('shaman_carpet'));
   assert.ok(shaman.inventory.includes('shaman_carpet'));
   assert.ok(!shaman.inventory.includes('yarn'));
-  assert.ok(!shaman.inventory.includes('bear_hide'));
+  assert.ok(!shaman.inventory.includes('boar_hide'));
   assert.ok(!shaman.inventory.includes('recipe_shaman_carpet'));
   assert.deepEqual(g.turn.usedDice, [true, false]);
 });
@@ -2893,7 +2933,7 @@ test('Ковёр шамана — два экземпляра на террей�
 
   apply(g, 'p1', 'turn:roll');
 
-  assert.equal(shaman.hp, 84);
+  assert.equal(shaman.hp, 90);
   assert.ok(g.terrainCards.every(card => card.faceDown));
 });
 
@@ -2901,7 +2941,7 @@ test('craft Ковёр шамана — кубик ниже 3 сохраняет
   const g = freshGame();
   const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
   shaman.inventory.push('yarn');
-  shaman.inventory.push('bear_hide');
+  shaman.inventory.push('wolf_hide');
   g.turn.dice = [2, 6];
   g.turn.mode = 'split';
   g.turn.hasRolled = true;
@@ -2915,7 +2955,7 @@ test('craft Ковёр шамана — кубик ниже 3 сохраняет
   assert.equal(result.craftAttempt.success, false);
   assert.ok(!shaman.crafted.includes('shaman_carpet'));
   assert.ok(shaman.inventory.includes('yarn'));
-  assert.ok(shaman.inventory.includes('bear_hide'));
+  assert.ok(shaman.inventory.includes('wolf_hide'));
   assert.ok(shaman.inventory.includes('recipe_shaman_carpet'));
   assert.deepEqual(g.turn.usedDice, [true, false]);
 });
@@ -4162,6 +4202,18 @@ test('броня Кора дерева — поглощает 5 урона об�
   assert.equal(r.attacked.armorAbsorbed, 5);
   assert.equal(r.attacked.dealtDamage, 2); // 7 - 5
   assert.equal(target.hp, 98);
+});
+
+test('щит — поглощает урон медведя в начале хода', () => {
+  const g = freshGame();
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  warrior.beastFight = { cardId: 'beast_bear', successes: 0 };
+  warrior.hp = 80;
+  placeArmor(g, warrior, 'shield_dr'); // 20 поглощения против 10 урона медведя
+
+  apply(g, 'p1', 'turn:roll');
+
+  assert.equal(warrior.hp, 80);
 });
 
 test('броня Кора дерева — Молот Иерихон пробивает защиту', () => {

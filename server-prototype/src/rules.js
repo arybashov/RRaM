@@ -47,9 +47,8 @@ import {
 } from './map.js';
 
 const GOLD_FEATHER_SET = new Set(GOLD_FEATHER_CARDS);
-// Дварфы выходят из ворот после 5-го хода (становятся активны, когда счётчик
-// ходов основных игроков достигает 5).
-const DWARF_ENTRY_TURN = 5;
+// Дварфы выходят из ворот с 1-го хода основных игроков.
+const DWARF_ENTRY_TURN = 1;
 const DWARF_UNITS = Object.freeze([
   { id: 'dwarf:ordinary:1', kind: 'ordinary', name: 'Дварф', hp: 100 },
   { id: 'dwarf:ordinary:2', kind: 'ordinary', name: 'Дварф', hp: 100 },
@@ -167,6 +166,8 @@ export function apply(game, playerId, type, payload = {}) {
       return endTurn(game, playerId);
     case 'action:draw':
       return draw(game, playerId, payload);
+    case 'action:discardCard':
+      return discardCard(game, playerId, payload);
     case 'action:transfer':
       return transfer(game, playerId, payload);
     case 'action:move':
@@ -501,6 +502,26 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
   spendDie(game, dieIndex);
 
   return { transferred: { fromId, toId, count } };
+}
+
+function discardCard(game, playerId, { characterId, cardIndex } = {}) {
+  const character = ownCharacter(game, playerId, characterId);
+  if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= character.inventory.length) {
+    throw new Error('Карта для удаления не найдена.');
+  }
+  const [cardId] = character.inventory.splice(cardIndex, 1);
+  game.discard.push(cardId);
+  const exhaustedIndex = character.exhaustedCards?.indexOf(cardId) ?? -1;
+  if (exhaustedIndex !== -1) {
+    character.exhaustedCards.splice(exhaustedIndex, 1);
+  }
+  return {
+    discardedCard: {
+      characterId,
+      cardId,
+      name: CARD_BY_ID[cardId]?.name ?? cardId,
+    },
+  };
 }
 
 // Переносит одну карту по индексу между персонажами игрока (для передачи из ящика).
@@ -1857,12 +1878,7 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   // («без учёта защиты»). Активная броня цели поглощает только обычную часть.
   const normalDamage = damage + griffinDamage + clubDamage + (weaponPiercing ? 0 : weaponDamage);
   const piercingDamage = weaponPiercing ? weaponDamage : 0;
-  const armorAbsorb = (game.terrainCards ?? [])
-    .filter((card) => card.ownerId === target.owner
-      && card.characterId === target.id
-      && !card.faceDown
-      && ARMOR_CARDS[card.cardId])
-    .reduce((sum, card) => sum + ARMOR_CARDS[card.cardId].absorb, 0);
+  const armorAbsorb = activeArmorAbsorb(game, target);
 
   const totalDamage = normalDamage + piercingDamage; // до брони — для журнала
   const afterArmor = Math.max(0, normalDamage - armorAbsorb) + piercingDamage;
@@ -2618,32 +2634,19 @@ function ownCharacter(game, playerId, characterId) {
 }
 
 // Пассивные эффекты карт на начало хода игрока.
-// Ковёр шамана: каждое начало хода восстанавливает владельцу +2 HP.
-const SHAMAN_CARPET_HEAL = 2;
+// Ковёр шамана: каждое начало хода восстанавливает Шаману и союзникам рядом +5 HP.
+const SHAMAN_CARPET_HEAL = 5;
 
 function applyTurnStartEffects(game, playerId) {
+  applyShamanCarpetHeal(game, playerId);
   for (const character of game.characters) {
     if (character.owner !== playerId || character.hp <= 0 || !character.position) continue;
-    const inventoryCarpets = character.role === 'S'
-      ? character.inventory.filter((cardId) => cardId === 'shaman_carpet').length
-      : 0;
-    const placedCarpets = character.role === 'S'
-      ? (game.terrainCards ?? []).filter((card) =>
-        card.ownerId === playerId
-        && card.characterId === character.id
-        && card.cardId === 'shaman_carpet'
-        && !card.faceDown)
-      : [];
-    const carpetCount = inventoryCarpets + placedCarpets.length;
-    if (carpetCount > 0 && character.hp < CHARACTER_HP) {
-      character.hp = Math.min(CHARACTER_HP, character.hp + SHAMAN_CARPET_HEAL * carpetCount);
-      for (const card of placedCarpets) card.faceDown = true;
-    }
     // Зверь кусает в начале каждого хода владельца, пока его не убили
     // или от него не убежали.
     const beast = character.beastFight ? BEASTS[character.beastFight.cardId] : null;
     if (beast) {
-      character.hp = Math.max(0, character.hp - beast.damage);
+      const armorAbsorb = activeArmorAbsorb(game, character);
+      character.hp = Math.max(0, character.hp - Math.max(0, beast.damage - armorAbsorb));
       if (character.hp === 0) {
         releaseLakeFrogSpell(game, character);
         character.position = null;
@@ -2675,6 +2678,40 @@ function applyTurnStartEffects(game, playerId) {
       }
     }
   }
+}
+
+function applyShamanCarpetHeal(game, playerId) {
+  const shamans = game.characters.filter((character) =>
+    character.owner === playerId
+    && character.role === 'S'
+    && character.hp > 0
+    && character.position);
+  for (const shaman of shamans) {
+    const inventoryCarpets = shaman.inventory.filter((cardId) => cardId === 'shaman_carpet').length;
+    const placedCarpets = (game.terrainCards ?? []).filter((card) =>
+      card.ownerId === playerId
+      && card.characterId === shaman.id
+      && card.cardId === 'shaman_carpet'
+      && !card.faceDown);
+    const carpetCount = inventoryCarpets + placedCarpets.length;
+    if (carpetCount <= 0) continue;
+    const heal = SHAMAN_CARPET_HEAL * carpetCount;
+    for (const target of game.characters) {
+      if (target.owner !== playerId || target.hp <= 0 || !target.position) continue;
+      const inAura = target.id === shaman.id || neighbors(shaman.position).includes(target.position);
+      if (inAura) target.hp += heal;
+    }
+    for (const card of placedCarpets) card.faceDown = true;
+  }
+}
+
+function activeArmorAbsorb(game, character) {
+  return (game.terrainCards ?? [])
+    .filter((card) => card.ownerId === character.owner
+      && card.characterId === character.id
+      && !card.faceDown
+      && ARMOR_CARDS[card.cardId])
+    .reduce((sum, card) => sum + ARMOR_CARDS[card.cardId].absorb, 0);
 }
 
 function combatOpponent(game, character) {

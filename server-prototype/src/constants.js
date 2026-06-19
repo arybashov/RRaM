@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260619-29';
+export const BUILD_VERSION = '20260620-01';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -80,6 +80,17 @@ export const RAW_HIDE_TO_CLEAN = Object.freeze({
 export const HIDE_CLEAN_MIN = 2;
 // Материал для открытия Дубины — очищенная шкура зверя.
 export const CLUB_MATERIALS = Object.freeze(['beast_hide', 'hide_red']);
+export const SHAMAN_CARPET_MATERIALS = Object.freeze([
+  'raw_hide',
+  'raw_hide_red',
+  'boar_hide',
+  'wolf_hide',
+  'bear_hide',
+  'beast_hide',
+  'hide_red',
+  'sheep_hide_r',
+  'sheep_hide_c',
+]);
 
 // Рецепты крафта базовых изделий — строго по PnP (без выдуманных «игл»).
 // via — карта чертежа/рецепта; result — открываемое изделие (locked-карта);
@@ -104,12 +115,12 @@ export const CRAFT_RECIPES = Object.freeze({
     materials: [['yarn'], ['sheep_hide_c']],
     dice: { count: 2, min: 3 },
   },
-  // Шаман: клубок + шкура медведя → Ковёр шамана
+  // Шаман: клубок + любая шкура → Ковёр шамана
   shaman_carpet: {
     role: 'S',
     via: 'recipe_shaman_carpet',
     result: 'shaman_carpet',
-    materials: [['yarn'], ['bear_hide']],
+    materials: [['yarn'], SHAMAN_CARPET_MATERIALS],
     dice: { count: 1, min: 3 },
   },
   // Shaman recipes from the recipes deck.
@@ -385,9 +396,9 @@ export const BASE_CARD_CATALOG = Object.freeze([
 
   // Шаман
   { id: 'recipe_shaman_carpet', role: 'S', type: 'recipe', copies: 1, name: 'Рецепт на Ковёр шамана',
-    desc: 'Материалы: клубок ×1 + шкура медведя ×1. Кубик 1 раз не менее 3. Открывает Ковёр шамана.' },
+    desc: 'Материалы: клубок ×1 + любая шкура ×1. Кубик 1 раз не менее 3. Открывает Ковёр шамана.' },
   { id: 'shaman_carpet', role: 'S', type: 'tool', copies: 1, name: 'Ковёр шамана', locked: true,
-    desc: 'Каждое начало хода Шаман восстанавливает 2 HP. Также применяется в обрядах и изделиях по рецептам.' },
+    desc: 'В начале хода Шаман и союзники на соседних клетках получают +5 HP без верхнего ограничения. Также применяется в обрядах и изделиях по рецептам.' },
 
   // Ингредиент — у нескольких ролей (кузнец, помощник, шаман)
   { id: 'yarn',             role: 'K,P,S', type: 'ingredient', copies: 1, name: 'Клубок сплетённой шерсти',
