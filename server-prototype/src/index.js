@@ -22,7 +22,8 @@ const lobbySubscribers = new Set();  // connectionId → смотрит спис
 
 await app.register(websocket);
 
-// Админ-панель (/admin, /admin/data) под Basic Auth — диагностика клиентов и комнат.
+// Админ-панель (/admin, /admin/data) — диагностика клиентов и комнат.
+// Авторизация: форма логина с сессионной кукой (или Basic Auth для curl/nginx).
 registerAdmin(app, { store, clients, lobbySubscribers, version: BUILD_VERSION });
 
 app.get('/health', async () => ({

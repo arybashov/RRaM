@@ -1,10 +1,19 @@
-// Админ-панель: страница /admin + JSON /admin/data под HTTP Basic Auth.
+// Админ-панель: страница /admin + JSON /admin/data.
+// Авторизация: HTML-форма логина (/admin/login) с сессионной кукой — чтобы
+// Chrome/менеджеры паролей штатно сохраняли и автозаполняли пароль. Заодно
+// принимаем HTTP Basic Auth (curl/скрипты/совместимость с nginx).
 // Показывает подключённых клиентов (где они, idle, версия, IP) и комнаты/партии.
 // Пароль — из ADMIN_PASSWORD; если не задан, админка отключена (503).
-import { timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 const ADMIN_USER = process.env.ADMIN_USER ?? 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
+
+const COOKIE_NAME = 'rram_admin';
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 часов
+// Сессии в памяти процесса: token → срок истечения. Сервер одиночный, при
+// перезапуске сессии сбрасываются (для админки приемлемо).
+const sessions = new Map();
 
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a));
@@ -13,25 +22,67 @@ function safeEqual(a, b) {
   return timingSafeEqual(ba, bb);
 }
 
-// Возвращает true, если запрос авторизован. Иначе сам отвечает 401/503 и возвращает false.
-function checkAuth(req, reply) {
-  if (!ADMIN_PASSWORD) {
-    reply.code(503).type('text/plain; charset=utf-8')
-      .send('Админка отключена: задайте переменную окружения ADMIN_PASSWORD.');
-    return false;
+function createSession() {
+  const token = randomBytes(32).toString('hex');
+  sessions.set(token, Date.now() + SESSION_TTL_MS);
+  return token;
+}
+
+function sessionValid(token) {
+  if (!token) return false;
+  const exp = sessions.get(token);
+  if (!exp) return false;
+  if (Date.now() > exp) { sessions.delete(token); return false; }
+  return true;
+}
+
+function parseCookies(req) {
+  const out = {};
+  const header = req.headers.cookie;
+  if (!header) return out;
+  for (const part of header.split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
   }
+  return out;
+}
+
+function passwordOk(user, pass) {
+  return safeEqual(user, ADMIN_USER) && safeEqual(pass, ADMIN_PASSWORD);
+}
+
+// Авторизован ли запрос: либо валидная сессионная кука, либо корректный Basic Auth.
+function isAuthed(req) {
+  if (sessionValid(parseCookies(req)[COOKIE_NAME])) return true;
   const m = /^Basic\s+(.+)$/i.exec(req.headers.authorization ?? '');
   if (m) {
-    const idx = Buffer.from(m[1], 'base64').toString('utf8').indexOf(':');
-    const user = idx >= 0 ? Buffer.from(m[1], 'base64').toString('utf8').slice(0, idx) : '';
-    const pass = idx >= 0 ? Buffer.from(m[1], 'base64').toString('utf8').slice(idx + 1) : '';
-    if (safeEqual(user, ADMIN_USER) && safeEqual(pass, ADMIN_PASSWORD)) return true;
+    const dec = Buffer.from(m[1], 'base64').toString('utf8');
+    const idx = dec.indexOf(':');
+    if (idx >= 0 && passwordOk(dec.slice(0, idx), dec.slice(idx + 1))) return true;
   }
-  reply.code(401)
-    .header('WWW-Authenticate', 'Basic realm="RRaM admin", charset="UTF-8"')
-    .type('text/plain; charset=utf-8')
-    .send('Требуется авторизация.');
   return false;
+}
+
+// Secure-флаг только за HTTPS (req.protocol учитывает X-Forwarded-Proto при trustProxy);
+// локально по http браузер Secure-куку не примет.
+function cookieAttrs(req) {
+  const secure = req.protocol === 'https' ? '; Secure' : '';
+  return `; HttpOnly; Path=/admin; SameSite=Lax${secure}`;
+}
+
+function setSessionCookie(req, reply, token) {
+  reply.header('Set-Cookie',
+    `${COOKIE_NAME}=${token}; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}${cookieAttrs(req)}`);
+}
+
+function clearSessionCookie(req, reply) {
+  reply.header('Set-Cookie', `${COOKIE_NAME}=; Max-Age=0${cookieAttrs(req)}`);
+}
+
+function adminDisabled(reply) {
+  return reply.code(503).type('text/plain; charset=utf-8')
+    .send('Админка отключена: задайте переменную окружения ADMIN_PASSWORD.');
 }
 
 function buildData({ store, clients, lobbySubscribers, version }) {
@@ -79,15 +130,90 @@ function buildData({ store, clients, lobbySubscribers, version }) {
 }
 
 export function registerAdmin(app, deps) {
+  // Парсер форм (application/x-www-form-urlencoded) для POST /admin/login —
+  // нужен, т.к. Fastify по умолчанию разбирает только JSON. Глобально безопасно:
+  // другие маршруты сервера форм-тело не принимают.
+  try {
+    app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (req, body, done) => {
+      try { done(null, Object.fromEntries(new URLSearchParams(body))); }
+      catch (err) { done(err); }
+    });
+  } catch { /* парсер уже зарегистрирован */ }
+
   app.get('/admin', async (req, reply) => {
-    if (!checkAuth(req, reply)) return reply;
+    if (!ADMIN_PASSWORD) return adminDisabled(reply);
+    if (!isAuthed(req)) return reply.redirect('/admin/login');
     return reply.type('text/html; charset=utf-8').send(ADMIN_HTML);
   });
 
+  app.get('/admin/login', async (req, reply) => {
+    if (!ADMIN_PASSWORD) return adminDisabled(reply);
+    if (isAuthed(req)) return reply.redirect('/admin');
+    return reply.type('text/html; charset=utf-8').send(LOGIN_HTML(Boolean(req.query?.e)));
+  });
+
+  app.post('/admin/login', async (req, reply) => {
+    if (!ADMIN_PASSWORD) return adminDisabled(reply);
+    const user = String(req.body?.username ?? '');
+    const pass = String(req.body?.password ?? '');
+    if (passwordOk(user, pass)) {
+      setSessionCookie(req, reply, createSession());
+      return reply.redirect('/admin');
+    }
+    return reply.redirect('/admin/login?e=1');
+  });
+
+  app.get('/admin/logout', async (req, reply) => {
+    const token = parseCookies(req)[COOKIE_NAME];
+    if (token) sessions.delete(token);
+    clearSessionCookie(req, reply);
+    return reply.redirect('/admin/login');
+  });
+
   app.get('/admin/data', async (req, reply) => {
-    if (!checkAuth(req, reply)) return reply;
+    if (!ADMIN_PASSWORD) return reply.code(503).send({ error: 'disabled' });
+    if (!isAuthed(req)) return reply.code(401).send({ error: 'unauthorized' });
     return buildData(deps);
   });
+}
+
+// Страница входа: настоящая HTML-форма с username+password и autocomplete —
+// так Chrome и менеджеры паролей сохраняют/автозаполняют учётку (в отличие от
+// нативного попапа Basic Auth).
+function LOGIN_HTML(error) {
+  return `<!doctype html>
+<html lang="ru"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RRaM · вход в админку</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center;
+    font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif; background:#0e1726; color:#dbe4f0; }
+  form { background:#13203a; border:1px solid #243a63; border-radius:12px; padding:24px;
+    width:280px; display:grid; gap:12px; box-shadow:0 8px 30px rgba(0,0,0,.35); }
+  h1 { margin:0 0 4px; font-size:16px; color:#5fe3b0; }
+  label { font-size:12px; color:#9fb4d4; display:grid; gap:4px; }
+  input { background:#1b2a47; color:#dbe4f0; border:1px solid #2c416b; border-radius:8px;
+    padding:9px 10px; font-size:14px; }
+  input:focus { outline:none; border-color:#5fe3b0; }
+  button { margin-top:4px; background:#1f7a55; color:#eafff5; border:0; border-radius:8px;
+    padding:10px; font-size:14px; font-weight:600; cursor:pointer; }
+  button:hover { background:#258a61; }
+  .err { margin:0; color:#ff6b6b; font-size:13px; }
+</style></head>
+<body>
+  <form method="post" action="/admin/login" autocomplete="on">
+    <h1>RRaM · админка</h1>
+    ${error ? '<p class="err">Неверный логин или пароль.</p>' : ''}
+    <label>Логин
+      <input type="text" name="username" value="admin" autocomplete="username" autocapitalize="off" autocorrect="off" />
+    </label>
+    <label>Пароль
+      <input type="password" name="password" autocomplete="current-password" required autofocus />
+    </label>
+    <button type="submit">Войти</button>
+  </form>
+</body></html>`;
 }
 
 const ADMIN_HTML = `<!doctype html>
@@ -118,6 +244,7 @@ const ADMIN_HTML = `<!doctype html>
   <span class="stat">комнат <b id="rc">…</b></span>
   <span class="stat">ваша задержка <b id="ours">…</b></span>
   <span class="stat muted" id="updated"></span>
+  <a href="/admin/logout" style="margin-left:auto;color:#9fb4d4;text-decoration:none">выйти →</a>
 </header>
 <main>
   <section>
@@ -172,8 +299,12 @@ function drawChart(){
 
 async function tick(){
   const t0 = performance.now();
-  let d; try { d = await (await fetch('/admin/data',{cache:'no-store'})).json(); }
-  catch(e){ document.getElementById('updated').textContent = 'ошибка загрузки'; return; }
+  let d;
+  try {
+    const res = await fetch('/admin/data',{cache:'no-store'});
+    if (res.status === 401) { location.href = '/admin/login'; return; } // сессия истекла
+    d = await res.json();
+  } catch(e){ document.getElementById('updated').textContent = 'ошибка загрузки'; return; }
   // Наша задержка: round-trip запроса /admin/data (админ-браузер → сервер → назад).
   const ours = Math.round(performance.now() - t0);
   const oe = document.getElementById('ours');
