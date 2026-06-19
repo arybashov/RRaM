@@ -902,7 +902,7 @@ function handleMsg({ type, payload }) {
       const allDiceSpent = getUsedDice(selForMode?.id).every(Boolean);
       if (g && isMyTurn() && getDice(selForMode?.id) && !allDiceSpent && !g.turn.mode && !autoModeSent) {
         const sm = TO_SERVER_MODE[localMode];
-        if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm }); }
+        if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm, characterId: selForMode.id }); }
       }
       if (!hasAnyDice() || prevActive !== g.turn.activePlayerId) {
         autoModeSent = false;
@@ -960,10 +960,10 @@ const getDice     = (characterId = selectedCharId) => {
   if (!turn) return null;
   return turn.diceByCharacter?.[characterId] ?? turn.dice ?? null;
 };
-const getUsedDice = () => {
+const getUsedDice = (characterId = selectedCharId) => {
   const turn = getGame()?.turn;
   if (!turn) return [false, false];
-  return turn.usedDice ?? [false, false];
+  return turn.usedDiceByCharacter?.[characterId] ?? turn.usedDice ?? [false, false];
 };
 const turnHasAnyDice = (turn) => Boolean(
   turn?.dice || Object.keys(turn?.diceByCharacter ?? {}).length > 0,
@@ -1012,16 +1012,6 @@ function syncTerrainCards() {
 function selectCharacter(charId) {
   const char = getGame()?.characters.find(c => c.id === charId);
   if (!char || char.owner !== myPlayerId) return;
-  const area = getGame()?.turn.movementArea;
-  if (
-    isMyTurn()
-    && area
-    && !area.locked
-    && area.characterId
-    && area.characterId !== char.id
-  ) {
-    wsSend('turn:resetMove', { characterId: area.characterId });
-  }
   selectedCharId = char.id;
   render();
 }
@@ -1056,7 +1046,7 @@ function selectCharacterDie(characterId, dieIndex) {
     return;
   }
   setLocalMode('moveDie');
-  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
   render();
 }
 
@@ -1149,7 +1139,7 @@ function drawDieIndex(characterId = selectedCharId) {
   if (!getDice(characterId)) return null;
   const used = getUsedDice(characterId);
   const area = g.turn.movementArea;
-  if (area && !area.locked) {
+  if (area && !area.locked && area.characterId === characterId) {
     if (area.mode === 'split') {
       return used[0] ? (used[1] ? null : 1) : 0;
     }
@@ -1864,10 +1854,10 @@ dieButtons.forEach((btn, i) => {
     if (!isMyTurn()) return;
     const g = getGame();
     const area = g.turn.movementArea;
-    const used = getUsedDice(g.turn.movementArea?.characterId ?? selectedCharId);
+    const used = getUsedDice(selectedCharId);
 
-    // Есть незавершённое движение → клик по кубику работает как откат / смена ноги.
-    if (area && !area.locked) {
+    // Есть незавершённое движение выбранного персонажа → клик по кубику работает как откат / смена ноги.
+    if (area && !area.locked && area.characterId === selectedCharId) {
       const activeDie = area.mode === 'split' ? area.dieIndex : null;
       if (area.mode === 'moveSum' || i === activeDie || used[i]) {
         // Активный кубик (или любой в режиме суммы, или уже потраченная нога) →
@@ -1887,11 +1877,11 @@ dieButtons.forEach((btn, i) => {
       const canChangeMode = !used[0] && !used[1];
       if (localMode === 'moveDie' && selectedDieIdx === i && canChangeMode) {
         setLocalMode('moveSum');
-        wsSend('turn:setMode', { mode: 'moveSum' });
+        wsSend('turn:setMode', { mode: 'moveSum', characterId: selectedCharId });
       } else {
         selectedDieIdx = i;
         setLocalMode('moveDie');
-        wsSend('turn:setMode', { mode: 'split' });
+        wsSend('turn:setMode', { mode: 'split', characterId: selectedCharId });
       }
       render();
     }
@@ -1922,7 +1912,7 @@ document.querySelectorAll('.mode').forEach(btn => {
 
     setLocalMode(mode);
     if (mode === 'moveSum' || mode === 'split') {
-      wsSend('turn:setMode', { mode });
+      wsSend('turn:setMode', { mode, characterId: selectedCharId });
     }
     render();
   });
@@ -1963,7 +1953,7 @@ function setLocalMode(mode) {
   const serverMode = TO_SERVER_MODE[mode];
   if (serverMode && getServMode() !== serverMode) {
     autoModeSent = true;
-    wsSend('turn:setMode', { mode: serverMode });
+    wsSend('turn:setMode', { mode: serverMode, characterId: selectedCharId });
   }
 }
 
@@ -2000,7 +1990,7 @@ function directCardAction(mode) {
     return;
   }
 
-  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
 
   if (mode === 'draw') {
     wsSend('action:draw', { characterId: char.id, dieIndex });
@@ -2028,7 +2018,7 @@ function fightBeast() {
   // Собираем id карт на террейне для отправки (ключ — уникальный uid, значение — cardId)
   const terrainCardIds = [...terrainCards.values()].map(tc => tc.cardId);
 
-  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
   wsSend('action:fightBeast', { characterId: char.id, dieIndex, terrainCards: terrainCardIds });
 }
 
@@ -2073,7 +2063,7 @@ function handleCellClick(targetId) {
       if (used[dieIndex]) return;
       if (getServMode() !== 'split') {
         pendingTeleport = { characterId: char.id, toCell: targetId, dieIndex };
-        wsSend('turn:setMode', { mode: 'split' });
+        wsSend('turn:setMode', { mode: 'split', characterId: char.id });
         return;
       }
       wsSend('action:teleport', { characterId: char.id, toCell: targetId, dieIndex });
@@ -2456,15 +2446,10 @@ function renderBoard() {
         // подходим вплотную, окно боя откроется по прибытии
         const sel = getSelChar();
         if (sel && isMyTurn() && getDice()) {
-          const turn = getGame().turn;
-          if (turn.movedCharacterId && turn.movedCharacterId !== sel.id) {
-            showActionWarning('В этом броске уже двигался другой персонаж.');
-            return;
-          }
           const plan = planApproach(sel, char);
           if (plan) {
             approachTarget = { mineId: sel.id, enemyId: char.id, until: Date.now() + 4000 };
-            if (getServMode() !== plan.mode) wsSend('turn:setMode', { mode: plan.mode });
+            if (getServMode() !== plan.mode) wsSend('turn:setMode', { mode: plan.mode, characterId: sel.id });
             wsSend('action:move', plan.payload);
             addLog(`${ROLE_NAMES[sel.role]} идёт к врагу: ${ROLE_NAMES[char.role]}…`, { type: 'my' });
             return;
@@ -2827,7 +2812,7 @@ function renderInventory() {
     const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     if (u[dieIndex]) { addLog('Нет свободного кубика для обработки.', { type: 'err' }); return; }
-    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
     wsSend('action:processHide', {
       characterId: char.id,
       dieIndex,
@@ -2866,7 +2851,7 @@ function renderInventory() {
     const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     if (u[dieIndex]) { addLog('Нет свободного кубика для Обряда трёх.', { type: 'err' }); return; }
-    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
     wsSend('action:useMarvo', {
       ...cardActionPayload(e.currentTarget),
       dieIndex,
@@ -2877,7 +2862,7 @@ function renderInventory() {
     const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     if (u[dieIndex]) { addLog('Нет свободного кубика для перезарядки Бус телепортации.', { type: 'err' }); return; }
-    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
     wsSend('action:rechargeTeleport', {
       ...cardActionPayload(e.currentTarget),
       targetId: e.currentTarget.dataset.targetId,
@@ -2889,7 +2874,7 @@ function renderInventory() {
     const u = getUsedDice(char.id);
     const dieIndex = u[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
     if (u[dieIndex]) { addLog('Нет свободного кубика, чтобы стряхнуть ловушку.', { type: 'err' }); return; }
-    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
     wsSend('action:dischargeDot', {
       characterId: char.id,
       dotIndex: Number(e.currentTarget.dataset.dotIndex),
@@ -3471,7 +3456,7 @@ function attemptCardTransfer(fromId, toId, cardIndex) {
   const used = getUsedDice(fromId);
   const dieIndex = used[selectedDieIdx] ? (selectedDieIdx === 0 ? 1 : 0) : selectedDieIdx;
   if (used[dieIndex]) { addLog('Нет свободного кубика для передачи.', { type: 'err' }); renderCardBox(); return; }
-  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split' });
+  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: fromId });
   wsSend('action:transfer', { fromId, toId, cardIndex, dieIndex });
   // снапшот придёт и перерисует ящик
 }

@@ -487,6 +487,7 @@ function bindSnapshotDice(game, characterId) {
   const dice = game.turn.diceByCharacter?.[characterId];
   if (!dice) return;
   game.turn.dice = dice;
+  game.turn.usedDice = game.turn.usedDiceByCharacter?.[characterId] ?? [false, false];
   game.turn.activeDiceCharacterId = characterId;
 }
 
@@ -498,6 +499,10 @@ function syncExternalSnapshotDice(game) {
     for (const characterId of Object.keys(diceMap)) {
       diceMap[characterId] = [...game.turn.dice];
     }
+  }
+  const usedMap = game.turn.usedDiceByCharacter ?? {};
+  if (game.turn.usedDice && usedMap[activeId] && game.turn.usedDice !== usedMap[activeId]) {
+    usedMap[activeId] = [...game.turn.usedDice];
   }
 }
 

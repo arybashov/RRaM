@@ -97,7 +97,7 @@ export function createGame(players) {
       mode: null, // 'moveSum' | 'split'
       hasRolled: false,
       transferRemaining: 0, // «бюджет» передачи карт из ящика (= значению потраченного кубика)
-      movedCharacterId: null, // кто уже двигался в этом броске (нельзя двигать двух разных)
+      movedCharacterId: null, // последний персонаж, который двигался в этом броске
       drawnThisTurn: false,   // карту в этом броске уже брали (добор — раз за бросок)
     },
   };
@@ -201,11 +201,15 @@ function roll(game, playerId) {
     activeCharacters.map((character) => [character.id, [rollDie(), rollDie()]]),
   );
   game.turn.diceByCharacter = diceByCharacter;
-  game.turn.usedDiceByCharacter = {};
+  game.turn.usedDiceByCharacter = Object.fromEntries(
+    activeCharacters.map((character) => [character.id, [false, false]]),
+  );
   const firstCharacter = activeCharacters[0];
   const dice = firstCharacter ? diceByCharacter[firstCharacter.id] : [rollDie(), rollDie()];
   game.turn.dice = dice;
-  game.turn.usedDice = [false, false];
+  game.turn.usedDice = firstCharacter
+    ? game.turn.usedDiceByCharacter[firstCharacter.id]
+    : [false, false];
   game.turn.activeDiceCharacterId = firstCharacter?.id ?? null;
   game.turn.movementArea = null;
   game.turn.mode = null;
@@ -554,13 +558,14 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
   const character = ownCharacter(game, playerId, characterId);
   if (!game.turn.dice) return [];
   const opponent = combatOpponent(game, character);
-  const movementArea = game.turn.movementArea;
+  const turnArea = game.turn.movementArea;
+  const movementArea = turnArea?.characterId === character.id ? turnArea : null;
 
   let maxSteps;
   let origin = character.position;
   if (movementArea) {
     if (movementArea.locked) return [];
-    if (movementArea.characterId !== character.id || character.beastFight) return [];
+    if (character.beastFight) return [];
     if (movementArea.mode === 'split' && dieIndex !== movementArea.dieIndex) {
       // Вторая «нога»: ходим другим свободным кубиком от ТЕКУЩЕЙ клетки.
       // Недоступно после жёсткого коммита (красная клетка / выход из боя / другое действие).
@@ -576,8 +581,6 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
     maxSteps = game.turn.dice[0] + game.turn.dice[1];
   } else if (game.turn.mode === 'split') {
     if (opponent) return [];
-    // Правило: нельзя разными кубиками одного броска двигать двух разных персонажей
-    if (game.turn.movedCharacterId && game.turn.movedCharacterId !== character.id) return [];
     maxSteps = dieValue(game, dieIndex);
   } else {
     return [];
@@ -629,13 +632,6 @@ function move(game, playerId, {
   const character = ownCharacter(game, playerId, characterId);
   assertBoardTarget(toCell);
 
-  if (
-    game.turn.mode === 'split'
-    && game.turn.movedCharacterId
-    && game.turn.movedCharacterId !== characterId
-  ) {
-    throw new Error('В одном броске двигать можно только одного персонажа.');
-  }
   const target = availableMoveTargets(game, playerId, characterId, dieIndex)
     .find((item) => item.cellId === toCell);
   if (!target) {
@@ -661,7 +657,8 @@ function move(game, playerId, {
       throw new Error('Не удалось вступить в бой с выбранным противником.');
     }
   }
-  const area = game.turn.movementArea;
+  const turnArea = game.turn.movementArea;
+  const area = turnArea?.characterId === characterId ? turnArea : null;
   if (area && area.mode === 'split' && dieIndex !== area.dieIndex && !game.turn.usedDice[dieIndex]) {
     // Вторая «нога»: фиксируем первую (её кубик уже потрачен), начинаем новую
     // от текущей клетки другим кубиком. prev хранит первую ногу для отката.
@@ -746,7 +743,7 @@ function move(game, playerId, {
     }
     character.beastFight = null; // движение — побег от зверя
   }
-  game.turn.movedCharacterId = characterId; // в этом броске двигается только он
+  game.turn.movedCharacterId = characterId; // последний двигавшийся персонаж
 
   if (engagedTarget) linkCombat(character, engagedTarget);
 
@@ -1979,6 +1976,9 @@ function bindTurnDice(game, characterId) {
   syncExternalTurnOverrides(game);
   if (!characterId || !game?.turn?.diceByCharacter?.[characterId]) return;
   game.turn.dice = game.turn.diceByCharacter[characterId];
+  game.turn.usedDiceByCharacter ??= {};
+  game.turn.usedDiceByCharacter[characterId] ??= [false, false];
+  game.turn.usedDice = game.turn.usedDiceByCharacter[characterId];
   game.turn.activeDiceCharacterId = characterId;
 }
 
@@ -1991,6 +1991,10 @@ function syncExternalTurnOverrides(game) {
       diceMap[characterId] = [...game.turn.dice];
     }
   }
+  const usedMap = game.turn.usedDiceByCharacter ?? {};
+  if (game.turn.usedDice && usedMap[activeId] && game.turn.usedDice !== usedMap[activeId]) {
+    usedMap[activeId] = [...game.turn.usedDice];
+  }
 }
 
 function hasRolledDice(game) {
@@ -2002,6 +2006,10 @@ function hasRolledDice(game) {
 
 function setCurrentUsedDice(game, usedDice) {
   game.turn.usedDice = usedDice;
+  const activeId = game.turn.activeDiceCharacterId;
+  if (activeId && game.turn.usedDiceByCharacter?.[activeId]) {
+    game.turn.usedDiceByCharacter[activeId] = usedDice;
+  }
 }
 
 function assertActive(game, playerId) {
