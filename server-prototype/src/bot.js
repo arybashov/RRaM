@@ -167,18 +167,22 @@ function diceFor(game, characterId) {
   return game.turn.diceByCharacter?.[characterId] ?? game.turn.dice ?? null;
 }
 
-function usedDiceFor(game) {
-  return game.turn.usedDice ?? [false, false];
+function usedDiceFor(game, characterId) {
+  return game.turn.usedDiceByCharacter?.[characterId] ?? game.turn.usedDice ?? [false, false];
+}
+
+function hasCharacterDrawnThisTurn(game, characterId) {
+  return (game.turn.drawnCharacterIdsThisTurn ?? []).includes(characterId);
 }
 
 function collectDrawActions({ game, botPlayerId, dieIndex }) {
   if ((game.deck?.length ?? 0) === 0) return [];
-  if (game.turn.drawnThisTurn) return []; // добор — раз за бросок
 
   return ownCharacters(game, botPlayerId)
     .filter((character) => character.inventory.length < INVENTORY_LIMIT
       && !character.beastFight
       && diceFor(game, character.id)
+      && !hasCharacterDrawnThisTurn(game, character.id)
       && !usedDiceFor(game, character.id)[dieIndex]) // в схватке со зверем добор запрещён
     .map((character) => ({
       type: 'action:draw',

@@ -375,6 +375,7 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
       transferRemaining: game.turn.transferRemaining ?? 0,
       movedCharacterId: game.turn.movedCharacterId ?? null,
       drawnThisTurn: Boolean(game.turn.drawnThisTurn),
+      drawnCharacterIdsThisTurn: game.turn.drawnCharacterIdsThisTurn ?? [],
     },
     characters: game.characters.map((c) => {
       const beacon = c.inventory?.some((id) => GOLD_FEATHER_CARDS.includes(id)) ?? false;

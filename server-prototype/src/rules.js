@@ -98,7 +98,8 @@ export function createGame(players) {
       hasRolled: false,
       transferRemaining: 0, // «бюджет» передачи карт из ящика (= значению потраченного кубика)
       movedCharacterId: null, // последний персонаж, который двигался в этом броске
-      drawnThisTurn: false,   // карту в этом броске уже брали (добор — раз за бросок)
+      drawnThisTurn: false,   // совместимый флаг: в этом броске был хотя бы один добор
+      drawnCharacterIdsThisTurn: [], // каждый персонаж может добрать один раз за бросок
     },
   };
 }
@@ -216,6 +217,7 @@ function roll(game, playerId) {
   game.turn.hasRolled = true;
   game.turn.movedCharacterId = null;
   game.turn.drawnThisTurn = false;
+  game.turn.drawnCharacterIdsThisTurn = [];
   game.turn.rollStartPositions = Object.fromEntries(
     game.characters.map((character) => [character.id, character.position ?? null]),
   );
@@ -297,6 +299,21 @@ function lockMovement(game) {
   }
 }
 
+function drawnCharacterIdsThisTurn(game) {
+  game.turn.drawnCharacterIdsThisTurn ??= [];
+  return game.turn.drawnCharacterIdsThisTurn;
+}
+
+function hasCharacterDrawnThisTurn(game, characterId) {
+  return drawnCharacterIdsThisTurn(game).includes(characterId);
+}
+
+function markCharacterDrawnThisTurn(game, characterId) {
+  const ids = drawnCharacterIdsThisTurn(game);
+  if (!ids.includes(characterId)) ids.push(characterId);
+  game.turn.drawnThisTurn = ids.length > 0;
+}
+
 function drawCardsFromCurrentCell(game, playerId, character) {
   if (!isDrawCell(character.position)) {
     throw new Error('Взять карту можно только на точке ресурса.');
@@ -357,8 +374,8 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
   dieValue(game, dieIndex); // только валидируем доступность; значение на добор не влияет
 
   const character = ownCharacter(game, playerId, characterId);
-  if (game.turn.drawnThisTurn) {
-    throw new Error('Взять карту можно один раз за бросок — второй кубик потратьте на другое действие.');
+  if (hasCharacterDrawnThisTurn(game, character.id)) {
+    throw new Error('Этот персонаж уже брал карту в этом броске — выберите другого персонажа или другое действие.');
   }
   if (combatOpponent(game, character)) {
     throw new Error('В бою персонаж не может брать карты: атакуйте, передайте карты или убегайте.');
@@ -367,7 +384,7 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
     throw new Error('В схватке со зверем персонаж не может брать карты: добейте зверя или убегайте.');
   }
   const drawn = drawCardsFromCurrentCell(game, playerId, character);
-  game.turn.drawnThisTurn = true;
+  markCharacterDrawnThisTurn(game, character.id);
   lockMovement(game); // движение в этот бросок зафиксировано — откат недоступен
   spendDie(game, dieIndex);
 
@@ -515,7 +532,7 @@ function autoDrawAfterMove(game, playerId, character, {
   redEvent = null,
 } = {}) {
   if (
-    game.turn.drawnThisTurn
+    hasCharacterDrawnThisTurn(game, character.id)
     || escapedCombat
     || escapedBeast
     || engagedTarget
@@ -529,7 +546,7 @@ function autoDrawAfterMove(game, playerId, character, {
   }
   try {
     const drawn = drawCardsFromCurrentCell(game, playerId, character);
-    game.turn.drawnThisTurn = true;
+    markCharacterDrawnThisTurn(game, character.id);
     lockMovement(game);
     return drawn;
   } catch {
@@ -1946,6 +1963,7 @@ function endTurn(game, playerId) {
   game.turn.transferRemaining = 0;
   game.turn.movedCharacterId = null;
   game.turn.drawnThisTurn = false;
+  game.turn.drawnCharacterIdsThisTurn = [];
 
   let rollsReset = false;
   if (playerIds.every((id) => game.turn.rollsLeft[id] <= 0)) {
