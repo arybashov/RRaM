@@ -648,6 +648,10 @@ function move(game, playerId, {
   assertRolled(game);
   const character = ownCharacter(game, playerId, characterId);
   assertBoardTarget(toCell);
+  dieIndex = resolveMoveDieIndex(game, playerId, character, toCell, dieIndex);
+  if (!isDieIndex(dieIndex) && shouldRequireMoveDieIndex(game, character)) {
+    throw new Error('Выберите кубик для движения.');
+  }
 
   const target = availableMoveTargets(game, playerId, characterId, dieIndex)
     .find((item) => item.cellId === toCell);
@@ -799,6 +803,7 @@ function move(game, playerId, {
       characterId,
       fromCell,
       toCell,
+      dieIndex: isDieIndex(dieIndex) ? dieIndex : null,
       distance: target.distance,
       escapedCombat,
       escapedBeast,
@@ -2051,8 +2056,12 @@ function requireSplit(game) {
   }
 }
 
+function isDieIndex(dieIndex) {
+  return dieIndex === 0 || dieIndex === 1;
+}
+
 function dieValue(game, dieIndex) {
-  if (dieIndex !== 0 && dieIndex !== 1) {
+  if (!isDieIndex(dieIndex)) {
     throw new Error('Кубик должен быть 0 или 1.');
   }
   if (!game.turn.dice) {
@@ -2062,6 +2071,36 @@ function dieValue(game, dieIndex) {
     throw new Error('Этот кубик уже потрачен.');
   }
   return game.turn.dice[dieIndex];
+}
+
+function shouldRequireMoveDieIndex(game, character) {
+  const area = game.turn.movementArea?.characterId === character.id
+    ? game.turn.movementArea
+    : null;
+  return Boolean(area?.mode === 'split' || (!area && game.turn.mode === 'split'));
+}
+
+function resolveMoveDieIndex(game, playerId, character, toCell, dieIndex) {
+  if (isDieIndex(dieIndex)) return dieIndex;
+  if (game.turn.mode !== 'split') return dieIndex;
+  const area = game.turn.movementArea?.characterId === character.id
+    ? game.turn.movementArea
+    : null;
+  const preferred = [
+    ...(area?.mode === 'split' && isDieIndex(area.dieIndex) ? [area.dieIndex] : []),
+    ...[0, 1]
+      .filter((index) => !game.turn.usedDice[index])
+      .sort((a, b) => (game.turn.dice[a] ?? 0) - (game.turn.dice[b] ?? 0)),
+  ].filter((index, pos, list) => list.indexOf(index) === pos);
+  for (const index of preferred) {
+    try {
+      const targets = availableMoveTargets(game, playerId, character.id, index);
+      if (targets.some((target) => target.cellId === toCell)) return index;
+    } catch {
+      // Если кубик невалиден для текущей ноги, пробуем следующий.
+    }
+  }
+  return dieIndex;
 }
 
 function ownCharacter(game, playerId, characterId) {
