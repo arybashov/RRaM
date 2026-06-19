@@ -196,10 +196,10 @@ const roomMsg = await b.waitFor('chat:message');
 check('игровой чат доходит сопернику',
   roomMsg.payload.scope === 'room' && roomMsg.payload.text === 'удачи!' && roomMsg.payload.name === 'Алиса');
 
-// --- Второй добор за бросок отклонён (правило: 1 карта за бросок) ---
-a.send('action:draw', { characterId: `${playerA}:P`, dieIndex: 1 });
+// --- Второй добор за бросок отклонён для того же персонажа ---
+a.send('action:draw', { characterId: blacksmithA, dieIndex: 1 });
 const drawErr = await a.waitFor('server:error');
-check('второй добор за бросок отклонён', /один раз за бросок/i.test(drawErr.payload.message ?? ''));
+check('второй добор за бросок отклонён', /уже брал карту в этом броске/i.test(drawErr.payload.message ?? ''));
 
 // --- Передача через всё поле (расстояние не ограничено) ---
 const pBefore = a.lastSnapshot.game.characters.find((c) => c.id === `${playerA}:P`).cardCount;

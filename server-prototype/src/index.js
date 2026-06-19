@@ -309,7 +309,10 @@ function broadcastState(roomId) {
   for (const client of clients.values()) {
     if (client.roomId === roomId) {
       send(client.socket, ServerEvent.STATE_SNAPSHOT, {
-        room: store.snapshot(room, client.playerId, { fogEnabled: client.fogEnabled }),
+        room: store.snapshot(room, client.playerId, {
+          fogEnabled: client.fogEnabled,
+          revealAllInventories: DEBUG_COMMANDS_ENABLED,
+        }),
       });
     }
   }

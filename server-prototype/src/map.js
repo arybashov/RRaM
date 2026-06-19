@@ -22,6 +22,9 @@ const neighborMap = new Map(
 );
 
 const STARTS = MAP.starts ?? { green: {}, red: {} };
+const DWARF_ROUTE = Array.isArray(MAP.dwarfRoute)
+  ? MAP.dwarfRoute.filter((id) => cellsById.has(id) && cellsById.get(id).walkable !== false)
+  : [];
 
 export function isBoardCell(id) {
   return cellsById.has(id);
@@ -144,6 +147,10 @@ export function pointClassCells(pointClass) {
   return MAP.cells
     .filter((cell) => cell.pointClass === pointClass && cell.walkable !== false)
     .map((cell) => cell.id);
+}
+
+export function dwarfRoute() {
+  return [...DWARF_ROUTE];
 }
 
 export function terrainCells(terrain) {

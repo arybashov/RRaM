@@ -30,6 +30,18 @@ let serverDebugCommandsEnabled = false;
 
 // ── Константы ─────────────────────────────────────────────────────
 const ROLE_NAMES = { K: 'Кузнец', P: 'Помощник', V: 'Воин', O: 'Охотник', S: 'Шаман' };
+const DWARF_NAMES = {
+  ordinary: 'Дварф',
+  tank: 'Дварф-танк',
+  rifle: 'Дварф с ружьём',
+};
+const DWARF_ART = {
+  'dwarf:ordinary:1': 'dwarf-ordinary-1-v1.png',
+  'dwarf:ordinary:2': 'dwarf-ordinary-2-v1.png',
+  'dwarf:tank': 'dwarf-tank-v1.png',
+  'dwarf:rifle:1': 'dwarf-rifle-1-v1.png',
+  'dwarf:rifle:2': 'dwarf-rifle-2-v1.png',
+};
 const CHARACTER_ENCYCLOPEDIA = Object.freeze([
   { id: 'character_K', role: 'K', name: 'Кузнец', type: 'character', deck: 'characters', desc: 'Стартовый персонаж команды. Крафтит изделия кузнеца, использует Молоток для усиленного добора и участвует в цепочке Молота Иерихон.' },
   { id: 'character_P', role: 'P', name: 'Помощник', type: 'character', deck: 'characters', desc: 'Стартовый персонаж команды. Работает с Мешком и помогает переносить/собирать ресурсы для крафта.' },
@@ -481,7 +493,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260619-17'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260619-29'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
 const SINGLE_TAB_LOCK_TTL_MS = 15000;
 const SINGLE_TAB_HEARTBEAT_MS = 2000;
@@ -1107,6 +1119,11 @@ function tokenArtHref(char) {
   const side = charSide(char);
   const art = TOKEN_ART[side]?.[char.role] ?? TOKEN_ART.green.V;
   return `./assets/tokens/${side}/${art}.png`;
+}
+
+function dwarfArtHref(unit) {
+  const art = DWARF_ART[unit.id] ?? DWARF_ART['dwarf:ordinary:1'];
+  return `./assets/tokens/dwarves/${art}?v=${APP_VERSION}`;
 }
 
 function characterNavArtHref(char) {
@@ -2509,16 +2526,26 @@ function renderBoard() {
   const selectedAttackTargets = new Set(
     game.legalTargets?.attacks?.[selectedAttacker?.id] ?? [],
   );
-  const charactersByDepth = [...game.characters].sort((a, b) => {
-    const aPos = tokenDisplayPos.get(a.id) ?? characterPosition(a);
-    const bPos = tokenDisplayPos.get(b.id) ?? characterPosition(b);
-    return (cellCenter(aPos)?.cy ?? -Infinity) - (cellCenter(bPos)?.cy ?? -Infinity);
-  });
-  for (const char of charactersByDepth) {
-    const pos  = tokenDisplayPos.get(char.id) ?? characterPosition(char);
-    const ctr  = cellCenter(pos);
-    if (!ctr) continue;
-    const { cx, cy } = ctr;
+  const renderItems = [
+    ...game.characters.map((char) => {
+      const pos = tokenDisplayPos.get(char.id) ?? characterPosition(char);
+      const ctr = cellCenter(pos);
+      return ctr ? { type: 'character', id: char.id, char, cx: ctr.cx, cy: ctr.cy } : null;
+    }),
+    ...dwarfRenderItems(game.dwarves),
+  ]
+    .filter(Boolean)
+    .sort((a, b) =>
+      a.cy - b.cy
+      || (a.type === 'dwarf' ? 1 : 0) - (b.type === 'dwarf' ? 1 : 0)
+      || String(a.id ?? '').localeCompare(String(b.id ?? '')));
+
+  for (const item of renderItems) {
+    if (item.type === 'dwarf') {
+      appendDwarfToken(item.unit, item.cx, item.cy);
+      continue;
+    }
+    const { char, cx, cy } = item;
     const g = document.createElementNS(svgNS, 'g');
     const isOwn = char.owner === myPlayerId;
     const tokenClasses = ['token', `side-${charSide(char)}`, `role-${char.role}`];
@@ -2715,6 +2742,111 @@ function renderBoard() {
   }
   renderCombatBoardElements(fogCircles);
   bringDamageLayerToFront();
+}
+
+function dwarfRenderItems(dwarfState) {
+  const units = (dwarfState?.units ?? []).filter(unit => unit.alive && unit.position);
+  if (!units.length) return [];
+
+  const positionCounts = units.reduce((counts, unit) => {
+    counts.set(unit.position, (counts.get(unit.position) || 0) + 1);
+    return counts;
+  }, new Map());
+  const positionSeen = new Map();
+  const items = [];
+
+  for (const unit of units) {
+    const ctr = cellCenter(unit.position);
+    if (!ctr) continue;
+    const count = positionCounts.get(unit.position) || 1;
+    const seen = positionSeen.get(unit.position) || 0;
+    positionSeen.set(unit.position, seen + 1);
+    const angle = count > 1 ? (-Math.PI * 0.86) + (seen / Math.max(1, count - 1)) * Math.PI * 0.72 : 0;
+    const offset = count > 1 ? HEX_R * 0.76 : 0;
+    const cx = ctr.cx + Math.cos(angle) * offset;
+    const cy = ctr.cy + Math.sin(angle) * offset;
+    items.push({ type: 'dwarf', id: unit.id, unit, cx, cy });
+  }
+  return items;
+}
+
+function appendDwarfToken(unit, cx, cy) {
+  const g = document.createElementNS(svgNS, 'g');
+  g.setAttribute('class', `token dwarf-token dwarf-${unit.kind ?? 'ordinary'}`);
+  g.setAttribute('transform', `translate(${cx} ${cy})`);
+
+  const halo = document.createElementNS(svgNS, 'circle');
+  halo.setAttribute('class', 'token-halo dwarf-halo');
+  halo.setAttribute('r', (HEX_R * 0.58).toFixed(1));
+
+  const figure = document.createElementNS(svgNS, 'image');
+  const figureWidth = HEX_R * 3.38;
+  const figureHeight = HEX_R * 4.6475;
+  figure.setAttribute('class', 'token-figure dwarf-figure');
+  figure.setAttributeNS('http://www.w3.org/1999/xlink', 'href', dwarfArtHref(unit));
+  figure.setAttribute('href', dwarfArtHref(unit));
+  figure.setAttribute('x', (-figureWidth / 2).toFixed(2));
+  figure.setAttribute('y', (-figureHeight * 0.7).toFixed(2));
+  figure.setAttribute('width', figureWidth.toFixed(2));
+  figure.setAttribute('height', figureHeight.toFixed(2));
+  figure.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  const title = document.createElementNS(svgNS, 'title');
+  title.textContent = `${unit.name ?? DWARF_NAMES[unit.kind] ?? 'Dwarf'} - ${unit.hp ?? 100} HP`;
+  g.appendChild(title);
+  g.appendChild(halo);
+  g.appendChild(figure);
+  boardVp.appendChild(g);
+}
+
+function renderDwarves(dwarfState) {
+  const units = (dwarfState?.units ?? []).filter(unit => unit.alive && unit.position);
+  if (!units.length) return;
+
+  const positionCounts = units.reduce((counts, unit) => {
+    counts.set(unit.position, (counts.get(unit.position) || 0) + 1);
+    return counts;
+  }, new Map());
+  const positionSeen = new Map();
+
+  for (const unit of units) {
+    const ctr = cellCenter(unit.position);
+    if (!ctr) continue;
+    const count = positionCounts.get(unit.position) || 1;
+    const seen = positionSeen.get(unit.position) || 0;
+    positionSeen.set(unit.position, seen + 1);
+    const angle = count > 1 ? (-Math.PI * 0.86) + (seen / Math.max(1, count - 1)) * Math.PI * 0.72 : 0;
+    const offset = count > 1 ? HEX_R * 0.76 : 0;
+    const cx = ctr.cx + Math.cos(angle) * offset;
+    const cy = ctr.cy + Math.sin(angle) * offset;
+
+    const g = document.createElementNS(svgNS, 'g');
+    g.setAttribute('class', `token dwarf-token dwarf-${unit.kind ?? 'ordinary'}`);
+    g.setAttribute('transform', `translate(${cx} ${cy})`);
+
+    const halo = document.createElementNS(svgNS, 'circle');
+    halo.setAttribute('class', 'token-halo dwarf-halo');
+    halo.setAttribute('r', (HEX_R * 0.58).toFixed(1));
+
+    const figure = document.createElementNS(svgNS, 'image');
+    const figureWidth = HEX_R * 3.38;
+    const figureHeight = HEX_R * 4.6475;
+    figure.setAttribute('class', 'token-figure dwarf-figure');
+    figure.setAttributeNS('http://www.w3.org/1999/xlink', 'href', dwarfArtHref(unit));
+    figure.setAttribute('href', dwarfArtHref(unit));
+    figure.setAttribute('x', (-figureWidth / 2).toFixed(2));
+    figure.setAttribute('y', (-figureHeight * 0.7).toFixed(2));
+    figure.setAttribute('width', figureWidth.toFixed(2));
+    figure.setAttribute('height', figureHeight.toFixed(2));
+    figure.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    const title = document.createElementNS(svgNS, 'title');
+    title.textContent = `${unit.name ?? DWARF_NAMES[unit.kind] ?? 'Дварф'} — ${unit.hp ?? 100} HP`;
+    g.appendChild(title);
+    g.appendChild(halo);
+    g.appendChild(figure);
+    boardVp.appendChild(g);
+  }
 }
 
 function renderCharacters() {
@@ -4646,6 +4778,28 @@ function handleActionResult(result) {
     for (const released of result.roll.lakeFrogReleased) {
       showToast('Озёрная лягушка снята', 'success');
       addLog(`Озёрная лягушка снята с цели: сумма кубиков ${result.roll.total}. Карта возвращена Шаману.`, { type: 'sys' });
+    }
+  }
+
+  if (result.dwarves) {
+    if (Array.isArray(result.dwarves.entries) || Array.isArray(result.dwarves.moves)) {
+      for (const entry of result.dwarves.entries ?? []) {
+        addLog(`Дварф вышел из ворот: ${entry.toCell}.`, { type: 'sys' });
+      }
+      for (const move of result.dwarves.moves ?? []) {
+        if (move.fromCell !== move.toCell) {
+          const suffix = move.aggroTargetId ? ' к цели' : ' по маршруту';
+          addLog(`Дварф идёт${suffix}: ${move.fromCell} → ${move.toCell}.`, { type: 'sys' });
+        }
+      }
+      for (const attack of result.dwarves.attacks ?? []) {
+        const dead = attack.defeated ? ' Персонаж выбыл.' : '';
+        addLog(`Дварф атакует ${attack.targetId}: −${attack.damage} HP.${dead}`, { type: attack.defeated ? 'bad' : 'sys' });
+      }
+    } else if (result.dwarves.type === 'entry') {
+      addLog(`Дварфы вышли из ворот: ${result.dwarves.toCell}.`, { type: 'sys' });
+    } else if (result.dwarves.type === 'move') {
+      addLog(`Дварфы идут по маршруту: ${result.dwarves.fromCell} → ${result.dwarves.toCell}.`, { type: 'sys' });
     }
   }
 

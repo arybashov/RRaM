@@ -516,6 +516,37 @@ function performBestAction({
   return false;
 }
 
+async function performBestActions({
+  applyCommand,
+  getRoom,
+  broadcast,
+  emitActionResult,
+  roomId,
+  botPlayerId,
+  dieIndices,
+  wait,
+  maxActions = 20,
+}) {
+  for (let guard = 0; guard < maxActions; guard += 1) {
+    let acted = false;
+    for (const dieIndex of dieIndices) {
+      if (performBestAction({
+        applyCommand,
+        getRoom,
+        broadcast,
+        emitActionResult,
+        roomId,
+        botPlayerId,
+        dieIndex,
+      })) {
+        acted = true;
+        await wait(120);
+      }
+    }
+    if (!acted) break;
+  }
+}
+
 export async function runBotTurn({
   applyCommand,
   getRoom,
@@ -554,28 +585,19 @@ export async function runBotTurn({
   }
 
   await wait(500);
-  performBestAction({
+  await performBestActions({
     applyCommand,
     getRoom,
     broadcast,
     emitActionResult,
     roomId,
     botPlayerId,
-    dieIndex: 0,
+    dieIndices: inBeastFight ? [0, 1] : [0],
+    wait,
   });
 
   if (inBeastFight) {
     // Второй кубик — ещё одна попытка добить зверя (или другое действие).
-    await wait(300);
-    performBestAction({
-      applyCommand,
-      getRoom,
-      broadcast,
-      emitActionResult,
-      roomId,
-      botPlayerId,
-      dieIndex: 1,
-    });
   }
 
   await wait(450);

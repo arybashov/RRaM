@@ -321,7 +321,7 @@ function fogVisibleCells(game, forPlayerId) {
   return seen;
 }
 
-export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
+export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllInventories = false } = {}) {
   // Туман войны: видно клетки в радиусе FOG_RADIUS от своих живых персонажей;
   // вражеские фишки вне зоны скрываются (position: null). Движение туманом не
   // ограничено — ходить можно на длину кубиков и в неизведанное.
@@ -353,8 +353,9 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
         card: hiddenFromViewer
           ? { id: null, name: 'Закрытая карта', type: 'hidden', desc: '', hidden: true }
           : cardView(entry.cardId, character),
-      };
-    }),
+        };
+      }),
+    dwarves: dwarfStateView(game.dwarves),
     turn: {
       activePlayerId: game.turn.activePlayerId,
       rollsLeft: game.turn.rollsLeft,
@@ -399,7 +400,9 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
         cardCount: c.inventory.length,
         // Полный инвентарь — только владельцу. Отдельные открытые карты
         // видны сопернику без раскрытия остальной руки.
-        inventory: c.owner === forPlayerId ? c.inventory.map((id) => cardView(id, c)) : undefined,
+        inventory: c.owner === forPlayerId || revealAllInventories
+          ? c.inventory.map((id) => cardView(id, c))
+          : undefined,
         publicCards: c.owner !== forPlayerId
           ? c.inventory
               .map((id) => cardView(id, c))
@@ -408,6 +411,28 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
       };
     }),
     legalTargets: snapshotLegalTargets(game, forPlayerId),
+  };
+}
+
+function dwarfStateView(state) {
+  if (!state) return null;
+  return {
+    enabled: Boolean(state.enabled),
+    active: Boolean(state.active),
+    entryTurn: state.entryTurn ?? null,
+    mainTurnsCompleted: state.mainTurnsCompleted ?? 0,
+    routeIndex: state.routeIndex ?? -1,
+    routeLength: state.route?.length ?? 0,
+    units: (state.units ?? []).map((unit) => ({
+      id: unit.id,
+      kind: unit.kind,
+      name: unit.name,
+      hp: unit.hp,
+      position: unit.position ?? null,
+      routeIndex: unit.routeIndex ?? -1,
+      alive: unit.alive !== false,
+      cardCount: unit.inventory?.length ?? 0,
+    })),
   };
 }
 

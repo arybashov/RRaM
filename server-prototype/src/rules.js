@@ -43,9 +43,35 @@ import {
   shortestDistance,
   startCell,
   pointClassCells,
+  dwarfRoute,
 } from './map.js';
 
 const GOLD_FEATHER_SET = new Set(GOLD_FEATHER_CARDS);
+// Дварфы выходят из ворот после 5-го хода (становятся активны, когда счётчик
+// ходов основных игроков достигает 5).
+const DWARF_ENTRY_TURN = 5;
+const DWARF_UNITS = Object.freeze([
+  { id: 'dwarf:ordinary:1', kind: 'ordinary', name: 'Дварф', hp: 100 },
+  { id: 'dwarf:ordinary:2', kind: 'ordinary', name: 'Дварф', hp: 100 },
+  { id: 'dwarf:tank', kind: 'tank', name: 'Дварф-танк', hp: 140 },
+  { id: 'dwarf:rifle:1', kind: 'rifle', name: 'Дварф с ружьём', hp: 100 },
+  { id: 'dwarf:rifle:2', kind: 'rifle', name: 'Дварф с ружьём', hp: 100 },
+]);
+const DWARF_AGGRO_RADIUS = 5;
+const DWARF_ROUTE_DEVIATION = 5;
+const DWARF_ATTACK = Object.freeze({
+  ordinary: { range: 1, damage: 10 },
+  tank: { range: 1, damage: 15 },
+  rifle: { range: 5, damage: 15 },
+});
+
+// Бросок кубиков дварфа = его дальность хода за раунд (как у персонажей: два
+// кубика, дальность = сумме). Вынесено в переменную, чтобы тесты могли задать
+// детерминированный бросок через __setDwarfDiceRoller.
+let dwarfDiceRoller = () => [rollDie(), rollDie()];
+export function __setDwarfDiceRoller(fn) {
+  dwarfDiceRoller = typeof fn === 'function' ? fn : () => [rollDie(), rollDie()];
+}
 
 export function createGame(players) {
   const characters = [];
@@ -86,6 +112,7 @@ export function createGame(players) {
     redIrkonDropped: false,
     discard: [],
     terrainCards: [],
+    dwarves: createDwarfState(),
     turn: {
       activePlayerId: players[0].id,
       rollsLeft,
@@ -103,6 +130,27 @@ export function createGame(players) {
       drawnThisTurn: false,   // совместимый флаг: в этом броске был хотя бы один добор
       drawnCharacterIdsThisTurn: [], // каждый персонаж может добрать один раз за бросок
     },
+  };
+}
+
+function createDwarfState() {
+  const route = dwarfRoute();
+  const enabled = route.length > 0;
+  const active = enabled && DWARF_ENTRY_TURN <= 0;
+  return {
+    enabled,
+    active,
+    entryTurn: DWARF_ENTRY_TURN,
+    mainTurnsCompleted: 0,
+    route,
+    routeIndex: -1,
+    units: DWARF_UNITS.map((unit) => ({
+      ...unit,
+      position: null,
+      routeIndex: -1,
+      inventory: [],
+      alive: true,
+    })),
   };
 }
 
@@ -564,6 +612,44 @@ function autoDrawAfterMove(game, playerId, character, {
   }
 }
 
+function livingDwarfUnits(game) {
+  return (game.dwarves?.units ?? []).filter((unit) =>
+    unit.alive !== false && unit.position);
+}
+
+function occupiedStopCells(game, { exceptCharacterId = null, exceptDwarfId = null } = {}) {
+  const occupied = new Set();
+  for (const character of game.characters ?? []) {
+    if (character.id === exceptCharacterId || character.hp <= 0 || !character.position) continue;
+    occupied.add(character.position);
+  }
+  for (const unit of livingDwarfUnits(game)) {
+    if (unit.id === exceptDwarfId) continue;
+    occupied.add(unit.position);
+  }
+  return occupied;
+}
+
+function movementBlockedCells(game, {
+  ownerId = null,
+  exceptCharacterId = null,
+  exceptDwarfId = null,
+  includeDwarves = true,
+} = {}) {
+  const blocked = new Set();
+  for (const character of game.characters ?? []) {
+    if (character.id === exceptCharacterId || character.hp <= 0 || !character.position) continue;
+    if (!ownerId || character.owner !== ownerId) blocked.add(character.position);
+  }
+  if (includeDwarves) {
+    for (const unit of livingDwarfUnits(game)) {
+      if (unit.id === exceptDwarfId) continue;
+      blocked.add(unit.position);
+    }
+  }
+  return blocked;
+}
+
 function moveExhaustedCards(from, to, cardIds) {
   for (const cardId of cardIds) {
     const exhaustedIndex = from.exhaustedCards?.indexOf(cardId) ?? -1;
@@ -583,6 +669,7 @@ function moveExhaustedCards(from, to, cardIds) {
 
 export function availableMoveTargets(game, playerId, characterId, dieIndex) {
   const character = ownCharacter(game, playerId, characterId);
+  bindTurnDice(game, characterId);
   if (!game.turn.dice) return [];
   const opponent = combatOpponent(game, character);
   const turnArea = game.turn.movementArea;
@@ -612,13 +699,11 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
     maxSteps = game.turn.dice[0] + game.turn.dice[1];
   }
 
-  const blocked = new Set(
-    game.characters
-      .filter((item) => item.id !== character.id && item.position)
-      .map((item) => item.position),
-  );
+  const blocked = movementBlockedCells(game, { ownerId: playerId });
+  const occupied = occupiedStopCells(game, { exceptCharacterId: character.id });
   const targets = reachableCells(origin, maxSteps, blocked)
-    .filter((target) => target.cellId !== character.position);
+    .filter((target) => target.cellId !== character.position)
+    .filter((target) => !occupied.has(target.cellId));
   if (!opponent) return targets;
 
   const opponentAdjacent = new Set(neighbors(opponent.position));
@@ -637,13 +722,11 @@ export function singleDieTargets(game, playerId, characterId, dieIndex) {
   // В бою/схватке карту взять нельзя — планируемый добор неактуален.
   if (combatOpponent(game, character) || character.beastFight) return [];
   const maxSteps = game.turn.dice[dieIndex];
-  const blocked = new Set(
-    game.characters
-      .filter((item) => item.id !== character.id && item.position)
-      .map((item) => item.position),
-  );
+  const blocked = movementBlockedCells(game, { ownerId: playerId });
+  const occupied = occupiedStopCells(game, { exceptCharacterId: character.id });
   return reachableCells(character.position, maxSteps, blocked)
     .filter((target) => target.cellId !== character.position)
+    .filter((target) => !occupied.has(target.cellId))
     .map((target) => target.cellId);
 }
 
@@ -1989,10 +2072,382 @@ function endTurn(game, playerId) {
     rollsReset = true;
   }
 
-  return { activePlayerId: game.turn.activePlayerId, over: game.over, rollsReset };
+  const shouldAdvanceDwarves = playerIds.length <= 1 || game.turn.activePlayerId === playerIds[0];
+  const dwarves = shouldAdvanceDwarves ? advanceDwarves(game) : null;
+
+  return { activePlayerId: game.turn.activePlayerId, over: game.over, rollsReset, dwarves };
 }
 
 // --- помощники валидации ---
+
+function advanceDwarves(game) {
+  const state = game.dwarves;
+  if (!state?.enabled || !state.route?.length) return null;
+  state.mainTurnsCompleted = (state.mainTurnsCompleted ?? 0) + 1;
+
+  if (!state.active) {
+    if (state.mainTurnsCompleted < (state.entryTurn ?? DWARF_ENTRY_TURN)) return null;
+    state.active = true;
+  }
+
+  const entries = [];
+  const moves = [];
+  const attacks = [];
+
+  // Первый выход: дварфы выходят из ворот колонной (route[0..n]). Дальше они
+  // растягиваются по тропе сами за счёт задержек на погоне и прохода сквозь своих.
+  const anyOnBoard = (state.units ?? []).some((unit) =>
+    unit.alive !== false && unit.position);
+  if (!anyOnBoard) {
+    const occupied = occupiedStopCells(game);
+    const waiting = (state.units ?? []).filter((unit) =>
+      unit.alive !== false && !unit.position);
+    for (let index = 0; index < waiting.length && index < state.route.length; index += 1) {
+      const toCell = state.route[index];
+      if (occupied.has(toCell)) break;
+      const unit = waiting[index];
+      unit.position = toCell;
+      unit.routeIndex = index;
+      occupied.add(toCell);
+      entries.push({ unitId: unit.id, toCell, routeIndex: index });
+    }
+    state.routeIndex = Math.max(
+      -1,
+      ...(state.units ?? []).map((unit) => unit.routeIndex ?? -1),
+    );
+    return {
+      type: entries.length ? 'dwarfTurn' : 'wait',
+      entries,
+      moves,
+      routeIndex: state.routeIndex,
+      turn: state.mainTurnsCompleted,
+    };
+  }
+
+  // Юниты, уже стоявшие на поле ДО этого хода, ходят сейчас; вышедший в этот ход
+  // ждёт следующего. Лидер впереди (наибольший индекс) ходит первым — освобождает
+  // клетку раньше, чем подойдёт следующий, поэтому колонна не застаивается.
+  const unitsOnBoard = (state.units ?? [])
+    .filter((unit) => unit.alive !== false && unit.position)
+    .sort((a, b) => strictDwarfRouteIndex(state, b) - strictDwarfRouteIndex(state, a));
+
+  // 1) Движение: каждый дварф проходит вдоль маршрута на сумму своих кубиков
+  //    (можно отклоняться к цели ≤5 клеток), но останавливается, как только дошёл
+  //    до цели в дальности атаки — чтобы не пройти мимо. Юниты проходят сквозь друг
+  //    друга, но не встают на одну клетку. Разные броски → группа сама растягивается.
+  moveDwarfColumn(game, state, unitsOnBoard, moves);
+
+  // 2) Атака с конечной клетки: бьёт ближайшую цель в радиусе.
+  for (const unit of unitsOnBoard) {
+    if (unit.alive === false || !unit.position) continue;
+    const attack = resolveDwarfAttack(game, unit);
+    if (attack) attacks.push(attack);
+  }
+
+  // 3) Выход из ворот: по одному дварфу за ход, если клетка ворот свободна.
+  const entryCell = state.route[0];
+  const nextUnit = (state.units ?? []).find((unit) =>
+    unit.alive !== false && !unit.position);
+  if (nextUnit && !occupiedStopCells(game).has(entryCell)) {
+    nextUnit.position = entryCell;
+    nextUnit.routeIndex = 0;
+    entries.push({ unitId: nextUnit.id, toCell: entryCell, routeIndex: 0 });
+  }
+
+  state.routeIndex = Math.max(
+    -1,
+    ...(state.units ?? []).map((unit) => unit.routeIndex ?? -1),
+  );
+  if (!entries.length && !moves.length) {
+    const allFinished = (state.units ?? []).every((unit) =>
+      unit.alive === false
+      || (unit.position && (unit.routeIndex ?? -1) >= state.route.length - 1));
+    return {
+      type: allFinished ? 'finished' : 'wait',
+      routeIndex: state.routeIndex,
+      turn: state.mainTurnsCompleted,
+      attacks,
+    };
+  }
+  return {
+    type: 'dwarfTurn',
+    entries,
+    moves,
+    attacks,
+    routeIndex: state.routeIndex,
+    turn: state.mainTurnsCompleted,
+  };
+}
+
+// Атака дварфа: бьёт ближайшую цель в радиусе и НЕ тратит шаг по маршруту.
+// Возвращает запись об атаке или null, если бить некого.
+function resolveDwarfAttack(game, unit) {
+  const target = nearestDwarfTarget(game, unit);
+  if (!target) return null;
+
+  const attackProfile = DWARF_ATTACK[unit.kind] ?? DWARF_ATTACK.ordinary;
+  if (target.distance > attackProfile.range) return null;
+
+  const beforeHp = target.character.hp;
+  target.character.hp = Math.max(0, target.character.hp - attackProfile.damage);
+  const defeated = target.character.hp === 0;
+  let discardedCount = 0;
+  if (defeated) {
+    discardedCount = defeatByDwarf(game, target.character);
+  }
+  return {
+    unitId: unit.id,
+    unitKind: unit.kind,
+    targetId: target.character.id,
+    fromCell: unit.position,
+    targetCell: target.character.position ?? target.cellId,
+    distance: target.distance,
+    damage: attackProfile.damage,
+    hpBefore: beforeHp,
+    hpAfter: target.character.hp,
+    defeated,
+    discardedCount,
+  };
+}
+
+// Шаг колонны за один ход дварфов. Лидеры (выше по индексу) ходят первыми и
+// освобождают клетку до того, как туда шагнёт следующий — поэтому стоящий
+// (атакующий или заблокированный) дварф больше не «замораживает» всю цепочку.
+// Юниты могут проходить сквозь друг друга, но не могут закончить шаг на клетке,
+// где в покое стоит другой юнит (дварф или персонаж).
+function moveDwarfColumn(game, state, units, moves) {
+  if (!state.route?.length) return;
+
+  // Проход блокируют только ВРАГИ (персонажи). Сквозь своих проходить можно.
+  const enemyCells = new Set();
+  for (const character of game.characters ?? []) {
+    if (character.hp > 0 && character.position) enemyCells.add(character.position);
+  }
+  // Клетки покоя: на одной клетке не могут стоять два юнита (свои или враги).
+  const restingCells = new Set(enemyCells);
+  for (const unit of units) restingCells.add(unit.position);
+
+  for (const unit of units) {
+    if (strictDwarfRouteIndex(state, unit) < 0) continue;
+
+    const dice = dwarfDiceRoller(unit);
+    const allowance = (dice[0] ?? 0) + (dice[1] ?? 0);
+    const startCell = unit.position;
+    const startIndex = strictDwarfRouteIndex(state, unit);
+    restingCells.delete(startCell); // свою клетку освобождаем на время хода
+
+    // 1) Проходим вдоль маршрута до суммы кубиков (свои — проходные, враги — нет),
+    //    отклоняясь к цели ≤5; останавливаемся, дойдя до дальности атаки.
+    const path = []; // { cell, routeIndex } по пройденным клеткам
+    let routeRecovery = false;
+    for (let used = 0; used < allowance; used += 1) {
+      if (dwarfHasAttackTarget(game, unit)) break;
+      const cur = unit.position;
+      const curIndex = strictDwarfRouteIndex(state, unit);
+      if (curIndex < 0) break;
+      const step = chooseDwarfNextCell(game, state, unit, enemyCells);
+      if (!step || step === cur) break; // упёрся во врага/чокпоинт — стоп
+      if (state.route[curIndex] !== cur) routeRecovery = true;
+      const onRouteIndex = forwardDwarfRouteIndexForCell(state, curIndex, step);
+      unit.position = step;
+      if (onRouteIndex >= 0) unit.routeIndex = onRouteIndex;
+      path.push({ cell: step, routeIndex: unit.routeIndex ?? curIndex });
+    }
+
+    // 2) Встаём на самую дальнюю пройденную клетку, свободную в покое (нельзя
+    //    закончить ход на клетке другого юнита — но мимо него можно было пройти).
+    let restAt = -1;
+    for (let i = path.length - 1; i >= 0; i -= 1) {
+      if (!restingCells.has(path[i].cell)) { restAt = i; break; }
+    }
+    if (restAt < 0) {
+      // Некуда встать (все пройденные клетки заняты) — остаёмся на старте.
+      unit.position = startCell;
+      unit.routeIndex = startIndex;
+      restingCells.add(startCell);
+      continue;
+    }
+    const rest = path[restAt];
+    unit.position = rest.cell;
+    unit.routeIndex = rest.routeIndex;
+    restingCells.add(rest.cell);
+
+    moves.push({
+      unitId: unit.id,
+      fromCell: startCell,
+      toCell: rest.cell,
+      path: path.slice(0, restAt + 1).map((p) => p.cell),
+      dice,
+      steps: restAt + 1,
+      routeIndex: unit.routeIndex ?? startIndex,
+      ...(routeRecovery ? { routeRecovery: true } : {}),
+    });
+  }
+}
+
+// Есть ли у дварфа цель прямо сейчас в дальности его атаки.
+function dwarfHasAttackTarget(game, unit) {
+  const target = nearestDwarfTarget(game, unit);
+  if (!target) return false;
+  const profile = DWARF_ATTACK[unit.kind] ?? DWARF_ATTACK.ordinary;
+  return target.distance <= profile.range;
+}
+
+// Куда дварф шагнёт в этот ход. Приоритет: погоня за целью в пределах отклонения
+// (≤5 клеток), иначе шаг к ближайшей СВОБОДНОЙ клетке маршрута впереди — с обходом
+// препятствий (враг на тропе, остановившийся дварф). Всегда проверяет, что клетка
+// назначения свободна в покое (`occupied`).
+function chooseDwarfNextCell(game, state, unit, occupied) {
+  const fromCell = unit.position;
+  const fromIndex = strictDwarfRouteIndex(state, unit);
+  if (fromIndex < 0 || !state.route?.length) return null;
+
+  // Погоня: цель в радиусе агро, но вне дальности атаки — отклоняемся к ней,
+  // не дальше DWARF_ROUTE_DEVIATION от маршрута.
+  const target = nearestDwarfTarget(game, unit);
+  if (target) {
+    const profile = DWARF_ATTACK[unit.kind] ?? DWARF_ATTACK.ordinary;
+    if (target.distance > profile.range) {
+      const chase = chooseDwarfStepToward(game, state, unit, target.character.position);
+      if (chase && !occupied.has(chase)) return chase;
+    }
+  }
+
+  // Цель шага — ближайшая свободная клетка маршрута впереди (пропускаем занятые:
+  // врага на тропе, вставшего дварфа). Возврат на тропу после отклонения работает
+  // тем же механизмом — цель всё равно ближайшая свободная точка маршрута.
+  const goal = nextFreeRouteCell(state, fromIndex, fromCell, occupied);
+  if (!goal || goal.cellId === fromCell) return null;
+
+  // Если клетка маршрута рядом и свободна — шагаем прямо на неё (обычное движение).
+  if (neighbors(fromCell).includes(goal.cellId) && !occupied.has(goal.cellId)) {
+    return goal.cellId;
+  }
+  // Иначе обходим препятствие соседней клеткой в сторону цели (в пределах отклонения).
+  return stepTowardRouteGoal(game, state, fromIndex, fromCell, goal.cellId, occupied);
+}
+
+// Ближайшая впереди по маршруту клетка, свободная в покое. Окно поиска ограничено
+// отклонением — если всё забито дальше, дварф ждёт ход.
+function nextFreeRouteCell(state, fromIndex, fromCell, occupied) {
+  const len = state.route.length;
+  const lookahead = Math.min(len, DWARF_ROUTE_DEVIATION + 3);
+  for (let step = 1; step <= lookahead; step += 1) {
+    const index = (fromIndex + step) % len;
+    const cellId = state.route[index];
+    if (cellId === fromCell) continue;
+    if (!occupied.has(cellId)) return { cellId, index };
+  }
+  return null;
+}
+
+// Один свободный шаг-сосед в сторону клетки маршрута, строго сокращающий дистанцию
+// и не уходящий дальше DWARF_ROUTE_DEVIATION от тропы. Так колонна обтекает
+// препятствия и обгоняет друг друга по соседним клеткам.
+function stepTowardRouteGoal(game, state, fromIndex, fromCell, goalCell, occupied) {
+  const currentDistance = shortestDistance(fromCell, goalCell);
+  const candidates = neighbors(fromCell)
+    .filter((cellId) => !occupied.has(cellId))
+    .map((cellId) => ({
+      cellId,
+      goalDistance: shortestDistance(cellId, goalCell),
+      routeDistance: forwardDwarfRouteDistance(state, fromIndex, cellId),
+    }))
+    .filter((candidate) =>
+      candidate.goalDistance < currentDistance
+      && candidate.routeDistance <= DWARF_ROUTE_DEVIATION)
+    .sort((a, b) =>
+      a.goalDistance - b.goalDistance
+      || a.routeDistance - b.routeDistance
+      || a.cellId.localeCompare(b.cellId));
+  return candidates[0]?.cellId ?? null;
+}
+
+function strictDwarfRouteIndex(state, unit) {
+  if (!state.route?.length) return -1;
+  if (Number.isInteger(unit.routeIndex)
+    && unit.routeIndex >= 0
+    && unit.routeIndex < state.route.length) {
+    return unit.routeIndex;
+  }
+  return -1;
+}
+
+function nearestDwarfTarget(game, unit) {
+  let best = null;
+  for (const character of game.characters ?? []) {
+    if (character.hp <= 0 || !character.position) continue;
+    const distance = shortestDistance(unit.position, character.position);
+    if (distance > DWARF_AGGRO_RADIUS) continue;
+    if (!best || distance < best.distance || character.hp < best.character.hp) {
+      best = { character, cellId: character.position, distance };
+    }
+  }
+  return best;
+}
+
+function chooseDwarfStepToward(game, state, unit, targetCell) {
+  const fromCell = unit.position;
+  const fromIndex = strictDwarfRouteIndex(state, unit);
+  if (fromIndex < 0) return null;
+  const currentDistance = shortestDistance(fromCell, targetCell);
+  const occupied = occupiedStopCells(game, { exceptDwarfId: unit.id });
+  const candidates = neighbors(fromCell)
+    .filter((cellId) => !occupied.has(cellId))
+    .map((cellId) => ({
+      cellId,
+      targetDistance: shortestDistance(cellId, targetCell),
+      routeDistance: forwardDwarfRouteDistance(state, fromIndex, cellId),
+    }))
+    .filter((candidate) =>
+      candidate.targetDistance < currentDistance
+      && isForwardDwarfRouteCandidate(state, fromIndex, candidate.cellId)
+      && candidate.routeDistance <= DWARF_ROUTE_DEVIATION)
+    .sort((a, b) =>
+      a.targetDistance - b.targetDistance
+      || a.routeDistance - b.routeDistance
+      || a.cellId.localeCompare(b.cellId));
+  return candidates[0]?.cellId ?? null;
+}
+
+function isForwardDwarfRouteCandidate(state, fromIndex, cellId) {
+  const directIndex = forwardDwarfRouteIndexForCell(state, fromIndex, cellId);
+  if (directIndex >= 0) return true;
+  const isRouteCell = (state.route ?? []).includes(cellId);
+  if (isRouteCell) return false;
+  return true;
+}
+
+function forwardDwarfRouteIndexForCell(state, fromIndex, cellId) {
+  if (!state.route?.length || fromIndex < 0) return -1;
+  for (let step = 0; step <= DWARF_ROUTE_DEVIATION; step += 1) {
+    const routeIndex = (fromIndex + step) % state.route.length;
+    if (state.route[routeIndex] === cellId) return routeIndex;
+  }
+  return -1;
+}
+
+function forwardDwarfRouteDistance(state, fromIndex, cellId) {
+  if (!state.route?.length || fromIndex < 0) return Infinity;
+  let best = Infinity;
+  for (let step = 0; step <= DWARF_ROUTE_DEVIATION; step += 1) {
+    const routeCell = state.route[(fromIndex + step) % state.route.length];
+    const distance = shortestDistance(cellId, routeCell);
+    if (distance < best) best = distance;
+    if (best === 0) break;
+  }
+  return best;
+}
+
+function defeatByDwarf(game, target) {
+  clearCombat(game, target);
+  const discarded = target.inventory.splice(0);
+  game.discard.push(...discarded);
+  target.position = null;
+  target.beastFight = null;
+  target.dots = [];
+  return discarded.length;
+}
 
 function payloadCharacterId(payload = {}) {
   return payload.characterId

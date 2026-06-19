@@ -1074,6 +1074,25 @@ h2::after {
   filter: brightness(1.82) drop-shadow(0 2px 2px rgba(3, 8, 12, 0.8));
 }
 
+.dwarf-token {
+  pointer-events: none;
+}
+
+.dwarf-token .dwarf-halo {
+  fill: rgba(15, 20, 25, 0.72);
+  stroke: #ffd928;
+  stroke-width: 2.4;
+  filter: drop-shadow(0 0 7px rgba(255, 217, 40, 0.78));
+}
+
+.dwarf-token .dwarf-figure {
+  filter: brightness(1.69) drop-shadow(0 2px 2px rgba(3, 8, 12, 0.8));
+}
+
+.dwarf-token.dwarf-tank .dwarf-figure {
+  filter: brightness(1.69) drop-shadow(0 2px 2px rgba(3, 8, 12, 0.8));
+}
+
 .token text {
   fill: #fff;
   font-size: 13px;
