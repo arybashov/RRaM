@@ -481,7 +481,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260619-15'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260619-16'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const SINGLE_TAB_LOCK_KEY = 'rram_active_tab_lock_v1';
 const SINGLE_TAB_LOCK_TTL_MS = 15000;
 const SINGLE_TAB_HEARTBEAT_MS = 2000;
@@ -900,7 +900,7 @@ function handleMsg({ type, payload }) {
       }
       const selForMode = getSelChar();
       const allDiceSpent = getUsedDice(selForMode?.id).every(Boolean);
-      if (g && isMyTurn() && getDice(selForMode?.id) && !allDiceSpent && !g.turn.mode && !autoModeSent) {
+      if (g && isMyTurn() && getDice(selForMode?.id) && !allDiceSpent && !getServMode(selForMode?.id) && !autoModeSent) {
         const sm = TO_SERVER_MODE[localMode];
         if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm, characterId: selForMode.id }); }
       }
@@ -913,7 +913,7 @@ function handleMsg({ type, payload }) {
       render();
       // If we queued a teleport while waiting for server to switch to split,
       // send it now when snapshot confirms split mode.
-      if (pendingTeleport && getServMode() === 'split') {
+      if (pendingTeleport && getServMode(pendingTeleport.characterId) === 'split') {
         wsSend('action:teleport', pendingTeleport);
         pendingTeleport = null;
       }
@@ -972,7 +972,28 @@ const hasAnyDice = () => {
   const turn = getGame()?.turn;
   return turnHasAnyDice(turn);
 };
-const getServMode = () => getGame()?.turn.mode ?? null;
+// Режим хода — на каждого персонажа (modeByCharacter). Отсутствие записи =
+// ход суммой по умолчанию (null). На глобальный turn.mode откатываемся только
+// для старого сервера без modeByCharacter.
+const getServMode = (characterId = selectedCharId) => {
+  const turn = getGame()?.turn;
+  if (!turn) return null;
+  if (turn.modeByCharacter && characterId) {
+    return turn.modeByCharacter[characterId] ?? null;
+  }
+  return turn.mode ?? null;
+};
+
+// Область движения конкретного персонажа (ноги/откат — на каждого свои). На
+// глобальный turn.movementArea откатываемся только для старого сервера.
+const areaFor = (characterId = selectedCharId) => {
+  const turn = getGame()?.turn;
+  if (!turn) return null;
+  if (turn.movementAreaByCharacter && characterId) {
+    return turn.movementAreaByCharacter[characterId] ?? null;
+  }
+  return turn.movementArea ?? null;
+};
 
 function getMyChars() {
   return getGame()?.characters.filter(c => c.owner === myPlayerId) ?? [];
@@ -1023,30 +1044,46 @@ function selectCharacterDie(characterId, dieIndex) {
   const dice = getDice(char.id);
   if (!dice) return;
   const used = getUsedDice(char.id);
-  const area = getGame()?.turn.movementArea;
+  const area = areaFor(char.id); // область движения именно этого персонажа
 
+  // Есть незавершённое движение этого персонажа → клик по кубику = откат / смена ноги.
   if (area && !area.locked) {
-    if (area.characterId !== char.id) {
-      selectCharacter(char.id);
-      selectedDieIdx = dieIndex;
-      localMode = 'moveDie';
-      return;
-    }
     const activeDie = area.mode === 'split' ? area.dieIndex : null;
     if (area.mode === 'moveSum' || dieIndex === activeDie || used[dieIndex]) {
       wsSend('turn:resetMove', { characterId: area.characterId });
       return;
     }
-  }
-
-  selectedCharId = char.id;
-  selectedDieIdx = dieIndex;
-  if (used[dieIndex]) {
+    // Другой свободный кубик → выбрать его для второй ноги (поле покажет render).
+    selectedCharId = char.id;
+    selectedDieIdx = dieIndex;
+    localMode = 'moveDie';
     render();
     return;
   }
-  setLocalMode('moveDie');
-  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
+
+  // Движения ещё нет. Клик по кубику включает ручной сплит на нём; повторный клик
+  // по тому же кубику (пока ничего не потрачено) — выключает, возвращая ход суммой.
+  const wasSelected = selectedCharId === char.id;
+  if (used[dieIndex]) {
+    selectedCharId = char.id;
+    selectedDieIdx = dieIndex;
+    render();
+    return;
+  }
+  const canToggleOff = wasSelected
+    && !used[0] && !used[1]
+    && localMode === 'moveDie'
+    && selectedDieIdx === dieIndex
+    && getServMode(char.id) === 'split';
+  selectedCharId = char.id;
+  if (canToggleOff) {
+    setLocalMode('moveSum');
+    wsSend('turn:setMode', { mode: 'moveSum', characterId: char.id });
+  } else {
+    selectedDieIdx = dieIndex;
+    setLocalMode('moveDie');
+    if (getServMode(char.id) !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
+  }
   render();
 }
 
@@ -1098,9 +1135,20 @@ function drawableCharacters() {
 }
 
 function activeMovementCharacter() {
-  const area = getGame()?.turn.movementArea;
-  if (!area || area.locked) return null;
-  return getGame()?.characters.find(c => c.id === area.characterId && c.owner === myPlayerId) ?? null;
+  // Незавершённое движение теперь у каждого персонажа своё: сперва смотрим
+  // выбранного, иначе — любой свой персонаж с открытой (не залоченной) областью.
+  const selArea = areaFor(selectedCharId);
+  if (selArea && !selArea.locked) {
+    const c = getGame()?.characters.find(c => c.id === selArea.characterId && c.owner === myPlayerId);
+    if (c) return c;
+  }
+  const map = getGame()?.turn.movementAreaByCharacter ?? {};
+  for (const [charId, area] of Object.entries(map)) {
+    if (!area || area.locked) continue;
+    const c = getGame()?.characters.find(c => c.id === charId && c.owner === myPlayerId);
+    if (c) return c;
+  }
+  return null;
 }
 
 function getDrawCharacter(preferred = getSelChar()) {
@@ -1116,10 +1164,10 @@ function plannedResourceDraw(preferred = getSelChar()) {
   // дальность по каждому кубику. Считаем план «дойти одним кубиком до ресурса,
   // взять карту вторым» именно по ОДИНОЧНОЙ дальности, а не по сумме.
   if (!hasAnyDice()) return null;
-  if (g.turn.movementArea) return null;
   const chars = preferred ? [preferred] : getMyChars();
   for (const char of chars) {
     if (!char || char.owner !== myPlayerId || char.hp <= 0) continue;
+    if (areaFor(char.id)) continue; // у этого персонажа уже идёт движение
     if (hasCharacterDrawnThisTurn(char.id)) continue;
     const dice = getDice(char.id);
     const used = getUsedDice(char.id);
@@ -1143,8 +1191,8 @@ function drawDieIndex(characterId = selectedCharId) {
   const g = getGame();
   if (!getDice(characterId)) return null;
   const used = getUsedDice(characterId);
-  const area = g.turn.movementArea;
-  if (area && !area.locked && area.characterId === characterId) {
+  const area = areaFor(characterId);
+  if (area && !area.locked) {
     if (area.mode === 'split') {
       return used[0] ? (used[1] ? null : 1) : 0;
     }
@@ -1180,8 +1228,8 @@ function moveDieIndexForTarget(char, targetId) {
   return null;
 }
 
-function effectiveMoveMode() {
-  return localMode === 'moveSum' && getServMode() === 'split'
+function effectiveMoveMode(characterId = selectedCharId) {
+  return localMode === 'moveSum' && getServMode(characterId) === 'split'
     ? 'moveDie'
     : localMode;
 }
@@ -1889,11 +1937,11 @@ dieButtons.forEach((btn, i) => {
     if (!getDice()) { wsSend('turn:roll'); return; }
     if (!isMyTurn()) return;
     const g = getGame();
-    const area = g.turn.movementArea;
+    const area = areaFor(selectedCharId);
     const used = getUsedDice(selectedCharId);
 
     // Есть незавершённое движение выбранного персонажа → клик по кубику работает как откат / смена ноги.
-    if (area && !area.locked && area.characterId === selectedCharId) {
+    if (area && !area.locked) {
       const activeDie = area.mode === 'split' ? area.dieIndex : null;
       if (area.mode === 'moveSum' || i === activeDie || used[i]) {
         // Активный кубик (или любой в режиме суммы, или уже потраченная нога) →
@@ -1974,7 +2022,7 @@ function canRollTurnDice(g = getGame()) {
 }
 
 function setLocalMode(mode) {
-  if (getGame()?.turn.movementArea) return;
+  if (areaFor(selectedCharId)) return; // у выбранного персонажа уже идёт движение
   localMode = mode;
   document.querySelectorAll('.mode').forEach((button) => {
     button.classList.toggle('active', button.dataset.mode === mode);
@@ -1987,7 +2035,7 @@ function setLocalMode(mode) {
   if (mode !== 'attack' && (used[0] || used[1])) return;
 
   const serverMode = TO_SERVER_MODE[mode];
-  if (serverMode && getServMode() !== serverMode) {
+  if (serverMode && getServMode(char.id) !== serverMode) {
     autoModeSent = true;
     wsSend('turn:setMode', { mode: serverMode, characterId: char.id });
   }
@@ -2019,7 +2067,7 @@ function directCardAction(mode) {
         selectedCharId = char.id;
         selectedDieIdx = plan.moveDieIndex;
         localMode = 'moveDie';
-        if (getServMode() !== 'split') {
+        if (getServMode(char.id) !== 'split') {
           wsSend('turn:setMode', { mode: 'split', characterId: char.id });
         }
         wsSend('action:move', {
@@ -2042,7 +2090,7 @@ function directCardAction(mode) {
     return;
   }
 
-  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
+  if (getServMode(char.id) !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
 
   if (mode === 'draw') {
     wsSend('action:draw', { characterId: char.id, dieIndex });
@@ -2070,7 +2118,7 @@ function fightBeast() {
   // Собираем id карт на террейне для отправки (ключ — уникальный uid, значение — cardId)
   const terrainCardIds = [...terrainCards.values()].map(tc => tc.cardId);
 
-  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
+  if (getServMode(char.id) !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
   wsSend('action:fightBeast', { characterId: char.id, dieIndex, terrainCards: terrainCardIds });
 }
 
@@ -2099,7 +2147,7 @@ function handleCellClick(targetId) {
     return;
   }
 
-  const moveMode = effectiveMoveMode();
+  const moveMode = effectiveMoveMode(char.id);
   if (moveMode !== 'moveSum' && moveMode !== 'moveDie') {
     showActionWarning('Сначала выберите действие для этой клетки.');
     return;
@@ -2131,7 +2179,7 @@ function handleTeleportCellClick(char, targetId) {
     teleportedChars.add(char.id); // не анимировать шагами — это прыжок
     const dieIndex = firstFreeDieIndexFor(char.id);
     if (dieIndex == null) return;
-    if (getServMode() !== 'split') {
+    if (getServMode(char.id) !== 'split') {
       pendingTeleport = { characterId: char.id, toCell: targetId, dieIndex };
       wsSend('turn:setMode', { mode: 'split', characterId: char.id });
       return;
@@ -2159,7 +2207,7 @@ function handleServerMoveCellClick(char, targetId, moveMode) {
 function buildServerMovePayload(char, targetId, moveMode) {
   const payload = { characterId: char.id, toCell: targetId };
   const splitMoveRequested = moveMode === 'moveDie'
-    || getServMode() === 'split'
+    || getServMode(char.id) === 'split'
     || (moveMode === 'moveSum' && isResourceCell(targetId));
   if (!splitMoveRequested) return payload;
 
@@ -2170,7 +2218,7 @@ function buildServerMovePayload(char, targetId, moveMode) {
   }
   selectedDieIdx = dieIndex;
   payload.dieIndex = dieIndex;
-  if (getServMode() !== 'split') {
+  if (getServMode(char.id) !== 'split') {
     wsSend('turn:setMode', { mode: 'split', characterId: char.id });
   }
   return payload;
@@ -2213,8 +2261,9 @@ function getMoveDistance(characterId = selectedCharId) {
 function syncDieSelection() {
   const g = getGame();
   if (!getDice(selectedCharId)) return;
-  if (g.turn.movementArea?.characterId === selectedCharId) {
-    const area = g.turn.movementArea;
+  const selArea = areaFor(selectedCharId);
+  if (selArea) {
+    const area = selArea;
     localMode = area.mode === 'moveSum' ? 'moveSum' : 'moveDie';
     if (area.mode === 'split' && area.dieIndex != null) {
       // Если игрок выбрал ДРУГОЙ свободный кубик (превью второй ноги) — уважаем
@@ -2288,7 +2337,7 @@ function renderDice() {
   const sel     = getSelChar();
   const dice    = getDice(sel?.id);
   const used    = getUsedDice(sel?.id);
-  const movementArea = g.turn.movementArea;
+  const movementArea = areaFor(sel?.id);
   const effectiveUsed = movementArea && movementArea.mode === 'moveSum' && !movementArea.locked
     ? [false, false]
     : used;
@@ -2307,8 +2356,8 @@ function renderDice() {
     btn.disabled    = dice ? (!myTurn || (effectiveUsed[i] && !resettable)) : !canRoll;
     btn.className   = 'die';
     if (canRoll)                                               btn.classList.add('rollable');
-    const movementDie = g.turn.movementArea?.mode === 'split'
-      && g.turn.movementArea.dieIndex === i;
+    const movementDie = movementArea?.mode === 'split'
+      && movementArea.dieIndex === i;
     if (dice && ((!effectiveUsed[i] && selectedDieIdx === i && localMode !== 'moveSum') || movementDie)) {
       btn.classList.add('selected');
     }
@@ -2540,7 +2589,7 @@ function renderBoard() {
           const plan = planApproach(sel, char);
           if (plan) {
             approachTarget = { mineId: sel.id, enemyId: char.id, until: Date.now() + 4000 };
-            if (getServMode() !== plan.mode) wsSend('turn:setMode', { mode: plan.mode, characterId: sel.id });
+            if (getServMode(sel.id) !== plan.mode) wsSend('turn:setMode', { mode: plan.mode, characterId: sel.id });
             wsSend('action:move', plan.payload);
             addLog(`${ROLE_NAMES[sel.role]} идёт к врагу: ${ROLE_NAMES[char.role]}…`, { type: 'my' });
             return;
@@ -2902,7 +2951,7 @@ function renderInventory() {
     e.stopPropagation();
     const dieIndex = firstFreeDieIndexFor(char.id);
     if (dieIndex == null) { addLog('Нет свободного кубика для обработки.', { type: 'err' }); return; }
-    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
+    if (getServMode(char.id) !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
     wsSend('action:processHide', {
       characterId: char.id,
       dieIndex,
@@ -2940,7 +2989,7 @@ function renderInventory() {
     e.stopPropagation();
     const dieIndex = firstFreeDieIndexFor(char.id);
     if (dieIndex == null) { addLog('Нет свободного кубика для Обряда трёх.', { type: 'err' }); return; }
-    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
+    if (getServMode(char.id) !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
     wsSend('action:useMarvo', {
       ...cardActionPayload(e.currentTarget),
       dieIndex,
@@ -2950,7 +2999,7 @@ function renderInventory() {
     e.stopPropagation();
     const dieIndex = firstFreeDieIndexFor(char.id);
     if (dieIndex == null) { addLog('Нет свободного кубика для перезарядки Бус телепортации.', { type: 'err' }); return; }
-    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
+    if (getServMode(char.id) !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
     wsSend('action:rechargeTeleport', {
       ...cardActionPayload(e.currentTarget),
       targetId: e.currentTarget.dataset.targetId,
@@ -2961,7 +3010,7 @@ function renderInventory() {
     e.stopPropagation();
     const dieIndex = firstFreeDieIndexFor(char.id);
     if (dieIndex == null) { addLog('Нет свободного кубика, чтобы стряхнуть ловушку.', { type: 'err' }); return; }
-    if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
+    if (getServMode(char.id) !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: char.id });
     wsSend('action:dischargeDot', {
       characterId: char.id,
       dotIndex: Number(e.currentTarget.dataset.dotIndex),
@@ -3542,7 +3591,7 @@ function attemptCardTransfer(fromId, toId, cardIndex) {
   // Первый перенос за ход — тратим свободный кубик, его значение задаёт бюджет
   const dieIndex = firstFreeDieIndexFor(fromId);
   if (dieIndex == null) { addLog('Нет свободного кубика для передачи.', { type: 'err' }); renderCardBox(); return; }
-  if (getServMode() !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: fromId });
+  if (getServMode(fromId) !== 'split') wsSend('turn:setMode', { mode: 'split', characterId: fromId });
   wsSend('action:transfer', { fromId, toId, cardIndex, dieIndex });
   // снапшот придёт и перерисует ящик
 }

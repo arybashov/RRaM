@@ -362,15 +362,14 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
       usedDice: game.turn.usedDice,
       diceByCharacter: game.turn.diceByCharacter ?? {},
       usedDiceByCharacter: game.turn.usedDiceByCharacter ?? {},
-      movementArea: game.turn.movementArea
-        ? {
-            characterId: game.turn.movementArea.characterId,
-            mode: game.turn.movementArea.mode,
-            dieIndex: game.turn.movementArea.dieIndex,
-            locked: Boolean(game.turn.movementArea.locked),
-          }
-        : null,
+      movementArea: sanitizeMovementArea(game.turn.movementArea),
+      movementAreaByCharacter: Object.fromEntries(
+        Object.entries(game.turn.movementAreaByCharacter ?? {})
+          .map(([id, area]) => [id, sanitizeMovementArea(area)])
+          .filter(([, area]) => area !== null),
+      ),
       mode: game.turn.mode,
+      modeByCharacter: game.turn.modeByCharacter ?? {},
       hasRolled: Boolean(game.turn.hasRolled),
       transferRemaining: game.turn.transferRemaining ?? 0,
       movedCharacterId: game.turn.movedCharacterId ?? null,
@@ -412,9 +411,21 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true } = {}) {
   };
 }
 
+function sanitizeMovementArea(area) {
+  return area
+    ? {
+        characterId: area.characterId,
+        mode: area.mode,
+        dieIndex: area.dieIndex,
+        locked: Boolean(area.locked),
+      }
+    : null;
+}
+
 function snapshotLegalTargets(game, forPlayerId) {
   const previousDice = game.turn.dice;
   const previousUsedDice = game.turn.usedDice;
+  const previousMovementArea = game.turn.movementArea;
   const previousActiveDiceCharacterId = game.turn.activeDiceCharacterId;
   const empty = { moveSum: {}, dice: [{}, {}], attacks: {} };
   if (
@@ -426,6 +437,8 @@ function snapshotLegalTargets(game, forPlayerId) {
     return empty;
   }
 
+  // Режим теперь на каждого персонажа: считаем цели по СВОЕМУ режиму каждого,
+  // а не по одному глобальному. По умолчанию (нет явного split) — ход суммой.
   const characters = game.characters.filter((character) =>
     character.owner === forPlayerId && character.hp > 0 && character.position);
   for (const character of characters) {
@@ -435,35 +448,32 @@ function snapshotLegalTargets(game, forPlayerId) {
       forPlayerId,
       character.id,
     );
-  }
-  if (game.turn.mode === 'moveSum') {
-    for (const character of characters) {
-      bindSnapshotDice(game, character.id);
-      empty.moveSum[character.id] = rules
-        .availableMoveTargets(game, forPlayerId, character.id)
-        .map((target) => target.cellId);
-    }
-  }
-  if (game.turn.mode === 'split') {
-    for (const dieIndex of [0, 1]) {
-      const movementDie = game.turn.movementArea?.mode === 'split'
-        && game.turn.movementArea.dieIndex === dieIndex;
-      for (const character of characters) {
-        bindSnapshotDice(game, character.id);
+
+    const area = game.turn.movementArea; // bindSnapshotDice уже привязал область персонажа
+    // Тот же modeFor, что и в rules.js: персональный override → глобальный
+    // дефолт → 'moveSum'. Совпадает с тем, что увидит availableMoveTargets.
+    const charMode = area
+      ? area.mode
+      : (game.turn.modeByCharacter?.[character.id]
+        ?? game.turn.mode
+        ?? 'moveSum');
+
+    if (charMode === 'split') {
+      for (const dieIndex of [0, 1]) {
+        const movementDie = area?.mode === 'split' && area.dieIndex === dieIndex;
         if (game.turn.usedDice[dieIndex] && !movementDie) continue;
         empty.dice[dieIndex][character.id] = rules
           .availableMoveTargets(game, forPlayerId, character.id, dieIndex)
           .map((target) => target.cellId);
       }
-    }
-  } else {
-    // Вне split (moveSum или режим ещё не выбран после броска): отдаём
-    // одиночную дальность каждого кубика, чтобы клиент мог понять,
-    // дотягивается ли ресурс ОДНИМ кубиком (подсветка «Взять»). На отрисовку
-    // ходов не влияет — в moveSum клиент рисует цели из legalTargets.moveSum.
-    for (const dieIndex of [0, 1]) {
-      for (const character of characters) {
-        bindSnapshotDice(game, character.id);
+    } else {
+      // Ход суммой по умолчанию: цели по сумме обоих кубиков. Плюс одиночная
+      // дальность каждого кубика — чтобы клиент понимал, дотягивается ли ресурс
+      // ОДНИМ кубиком (подсветка «Взять»), не путая с дальностью по сумме.
+      empty.moveSum[character.id] = rules
+        .availableMoveTargets(game, forPlayerId, character.id)
+        .map((target) => target.cellId);
+      for (const dieIndex of [0, 1]) {
         if (game.turn.usedDice[dieIndex]) continue;
         empty.dice[dieIndex][character.id] = rules
           .singleDieTargets(game, forPlayerId, character.id, dieIndex);
@@ -472,6 +482,7 @@ function snapshotLegalTargets(game, forPlayerId) {
   }
   game.turn.dice = previousDice;
   game.turn.usedDice = previousUsedDice;
+  game.turn.movementArea = previousMovementArea;
   game.turn.activeDiceCharacterId = previousActiveDiceCharacterId;
   return empty;
 }
@@ -489,6 +500,7 @@ function bindSnapshotDice(game, characterId) {
   if (!dice) return;
   game.turn.dice = dice;
   game.turn.usedDice = game.turn.usedDiceByCharacter?.[characterId] ?? [false, false];
+  game.turn.movementArea = game.turn.movementAreaByCharacter?.[characterId] ?? null;
   game.turn.activeDiceCharacterId = characterId;
 }
 

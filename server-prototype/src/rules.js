@@ -93,8 +93,10 @@ export function createGame(players) {
       usedDice: [false, false],
       diceByCharacter: {},
       usedDiceByCharacter: {},
-      movementArea: null, // { characterId, origin, mode, dieIndex, maxSteps }
-      mode: null, // 'moveSum' | 'split'
+      modeByCharacter: {}, // режим хода на каждого персонажа; отсутствие = moveSum по умолчанию
+      movementArea: null, // bound-вид области движения активного персонажа
+      movementAreaByCharacter: {}, // { characterId, origin, mode, dieIndex, maxSteps } на каждого персонажа
+      mode: null, // bound-вид режима активного персонажа; null трактуется как 'moveSum'
       hasRolled: false,
       transferRemaining: 0, // «бюджет» передачи карт из ящика (= значению потраченного кубика)
       movedCharacterId: null, // последний персонаж, который двигался в этом броске
@@ -213,7 +215,9 @@ function roll(game, playerId) {
     : [false, false];
   game.turn.activeDiceCharacterId = firstCharacter?.id ?? null;
   game.turn.movementArea = null;
+  game.turn.movementAreaByCharacter = {};
   game.turn.mode = null;
+  game.turn.modeByCharacter = {};
   game.turn.hasRolled = true;
   game.turn.movedCharacterId = null;
   game.turn.drawnThisTurn = false;
@@ -229,20 +233,24 @@ function roll(game, playerId) {
   };
 }
 
-function setMode(game, playerId, { mode } = {}) {
+function setMode(game, playerId, { mode, characterId } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
+  const ownArea = game.turn.movementArea
+    && game.turn.movementArea.characterId === (characterId ?? game.turn.activeDiceCharacterId);
   if (
     game.turn.usedDice[0]
     || game.turn.usedDice[1]
-    || game.turn.movementArea
+    || ownArea
   ) {
     throw new Error('Режим нельзя менять после траты кубика.');
   }
   if (mode !== 'moveSum' && mode !== 'split') {
     throw new Error('Режим должен быть moveSum или split.');
   }
-  game.turn.mode = mode;
+  // С characterId — персональный режим персонажа; без него — глобальный дефолт
+  // (легаси/тесты). Так split одного персонажа не утекает в ход суммой других.
+  setCharacterMode(game, characterId, mode);
   return { mode };
 }
 
@@ -268,13 +276,14 @@ function resetMove(game, playerId, { characterId } = {}) {
   character.position = area.origin;
   if (area.mode === 'moveSum') {
     setCurrentUsedDice(game, [false, false]);
-    game.turn.movementArea = null;
+    setMovementArea(game, null, characterId);
     game.turn.movedCharacterId = null;
+    setCharacterMode(game, characterId, null); // полный откат → снова ход суммой
   } else {
     game.turn.usedDice[area.dieIndex] = false;
     if (area.prev) {
       // Была вторая нога — снова активируем первую (фишка уже на её конце).
-      game.turn.movementArea = {
+      setMovementArea(game, {
         characterId,
         origin: area.prev.origin,
         mode: 'split',
@@ -282,10 +291,11 @@ function resetMove(game, playerId, { characterId } = {}) {
         maxSteps: area.prev.maxSteps,
         locked: false,
         prev: null,
-      };
+      });
     } else {
-      game.turn.movementArea = null;
+      setMovementArea(game, null, characterId);
       game.turn.movedCharacterId = null;
+      setCharacterMode(game, characterId, null); // первой ноги нет → ход суммой
     }
   }
   return { reset: { characterId, position: character.position } };
@@ -370,7 +380,7 @@ function drawCardsFromCurrentCell(game, playerId, character) {
 function draw(game, playerId, { characterId, dieIndex } = {}) {
   assertActive(game, playerId);
   assertRolled(game);
-  requireSplit(game);
+  requireSplit(game, characterId);
   dieValue(game, dieIndex); // только валидируем доступность; значение на добор не влияет
 
   const character = ownCharacter(game, playerId, characterId);
@@ -409,7 +419,7 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
       return { transferred: { fromId, toId, count: 1, cardId, name: CARD_BY_ID[cardId]?.name, remaining: game.turn.transferRemaining } };
     }
     assertRolled(game);
-    requireSplit(game);
+    requireSplit(game, fromId);
     const value = dieValue(game, dieIndex); // валидирует доступность кубика
     const cardId = moveOneCard(game, playerId, fromId, toId, cardIndex);
     lockMovement(game);                     // фиксируем незавершённое движение
@@ -420,7 +430,7 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
 
   // Легаси: первые N карт за один кубик (N = значение кубика)
   assertRolled(game);
-  requireSplit(game);
+  requireSplit(game, fromId);
   const limit = dieValue(game, dieIndex);
   const from = ownCharacter(game, playerId, fromId);
   const to = ownCharacter(game, playerId, toId);
@@ -593,14 +603,13 @@ export function availableMoveTargets(game, playerId, characterId, dieIndex) {
       maxSteps = movementArea.maxSteps;
       origin = movementArea.origin;
     }
-  } else if (game.turn.mode === 'moveSum') {
-    if (game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
-    maxSteps = game.turn.dice[0] + game.turn.dice[1];
-  } else if (game.turn.mode === 'split') {
+  } else if (modeFor(game, character.id) === 'split') {
     if (opponent) return [];
     maxSteps = dieValue(game, dieIndex);
   } else {
-    return [];
+    // moveSum по умолчанию → ход суммой обоих кубиков.
+    if (game.turn.usedDice[0] || game.turn.usedDice[1]) return [];
+    maxSteps = game.turn.dice[0] + game.turn.dice[1];
   }
 
   const blocked = new Set(
@@ -683,7 +692,7 @@ function move(game, playerId, {
   if (area && area.mode === 'split' && dieIndex !== area.dieIndex && !game.turn.usedDice[dieIndex]) {
     // Вторая «нога»: фиксируем первую (её кубик уже потрачен), начинаем новую
     // от текущей клетки другим кубиком. prev хранит первую ногу для отката.
-    game.turn.movementArea = {
+    setMovementArea(game, {
       characterId,
       origin: fromCell,
       mode: 'split',
@@ -691,13 +700,14 @@ function move(game, playerId, {
       maxSteps: dieValue(game, dieIndex),
       locked: false,
       prev: { origin: area.origin, dieIndex: area.dieIndex, maxSteps: area.maxSteps },
-    };
+    });
     character.position = toCell;
     game.turn.usedDice[dieIndex] = true;
   } else if (area) {
     // Перестановка фишки внутри текущей ноги — кубик не тратится повторно.
     character.position = toCell;
-  } else if (game.turn.mode === 'moveSum') {
+  } else if (modeFor(game, characterId) !== 'split') {
+    // moveSum по умолчанию → ход суммой.
     // Автосплит: если ход закончился на клетке добора (ресурс/колода карт, но не
     // событийной) и путь уложился в один кубик — тратим только ОДИН кубик
     // (наименьший достаточный), больший оставляем свободным на добор. Режим
@@ -716,8 +726,8 @@ function move(game, playerId, {
       const dieIdx = [0, 1]
         .filter((i) => game.turn.dice[i] >= target.distance)
         .reduce((best, i) => (game.turn.dice[i] < game.turn.dice[best] ? i : best));
-      game.turn.mode = 'split';
-      game.turn.movementArea = {
+      setCharacterMode(game, characterId, 'split');
+      setMovementArea(game, {
         characterId,
         origin: fromCell,
         mode: 'split',
@@ -725,11 +735,11 @@ function move(game, playerId, {
         maxSteps: game.turn.dice[dieIdx],
         locked: false,
         prev: null,
-      };
+      });
       character.position = toCell;
       game.turn.usedDice[dieIdx] = true;
     } else {
-      game.turn.movementArea = {
+      setMovementArea(game, {
         characterId,
         origin: fromCell,
         mode: 'moveSum',
@@ -737,13 +747,14 @@ function move(game, playerId, {
         maxSteps: game.turn.dice[0] + game.turn.dice[1],
         locked: false,
         prev: null,
-      };
+      });
       character.position = toCell;
       setCurrentUsedDice(game, [true, true]);
     }
-  } else if (game.turn.mode === 'split') {
+  } else {
+    // Явный split: ход одним выбранным кубиком.
     const maxSteps = dieValue(game, dieIndex);
-    game.turn.movementArea = {
+    setMovementArea(game, {
       characterId,
       origin: fromCell,
       mode: 'split',
@@ -751,11 +762,9 @@ function move(game, playerId, {
       maxSteps,
       locked: false,
       prev: null,
-    };
+    });
     character.position = toCell;
     game.turn.usedDice[dieIndex] = true;
-  } else {
-    throw new Error('Сначала выберите режим движения.');
   }
   if (escapedCombat) clearCombat(game, character);
   if (escapedBeast) {
@@ -1963,7 +1972,9 @@ function endTurn(game, playerId) {
   game.turn.usedDiceByCharacter = {};
   game.turn.activeDiceCharacterId = null;
   game.turn.movementArea = null;
+  game.turn.movementAreaByCharacter = {};
   game.turn.mode = null;
+  game.turn.modeByCharacter = {};
   game.turn.hasRolled = false;
   game.turn.transferRemaining = 0;
   game.turn.movedCharacterId = null;
@@ -2003,6 +2014,40 @@ function bindTurnDice(game, characterId) {
   game.turn.usedDiceByCharacter[characterId] ??= [false, false];
   game.turn.usedDice = game.turn.usedDiceByCharacter[characterId];
   game.turn.activeDiceCharacterId = characterId;
+  // Область движения — тоже на персонажа: bound-вид указывает на запись по персонажу.
+  game.turn.movementAreaByCharacter ??= {};
+  game.turn.movementArea = game.turn.movementAreaByCharacter[characterId] ?? null;
+}
+
+// Записать/снять область движения активного (bound) персонажа: и bound-вид, и
+// карту по персонажу. characterId берём из самой области либо из bound-персонажа.
+function setMovementArea(game, area, characterId = area?.characterId ?? game.turn.activeDiceCharacterId) {
+  game.turn.movementArea = area;
+  game.turn.movementAreaByCharacter ??= {};
+  if (!characterId) return;
+  if (area) game.turn.movementAreaByCharacter[characterId] = area;
+  else delete game.turn.movementAreaByCharacter[characterId];
+}
+
+// Режим хода конкретного персонажа: его персональный override, иначе глобальный
+// дефолт хода, иначе 'moveSum'. Глобальный turn.mode задаётся только setMode без
+// characterId (легаси/тесты); в продакшене клиент всегда шлёт characterId.
+function modeFor(game, characterId) {
+  return game.turn.modeByCharacter?.[characterId]
+    ?? game.turn.mode
+    ?? 'moveSum';
+}
+
+// Персональный режим персонажа (override). mode === null убирает override —
+// персонаж возвращается к глобальному дефолту (т.е. к ходу суммой).
+function setCharacterMode(game, characterId, mode) {
+  if (!characterId) {
+    game.turn.mode = mode;
+    return;
+  }
+  game.turn.modeByCharacter ??= {};
+  if (mode == null) delete game.turn.modeByCharacter[characterId];
+  else game.turn.modeByCharacter[characterId] = mode;
 }
 
 function syncExternalTurnOverrides(game) {
@@ -2050,8 +2095,8 @@ function assertRolled(game) {
   }
 }
 
-function requireSplit(game) {
-  if (game.turn.mode !== 'split') {
+function requireSplit(game, characterId = game.turn.activeDiceCharacterId) {
+  if (modeFor(game, characterId) !== 'split') {
     throw new Error('Передача и добор доступны только в режиме раздельных кубиков (split).');
   }
 }
@@ -2077,12 +2122,12 @@ function shouldRequireMoveDieIndex(game, character) {
   const area = game.turn.movementArea?.characterId === character.id
     ? game.turn.movementArea
     : null;
-  return Boolean(area?.mode === 'split' || (!area && game.turn.mode === 'split'));
+  return Boolean(area?.mode === 'split' || (!area && modeFor(game, character.id) === 'split'));
 }
 
 function resolveMoveDieIndex(game, playerId, character, toCell, dieIndex) {
   if (isDieIndex(dieIndex)) return dieIndex;
-  if (game.turn.mode !== 'split') return dieIndex;
+  if (modeFor(game, character.id) !== 'split') return dieIndex;
   const area = game.turn.movementArea?.characterId === character.id
     ? game.turn.movementArea
     : null;
@@ -2227,7 +2272,7 @@ function spendDie(game, dieIndex) {
   game.turn.usedDice[dieIndex] = true;
   if (game.turn.usedDice[0] && game.turn.usedDice[1]) {
     if (game.turn.movementArea) return;
-    game.turn.mode = null;
+    setCharacterMode(game, game.turn.activeDiceCharacterId, null);
   }
 }
 
@@ -2240,8 +2285,8 @@ function firstFreeDieIndex(game) {
 
 function spendAllDice(game) {
   setCurrentUsedDice(game, [true, true]);
-  game.turn.movementArea = null;
-  game.turn.mode = null;
+  setMovementArea(game, null);
+  setCharacterMode(game, game.turn.activeDiceCharacterId, null);
 }
 
 function assertBoardTarget(cellId) {
