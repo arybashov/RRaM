@@ -2,7 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, apply } from '../src/rules.js';
 import { rankBotActions, runBotTurn } from '../src/bot.js';
-import { neighbors } from '../src/map.js';
+import {
+  blacksmithStoneCells,
+  blacksmithStoneSide,
+  cellDeck,
+  deckCells,
+  neighbors,
+  shortestDistance,
+} from '../src/map.js';
 
 function freshGame() {
   return createGame([
@@ -16,12 +23,24 @@ function prepareBotTurn(game, dice = [3, 4]) {
   game.turn.dice = dice;
   game.turn.usedDice = [false, false];
   game.turn.mode = 'split';
+  game.turn.hasRolled = true;
+  game.turn.rollStartPositions = Object.fromEntries(
+    game.characters.map((character) => [character.id, character.position ?? null]),
+  );
 }
 
 function botCharacter(game, role = 'V') {
   return game.characters.find(
     (character) => character.owner === 'bot' && character.role === role,
   );
+}
+
+function fairyGladeCell() {
+  return deckCells().find((id) => cellDeck(id) === 'fairy_glade');
+}
+
+function stoneForSide(side) {
+  return blacksmithStoneCells().find((id) => blacksmithStoneSide(id) === side);
 }
 
 test('bot ranks movement and draw actions on the server map', () => {
@@ -33,6 +52,61 @@ test('bot ranks movement and draw actions on the server map', () => {
   assert.ok(ranked.length > 0);
   assert.ok(ranked.some((action) => action.type === 'action:draw'));
   assert.ok(ranked.some((action) => action.type === 'action:move'));
+});
+
+test('bot prioritizes the phoenix glade before carrying a feather', () => {
+  const game = freshGame();
+  prepareBotTurn(game, [6, 6]);
+  const fairy = fairyGladeCell();
+
+  const ranked = rankBotActions(game, 'bot', 0);
+  const move = ranked.find((action) => action.type === 'action:move');
+  const character = game.characters.find((item) => item.id === move.payload.characterId);
+
+  assert.ok(move);
+  assert.match(move.reason, /move:phoenix:/);
+  assert.ok(shortestDistance(move.payload.toCell, fairy) < shortestDistance(character.position, fairy));
+});
+
+test('bot carrying own feather moves to its blacksmith stone and wins', () => {
+  const game = freshGame();
+  const warrior = botCharacter(game, 'V');
+  const ownStone = stoneForSide(warrior.side);
+  warrior.inventory.push('gold_feather_own');
+  prepareBotTurn(game, [3, 1]);
+
+  const move = rankBotActions(game, 'bot', 0).find((action) => action.type === 'action:move');
+
+  assert.equal(move.payload.characterId, warrior.id);
+  assert.equal(move.payload.toCell, ownStone);
+  assert.match(move.reason, /move:feather:/);
+
+  const result = apply(game, 'bot', move.type, move.payload);
+  assert.equal(game.over, true);
+  assert.equal(game.winnerId, 'bot');
+  assert.equal(result.featherVictory.cardId, 'gold_feather_own');
+  assert.equal(result.featherVictory.cellId, ownStone);
+});
+
+test('bot carrying enemy feather moves to the enemy blacksmith stone and wins', () => {
+  const game = freshGame();
+  const warrior = botCharacter(game, 'V');
+  const enemyStone = stoneForSide('green');
+  warrior.position = 'H001';
+  warrior.inventory.push('gold_feather_enemy');
+  prepareBotTurn(game, [1, 1]);
+
+  const move = rankBotActions(game, 'bot', 0).find((action) => action.type === 'action:move');
+
+  assert.equal(move.payload.characterId, warrior.id);
+  assert.equal(move.payload.toCell, enemyStone);
+  assert.match(move.reason, /move:feather:/);
+
+  const result = apply(game, 'bot', move.type, move.payload);
+  assert.equal(game.over, true);
+  assert.equal(game.winnerId, 'bot');
+  assert.equal(result.featherVictory.cardId, 'gold_feather_enemy');
+  assert.equal(result.featherVictory.cellId, enemyStone);
 });
 
 test('bot prefers a character with more free inventory space', () => {
@@ -221,6 +295,35 @@ test('bot attacks an adjacent enemy before moving', () => {
     targetId: target.id,
   });
   assert.match(ranked[0].reason, /damage=7/);
+});
+
+test('bot охотится: есть ход к вражеской фишке', () => {
+  const game = freshGame();
+  prepareBotTurn(game, [3, 4]);
+
+  const moves = rankBotActions(game, 'bot', 0)
+    .filter((action) => action.type === 'action:move');
+  assert.ok(moves.some((action) => /move:hunt:/.test(action.reason)),
+    'бот должен генерировать ходы-охоту к вражеским фишкам');
+});
+
+test('bot наваливается: несколько фишек могут атаковать одного врага', () => {
+  const game = freshGame();
+  prepareBotTurn(game, [3, 4]);
+
+  const enemy = game.characters.find((c) => c.owner === 'p1' && c.role === 'K');
+  enemy.position = 'H100';
+  const free = neighbors('H100').filter(
+    (cell) => !game.characters.some((c) => c.position === cell));
+  assert.ok(free.length >= 2);
+  const botChars = game.characters.filter((c) => c.owner === 'bot' && c.hp > 0);
+  botChars[0].position = free[0];
+  botChars[1].position = free[1];
+
+  const onEnemy = rankBotActions(game, 'bot', 0)
+    .filter((a) => a.type === 'action:attack' && a.payload.targetId === enemy.id);
+  assert.ok(onEnemy.length >= 2,
+    'оба соседних персонажа должны мочь навалиться на одного врага');
 });
 
 test('bot emits action:result for its attack', async () => {

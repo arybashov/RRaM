@@ -1,10 +1,25 @@
-import { INVENTORY_LIMIT } from './constants.js';
+import {
+  GOLD_FEATHER_CARDS,
+  GOLD_FEATHER_ENEMY,
+  GOLD_FEATHER_OWN,
+  INVENTORY_LIMIT,
+} from './constants.js';
 import { availableAttackTargets, availableMoveTargets } from './rules.js';
-import { enemyIslandCells, shortestDistance } from './map.js';
+import {
+  blacksmithStoneCells,
+  blacksmithStoneSide,
+  cellDeck,
+  deckCells,
+  enemyIslandCells,
+  enemySide,
+  shortestDistance,
+} from './map.js';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const ROLE_ORDER = Object.freeze(['V', 'O', 'S', 'K', 'P']);
+const GOLD_FEATHER_SET = new Set(GOLD_FEATHER_CARDS);
+const PHOENIX_CARDS = new Set(['phoenix_1', 'phoenix_2']);
 const TARGET_COLLECTION_KEYS = Object.freeze([
   'botGoals',
   'goals',
@@ -171,6 +186,104 @@ function usedDiceFor(game, characterId) {
   return game.turn.usedDiceByCharacter?.[characterId] ?? game.turn.usedDice ?? [false, false];
 }
 
+function carriedGoldFeatherId(character) {
+  return character?.inventory?.find((cardId) => GOLD_FEATHER_SET.has(cardId)) ?? null;
+}
+
+function goldFeatherTargetSide(character, cardId) {
+  if (cardId === GOLD_FEATHER_OWN) return character.side;
+  if (cardId === GOLD_FEATHER_ENEMY) return enemySide(character.side);
+  return null;
+}
+
+function isPhoenixFight(character) {
+  return PHOENIX_CARDS.has(character?.beastFight?.cardId);
+}
+
+function phoenixDeckAvailable(game) {
+  return !Array.isArray(game.fairyDeck) || game.fairyDeck.length > 0;
+}
+
+function phoenixGladeCells() {
+  return deckCells().filter((id) => cellDeck(id) === 'fairy_glade');
+}
+
+function botHasFeather(game, botPlayerId) {
+  return ownCharacters(game, botPlayerId).some((character) => carriedGoldFeatherId(character));
+}
+
+function botHasPhoenixFight(game, botPlayerId) {
+  return ownCharacters(game, botPlayerId).some(isPhoenixFight);
+}
+
+function featherDeliveryGoals(character, featherId) {
+  const targetSide = goldFeatherTargetSide(character, featherId);
+  if (!targetSide) return [];
+  return blacksmithStoneCells()
+    .filter((id) => blacksmithStoneSide(id) === targetSide)
+    .map((id) => ({
+      id,
+      priority: 900,
+      phase: 'feather',
+      cardId: featherId,
+    }));
+}
+
+function phoenixGoals(game, botPlayerId, character) {
+  if (carriedGoldFeatherId(character)) return [];
+  if (botHasFeather(game, botPlayerId) || botHasPhoenixFight(game, botPlayerId)) return [];
+  if (!phoenixDeckAvailable(game)) return [];
+  return phoenixGladeCells().map((id) => ({
+    id,
+    priority: 300,
+    phase: 'phoenix',
+  }));
+}
+
+function enemyIslandGoals(character) {
+  return enemyIslandCells(character.side).map((id) => ({
+    id,
+    priority: 3,
+    phase: 'enemy-island',
+  }));
+}
+
+// Охота на вражеские фишки: цели движения к их клеткам, чтобы свести несколько
+// своих персонажей на одну жертву и навалиться (несколько бьют одного — это теперь
+// разрешено правилами). Слабые и несущие добычу — приоритетнее; приоритет цели
+// одинаков для всех охотников, поэтому свободные фишки сходятся на самой вкусной.
+function enemyHuntGoals(game, botPlayerId, character) {
+  return (game.characters ?? [])
+    .filter((enemy) => enemy.owner !== botPlayerId && enemy.hp > 0 && enemy.position)
+    .map((enemy) => {
+      const loot = Math.min(3, enemy.inventory?.length ?? 0);
+      const wounded = enemy.hp <= 40 ? 8 : enemy.hp <= 70 ? 4 : 0;
+      return {
+        id: enemy.position,
+        // Выше блуждания к вражескому острову (3), ниже сюжетных целей (феникс 300,
+        // перо 900) — охота не отменяет стратегию, но включается при добыче рядом.
+        priority: 6 + loot + wounded,
+        phase: 'hunt',
+      };
+    });
+}
+
+function botMapGoals(game, botPlayerId, character) {
+  // Несущий перо — без отвлечений, бежит сдавать (это уже победа).
+  const featherId = carriedGoldFeatherId(character);
+  if (featherId) return featherDeliveryGoals(character, featherId);
+
+  // Охота на врагов доступна во всех фазах (приоритет ниже сюжетных целей, поэтому
+  // не срывает квест феникса, но позволяет наваливаться, когда добыча рядом). Атаки
+  // соседних врагов идут отдельно (collectAttackActions) и работают всегда.
+  const hunt = enemyHuntGoals(game, botPlayerId, character);
+
+  const storyGoals = phoenixGoals(game, botPlayerId, character);
+  if (storyGoals.length > 0) return [...storyGoals, ...hunt];
+
+  return [...hunt, ...enemyIslandGoals(character)];
+}
+
 function hasCharacterDrawnThisTurn(game, characterId) {
   return (game.turn.drawnCharacterIdsThisTurn ?? []).includes(characterId);
 }
@@ -260,39 +373,39 @@ function collectMoveActions({ game, botPlayerId, dieIndex, state }) {
     for (const character of ownCharacters(game, botPlayerId)) {
       const dieValue = diceFor(game, character.id)?.[dieIndex];
       if (!Number.isInteger(dieValue) || dieValue <= 0 || usedDiceFor(game, character.id)[dieIndex]) continue;
-      const enemyStarts = enemyIslandCells(character.side);
-      const before = Math.min(
-        ...enemyStarts.map((target) => shortestDistance(character.position, target)),
-      );
+      const goals = botMapGoals(game, botPlayerId, character);
+      if (goals.length === 0) continue;
       for (const target of availableMoveTargets(
         game,
         botPlayerId,
         character.id,
         dieIndex,
       )) {
-        const remainingDistance = Math.min(
-          ...enemyStarts.map((goal) => shortestDistance(target.cellId, goal)),
-        );
-        const progress = before - remainingDistance;
-        if (progress <= 0) continue;
-        actions.push({
-          type: 'action:move',
-          payload: {
-            characterId: character.id,
-            toCell: target.cellId,
-            dieIndex,
-          },
-          facts: {
-            character,
-            target: {
-              id: enemyStarts.includes(target.cellId) ? target.cellId : 'enemy-island',
-              priority: enemyStarts.includes(target.cellId) ? 100 : 3,
+        for (const goal of goals) {
+          const before = shortestDistance(character.position, goal.id);
+          const remainingDistance = shortestDistance(target.cellId, goal.id);
+          const progress = before - remainingDistance;
+          if (!Number.isFinite(before) || !Number.isFinite(remainingDistance) || progress <= 0) continue;
+          actions.push({
+            type: 'action:move',
+            payload: {
+              characterId: character.id,
+              toCell: target.cellId,
+              dieIndex,
             },
-            steps: target.distance,
-            progress,
-            remainingDistance,
-          },
-        });
+            facts: {
+              character,
+              target: {
+                id: `${goal.phase}:${goal.id}`,
+                priority: goal.priority,
+                cardId: goal.cardId ?? null,
+              },
+              steps: target.distance,
+              progress,
+              remainingDistance,
+            },
+          });
+        }
       }
     }
     return actions;

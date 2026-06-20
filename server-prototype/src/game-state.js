@@ -355,7 +355,7 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
           : cardView(entry.cardId, character),
         };
       }),
-    dwarves: dwarfStateView(game.dwarves),
+    dwarves: dwarfStateView(game.dwarves, visible),
     turn: {
       activePlayerId: game.turn.activePlayerId,
       rollsLeft: game.turn.rollsLeft,
@@ -414,25 +414,29 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
   };
 }
 
-function dwarfStateView(state) {
+function dwarfStateView(state, visible = null) {
   if (!state) return null;
   return {
     enabled: Boolean(state.enabled),
     active: Boolean(state.active),
     entryTurn: state.entryTurn ?? null,
     mainTurnsCompleted: state.mainTurnsCompleted ?? 0,
-    routeIndex: state.routeIndex ?? -1,
+    routeIndex: visible ? null : state.routeIndex ?? -1,
     routeLength: state.route?.length ?? 0,
-    units: (state.units ?? []).map((unit) => ({
-      id: unit.id,
-      kind: unit.kind,
-      name: unit.name,
-      hp: unit.hp,
-      position: unit.position ?? null,
-      routeIndex: unit.routeIndex ?? -1,
-      alive: unit.alive !== false,
-      cardCount: unit.inventory?.length ?? 0,
-    })),
+    units: (state.units ?? []).map((unit) => {
+      const fogged = visible && unit.position && !visible.has(unit.position);
+      return {
+        id: unit.id,
+        kind: unit.kind,
+        name: unit.name,
+        hp: unit.hp,
+        position: fogged ? null : unit.position ?? null,
+        routeIndex: fogged ? null : unit.routeIndex ?? -1,
+        hidden: Boolean(fogged),
+        alive: unit.alive !== false,
+        cardCount: unit.inventory?.length ?? 0,
+      };
+    }),
   };
 }
 

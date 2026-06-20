@@ -19,6 +19,11 @@
   --island-b: #8fae5e;
   --valid: #f4c95d;
   --danger: #e2614b;
+  --character-nav-bottom: 8px;
+  --character-nav-pad: 6px;
+  --character-nav-gap: 6px;
+  --character-nav-btn-size: 46px;
+  --character-dice-gap-y: 6px;
   --radius: 14px;
   --radius-sm: 9px;
   --shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.85);
@@ -245,8 +250,13 @@ h2::after {
   min-height: 0;
   position: relative;
   overflow: hidden;
-  /* Арт карты рисуется внутри SVG (для выравнивания клеток); фон — вода */
-  background: linear-gradient(160deg, var(--water-a), var(--water-b));
+  /* Арт карты рисуется внутри SVG (для выравнивания клеток); фон — дерево */
+  background-color: #25160e;
+  background-image:
+    linear-gradient(180deg, rgba(6, 8, 11, 0.1), rgba(6, 8, 11, 0.34)),
+    url("./assets/ui/woodwork-bg-seamless-v1.png");
+  background-repeat: repeat, repeat;
+  background-size: auto, 560px 560px;
   touch-action: none; /* жесты пан/зум ловим сами, страница не скроллится/не зумится */
 }
 
@@ -336,13 +346,18 @@ h2::after {
 .character-dice {
   position: absolute;
   left: 8px;
-  bottom: 72px;
+  bottom: calc(
+    var(--character-nav-bottom)
+    + (var(--character-nav-pad) * 2)
+    + var(--character-nav-btn-size)
+    + var(--character-dice-gap-y)
+  );
   z-index: 5;
   display: none;
   align-items: center;
-  gap: 4px;
+  gap: var(--character-nav-gap);
   min-height: 64px;
-  padding: 0 4px;
+  padding: 0 var(--character-nav-pad);
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -404,7 +419,7 @@ h2::after {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  width: 31px;
+  width: var(--character-nav-btn-size);
   height: 63px;
 }
 
@@ -456,11 +471,11 @@ h2::after {
 .character-nav {
   position: absolute;
   left: 8px;
-  bottom: 8px;
+  bottom: var(--character-nav-bottom);
   z-index: 4;
   display: flex;
-  gap: 6px;
-  padding: 6px;
+  gap: var(--character-nav-gap);
+  padding: var(--character-nav-pad);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   background: rgba(19, 28, 36, 0.88);
@@ -471,9 +486,9 @@ h2::after {
 
 .character-nav-btn {
   position: relative;
-  width: 46px;
-  height: 46px;
-  min-height: 46px;
+  width: var(--character-nav-btn-size);
+  height: var(--character-nav-btn-size);
+  min-height: var(--character-nav-btn-size);
   padding: 0;
   overflow: hidden;
   border-radius: 12px;
@@ -1688,63 +1703,6 @@ h2::after {
 }
 
 #lobby.hidden { display: none; }
-
-.duplicate-tab-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(10, 15, 25, 0.82);
-}
-
-.duplicate-tab-card {
-  width: min(420px, 92vw);
-  padding: 28px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--panel-solid);
-  box-shadow: var(--shadow);
-  text-align: center;
-}
-
-.duplicate-tab-title {
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--accent);
-}
-
-.duplicate-tab-text {
-  margin-top: 12px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.duplicate-tab-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin-top: 22px;
-}
-
-.duplicate-tab-actions button {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: rgba(255,255,255,0.08);
-  color: var(--ink);
-  font: inherit;
-  cursor: pointer;
-}
-
-.duplicate-tab-actions button:first-child {
-  background: var(--accent);
-  color: #06130f;
-  border-color: transparent;
-}
 
 .lobby-card {
   display: flex;

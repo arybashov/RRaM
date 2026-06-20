@@ -1,13 +1,16 @@
 // Админ-панель: страница /admin + JSON /admin/data.
-// Авторизация: HTML-форма логина (/admin/login) с сессионной кукой — чтобы
-// Chrome/менеджеры паролей штатно сохраняли и автозаполняли пароль. Заодно
-// принимаем HTTP Basic Auth (curl/скрипты/совместимость с nginx).
-// Показывает подключённых клиентов (где они, idle, версия, IP) и комнаты/партии.
-// Пароль — из ADMIN_PASSWORD; если не задан, админка отключена (503).
+// Показывает подключённых клиентов (где они, девайс, idle, версия, IP) и комнаты.
+//
+// Авторизация ВРЕМЕННО ОТКЛЮЧЕНА (пользователей мало, пароль неудобно вводить).
+// Чтобы вернуть вход по паролю — задайте ADMIN_AUTH=1 и ADMIN_PASSWORD. Тогда
+// заработает HTML-форма логина (/admin/login) с сессионной кукой (Chrome/менеджеры
+// паролей автозаполняют) и совместимый HTTP Basic Auth (curl/скрипты).
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 const ADMIN_USER = process.env.ADMIN_USER ?? 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
+// По умолчанию админка открыта без пароля. Вход включается только явным ADMIN_AUTH=1.
+const AUTH_ENABLED = process.env.ADMIN_AUTH === '1' && Boolean(ADMIN_PASSWORD);
 
 const COOKIE_NAME = 'rram_admin';
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 часов
@@ -80,9 +83,36 @@ function clearSessionCookie(req, reply) {
   reply.header('Set-Cookie', `${COOKIE_NAME}=; Max-Age=0${cookieAttrs(req)}`);
 }
 
-function adminDisabled(reply) {
-  return reply.code(503).type('text/plain; charset=utf-8')
-    .send('Админка отключена: задайте переменную окружения ADMIN_PASSWORD.');
+// Короткая расшифровка девайса из user-agent: тип (📱/🖥/📋) + ОС + браузер.
+// Не претендует на точность — для админки достаточно «с чего зашёл клиент».
+function deviceFromUA(ua) {
+  if (!ua) return '—';
+  const s = ua;
+  const has = (re) => re.test(s);
+
+  let os = 'неизв. ОС';
+  if (has(/iPhone/)) os = 'iPhone';
+  else if (has(/iPad/)) os = 'iPad';
+  else if (has(/Android/)) os = 'Android';
+  else if (has(/Windows/)) os = 'Windows';
+  else if (has(/Mac OS X|Macintosh/)) os = 'macOS';
+  else if (has(/CrOS/)) os = 'ChromeOS';
+  else if (has(/Linux/)) os = 'Linux';
+
+  let browser = '';
+  if (has(/Edg\//)) browser = 'Edge';
+  else if (has(/OPR\/|Opera/)) browser = 'Opera';
+  else if (has(/YaBrowser/)) browser = 'Yandex';
+  else if (has(/SamsungBrowser/)) browser = 'Samsung';
+  else if (has(/Firefox\//)) browser = 'Firefox';
+  else if (has(/Chrome\//)) browser = 'Chrome';
+  else if (has(/Safari\//) && has(/Version\//)) browser = 'Safari';
+
+  const mobile = has(/iPhone|Android.*Mobile|Mobile.*Safari|Windows Phone/);
+  const tablet = has(/iPad|Android(?!.*Mobile)|Tablet/);
+  const icon = mobile ? '📱' : tablet ? '📋' : '🖥';
+
+  return `${icon} ${os}${browser ? ' · ' + browser : ''}`;
 }
 
 function buildData({ store, clients, lobbySubscribers, version }) {
@@ -104,6 +134,7 @@ function buildData({ store, clients, lobbySubscribers, version }) {
       ip: c.ip ?? '?',
       version: c.version ?? '?',
       ua: c.ua ?? '',
+      device: deviceFromUA(c.ua ?? ''),
       connectedSec: Math.round((now - (c.connectedAt ?? now)) / 1000),
       idleSec: Math.round((now - (c.lastSeen ?? now)) / 1000),
       // RTT от сервера до клиента (srv:ping/srv:pong). Только свежий замер (<30с).
@@ -141,19 +172,18 @@ export function registerAdmin(app, deps) {
   } catch { /* парсер уже зарегистрирован */ }
 
   app.get('/admin', async (req, reply) => {
-    if (!ADMIN_PASSWORD) return adminDisabled(reply);
-    if (!isAuthed(req)) return reply.redirect('/admin/login');
+    if (AUTH_ENABLED && !isAuthed(req)) return reply.redirect('/admin/login');
     return reply.type('text/html; charset=utf-8').send(ADMIN_HTML);
   });
 
   app.get('/admin/login', async (req, reply) => {
-    if (!ADMIN_PASSWORD) return adminDisabled(reply);
+    if (!AUTH_ENABLED) return reply.redirect('/admin'); // пароль отключён — входить незачем
     if (isAuthed(req)) return reply.redirect('/admin');
     return reply.type('text/html; charset=utf-8').send(LOGIN_HTML(Boolean(req.query?.e)));
   });
 
   app.post('/admin/login', async (req, reply) => {
-    if (!ADMIN_PASSWORD) return adminDisabled(reply);
+    if (!AUTH_ENABLED) return reply.redirect('/admin');
     const user = String(req.body?.username ?? '');
     const pass = String(req.body?.password ?? '');
     if (passwordOk(user, pass)) {
@@ -167,12 +197,11 @@ export function registerAdmin(app, deps) {
     const token = parseCookies(req)[COOKIE_NAME];
     if (token) sessions.delete(token);
     clearSessionCookie(req, reply);
-    return reply.redirect('/admin/login');
+    return reply.redirect(AUTH_ENABLED ? '/admin/login' : '/admin');
   });
 
   app.get('/admin/data', async (req, reply) => {
-    if (!ADMIN_PASSWORD) return reply.code(503).send({ error: 'disabled' });
-    if (!isAuthed(req)) return reply.code(401).send({ error: 'unauthorized' });
+    if (AUTH_ENABLED && !isAuthed(req)) return reply.code(401).send({ error: 'unauthorized' });
     return buildData(deps);
   });
 }
@@ -262,7 +291,7 @@ const ADMIN_HTML = `<!doctype html>
     </div>
   </section>
   <section><h2>Клиенты</h2><table id="clients"><thead><tr>
-    <th>id</th><th>IP</th><th>пинг</th><th>версия</th><th>где</th><th>комната</th><th>игрок</th><th>онлайн</th><th>idle</th>
+    <th>id</th><th>IP</th><th>девайс</th><th>пинг</th><th>версия</th><th>где</th><th>комната</th><th>игрок</th><th>онлайн</th><th>idle</th>
   </tr></thead><tbody></tbody></table></section>
   <section><h2>Комнаты / партии</h2><table id="rooms"><thead><tr>
     <th>код</th><th>тип</th><th>статус</th><th>игроки</th><th>партия</th>
@@ -319,11 +348,12 @@ async function tick(){
   document.querySelector('#clients tbody').innerHTML = d.clients.map(c=>{
     const stale = c.version!=='?' && c.version!==verNow;
     return '<tr><td class=muted>'+c.id+'</td><td>'+c.ip+'</td>'+
+      '<td title="'+escapeHtml(c.ua||'')+'">'+escapeHtml(c.device||'—')+'</td>'+
       '<td class='+pingCls(c.rtt)+'>'+(c.rtt==null?'—':c.rtt+' мс')+'</td>'+
       '<td'+(stale?' class=bad title="версия не совпадает с сервером"':'')+'>'+c.version+'</td>'+
       '<td>'+c.state+'</td><td>'+(c.roomCode||'—')+'</td><td>'+(c.name?escapeHtml(c.name):'<span class=muted>—</span>')+(c.side?' <span class=pill>'+c.side+'</span>':'')+'</td>'+
       '<td>'+fmtDur(c.connectedSec)+'</td><td class='+idleCls(c.idleSec)+'>'+fmtDur(c.idleSec)+'</td></tr>';
-  }).join('') || '<tr><td colspan=9 class=muted>нет подключений</td></tr>';
+  }).join('') || '<tr><td colspan=10 class=muted>нет подключений</td></tr>';
   document.querySelector('#rooms tbody').innerHTML = d.rooms.map(r=>{
     const players = r.players.map(p=>escapeHtml(p.name||'?')+(p.isBot?' 🤖':'')+(p.connected?'':' <span class=bad>(off)</span>')).join(', ');
     let game = '<span class=muted>—</span>';
