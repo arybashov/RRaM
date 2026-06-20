@@ -425,6 +425,45 @@ test('dwarves — атакуют персонажа рядом вместо ша
   assert.ok(victim.hp < 100);
 });
 
+test('dwarves — убийство последнего персонажа игрока завершает партию', () => {
+  const g = freshGame();
+  const route = dwarfRoute();
+  for (const character of g.characters.filter(c => c.owner === 'p1')) {
+    character.hp = 0;
+    character.position = null;
+  }
+  for (const character of g.characters.filter(c => c.owner === 'p2')) {
+    character.position = null;
+  }
+
+  const victim = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  victim.hp = 10;
+  victim.position = neighbors(route[0])[0];
+  g.dwarves.entryTurn = 0;
+  g.dwarves.active = true;
+  g.dwarves.mainTurnsCompleted = 1;
+  g.dwarves.units.forEach((unit) => {
+    unit.position = null;
+    unit.routeIndex = -1;
+    unit.exited = false;
+    unit.alive = true;
+  });
+  g.dwarves.units[0].position = route[0];
+  g.dwarves.units[0].routeIndex = 0;
+  __setDwarfDiceRoller(() => [0, 0]);
+
+  apply(g, 'p1', 'turn:end');
+  const result = apply(g, 'p2', 'turn:end');
+  const attack = result.dwarves.attacks.find(item => item.targetId === victim.id);
+
+  assert.ok(attack);
+  assert.equal(attack.defeated, true);
+  assert.equal(victim.position, null);
+  assert.equal(g.over, true);
+  assert.equal(g.winnerId, 'p2');
+  __setDwarfDiceRoller();
+});
+
 test('dwarves — стрелок атакует в радиусе 5 клеток', () => {
   const g = freshGame();
   const route = dwarfRoute();

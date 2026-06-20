@@ -2495,7 +2495,16 @@ function defeatByDwarf(game, target) {
   target.position = null;
   target.beastFight = null;
   target.dots = [];
+  checkNeutralEliminationVictory(game, target.owner);
   return discarded.length;
+}
+
+function checkNeutralEliminationVictory(game, defeatedOwnerId) {
+  if (game.over) return;
+  if (game.characters.some((character) => character.owner === defeatedOwnerId && character.hp > 0)) return;
+  game.over = true;
+  game.winnerId = Object.keys(game.turn.rollsLeft)
+    .find((id) => id !== defeatedOwnerId) ?? null;
 }
 
 function payloadCharacterId(payload = {}) {
