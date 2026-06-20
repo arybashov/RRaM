@@ -51,6 +51,7 @@ app.get('/ws', { websocket: true }, (socket, req) => {
     connectionId,
     serverVersion: BUILD_VERSION,
     debugCommands: DEBUG_COMMANDS_ENABLED,
+    localActionJournal: DEBUG_COMMANDS_ENABLED,
     cardCatalog: [...CARD_CATALOG, ...BASE_CARD_CATALOG],
   });
 
@@ -284,7 +285,15 @@ function routeCommand(connectionId, message) {
         payload: message.payload,
       });
       if (result) {
-        send(client.socket, 'action:result', result);
+        const actionResult = decorateActionResult(result, {
+          actorId: client.playerId,
+          commandType: message.type,
+        });
+        if (DEBUG_COMMANDS_ENABLED) {
+          broadcastActionResult(client.roomId, actionResult);
+        } else {
+          send(client.socket, 'action:result', actionResult);
+        }
       }
       broadcastState(client.roomId);
       break;
@@ -319,10 +328,20 @@ function broadcastState(roomId) {
   maybeTriggerBot(roomId);
 }
 
-function broadcastActionResult(roomId, result) {
+function decorateActionResult(result, meta = {}) {
+  if (!result || typeof result !== 'object') return result;
+  return {
+    ...result,
+    actorId: result.actorId ?? meta.actorId ?? null,
+    commandType: result.commandType ?? meta.commandType ?? null,
+  };
+}
+
+function broadcastActionResult(roomId, result, meta = {}) {
+  const payload = decorateActionResult(result, meta);
   for (const client of clients.values()) {
     if (client.roomId === roomId) {
-      send(client.socket, 'action:result', result);
+      send(client.socket, 'action:result', payload);
     }
   }
 }
@@ -349,7 +368,10 @@ function maybeTriggerBot(roomId) {
     applyCommand: store.applyCommand,
     getRoom:      store.getRoom,
     broadcast:    broadcastState,
-    emitActionResult: broadcastActionResult,
+    emitActionResult: (targetRoomId, result, meta = {}) => broadcastActionResult(targetRoomId, result, {
+      actorId: bot.id,
+      ...meta,
+    }),
     roomId,
     botPlayerId:  bot.id,
   }).finally(() => botRunning.delete(roomId));

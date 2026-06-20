@@ -593,7 +593,7 @@ function tryApply(applyCommand, broadcast, emitActionResult, roomId, botPlayerId
       payload: action.payload,
     });
     const result = applied?.result ?? applied;
-    if (result) emitActionResult?.(roomId, result);
+    if (result) emitActionResult?.(roomId, result, { commandType: action.type });
     broadcast(roomId);
     return true;
   } catch {
@@ -601,8 +601,8 @@ function tryApply(applyCommand, broadcast, emitActionResult, roomId, botPlayerId
   }
 }
 
-function applySimple(applyCommand, broadcast, roomId, botPlayerId, type, payload = {}) {
-  return tryApply(applyCommand, broadcast, null, roomId, botPlayerId, {
+function applySimple(applyCommand, broadcast, emitActionResult, roomId, botPlayerId, type, payload = {}) {
+  return tryApply(applyCommand, broadcast, emitActionResult, roomId, botPlayerId, {
     type,
     payload,
   });
@@ -670,7 +670,7 @@ export async function runBotTurn({
   wait = delay,
 }) {
   const simple = (type, payload) =>
-    applySimple(applyCommand, broadcast, roomId, botPlayerId, type, payload);
+    applySimple(applyCommand, broadcast, emitActionResult, roomId, botPlayerId, type, payload);
 
   await wait(650);
   if (!simple('turn:roll')) {

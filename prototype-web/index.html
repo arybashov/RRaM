@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>RRaM</title>
-    <link rel="stylesheet" href="./styles.css?v=20260620-06" />
+    <link rel="stylesheet" href="./styles.css?v=20260620-16" />
   </head>
   <body>
     <main class="app">
@@ -47,6 +47,15 @@
           <button id="focusBtn" class="board-ctl" aria-label="К моим фишкам" title="К моим фишкам">◎</button>
           <button id="fitBtn" class="board-ctl" aria-label="Вся карта" title="Вся карта">⤢</button>
         </div>
+        <section id="guidePanel" class="guide-panel" aria-label="Подсказки и сообщения">
+          <article class="guide-hint">
+            <div class="guide-kicker">Подсказка</div>
+            <div id="guideTurnStatus" class="guide-turn-status">Ожидание партии</div>
+            <div id="guideHintTitle" class="guide-title">Начните партию</div>
+            <div id="guideHintText" class="guide-text">Создайте игру или подключитесь к комнате.</div>
+          </article>
+          <div id="gameMessages" class="guide-messages" aria-live="polite"></div>
+        </section>
       </section>
 
       <!-- Шторка: инвентарь + журнал (сворачиваемая) -->
@@ -57,10 +66,18 @@
         <div class="sheet-body">
           <h2 id="inventoryTitle">Персонаж</h2>
           <div id="inventory" class="inventory empty">Выберите персонажа.</div>
+          <section id="localJournal" class="local-journal" aria-label="Журнал действий">
+            <h2>Журнал</h2>
+            <div class="sheet-chat chat-input-row">
+              <input id="gameChatInput" type="text" maxlength="200" placeholder="Сообщение..." autocomplete="off" />
+              <button id="gameChatSend" type="button" aria-label="Отправить">↵</button>
+            </div>
+            <div id="log" class="log" aria-live="polite"></div>
+          </section>
         </div>
       </section>
     </main>
 
-    <script src="./game.js?v=20260620-06"></script>
+    <script src="./game.js?v=20260620-16"></script>
   </body>
 </html>

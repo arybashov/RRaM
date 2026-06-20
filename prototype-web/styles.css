@@ -652,6 +652,160 @@ h2::after {
 .sheet-body .log { max-height: none; }
 .sheet-body h2:first-child { margin-top: 4px; }
 
+.local-journal {
+  display: none;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+body.local-debug .local-journal {
+  display: block;
+}
+
+.local-journal h2 {
+  margin: 0 0 8px;
+}
+
+.local-journal .log {
+  max-height: min(320px, 34dvh);
+}
+
+/* ---------- Локальные подсказки и сообщения игры ---------- */
+.guide-panel {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  top: 12px;
+  z-index: 9;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  width: min(330px, calc(100% - 112px));
+  pointer-events: none;
+}
+
+body.local-debug .guide-panel {
+  display: flex;
+}
+
+.guide-hint,
+.guide-message {
+  pointer-events: auto;
+  border: 1px solid rgba(73, 207, 176, 0.32);
+  border-radius: 8px;
+  background: rgba(14, 22, 36, 0.88);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(10px);
+}
+
+.guide-hint {
+  padding: 10px 12px;
+  border-left: 4px solid var(--accent);
+}
+
+.guide-panel.tutorial-disabled .guide-hint {
+  display: none;
+}
+
+.guide-panel.tutorial-disabled .guide-messages:empty {
+  display: none;
+}
+
+.guide-kicker {
+  margin-bottom: 4px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.guide-turn-status {
+  margin-bottom: 6px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.guide-title {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.guide-text {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.guide-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 34dvh;
+  overflow: hidden;
+}
+
+.guide-message {
+  padding: 9px 11px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  animation: guide-message-in 0.16s ease-out;
+}
+
+.guide-message-success {
+  border-color: rgba(73, 207, 176, 0.58);
+  color: var(--accent);
+}
+
+.guide-message-danger,
+.guide-message-error {
+  border-color: rgba(224, 86, 63, 0.62);
+  color: #ff9289;
+}
+
+.guide-message-info {
+  border-color: rgba(244, 201, 93, 0.48);
+  color: var(--gold);
+}
+
+.guide-message-hint {
+  border-color: rgba(73, 207, 176, 0.46);
+  color: #9ee7d7;
+}
+
+@keyframes guide-message-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 620px) {
+  .guide-panel {
+    left: max(8px, env(safe-area-inset-left));
+    top: 8px;
+    width: min(292px, calc(100% - 96px));
+  }
+
+  .guide-hint {
+    padding: 8px 10px;
+  }
+
+  .guide-title {
+    font-size: 14px;
+  }
+
+  .guide-text,
+  .guide-message {
+    font-size: 12px;
+  }
+}
+
 /* ---------- Десктоп: борд слева, рельс (док + шторка) справа ---------- */
 @media (min-width: 900px) {
   .app {
@@ -1093,7 +1247,11 @@ h2::after {
 }
 
 .dwarf-token {
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.dwarf-token:not(.attackable) {
+  cursor: default;
 }
 
 .dwarf-token .dwarf-halo {
@@ -1655,6 +1813,9 @@ h2::after {
 
 .log-err { color: var(--danger); }
 .log-err::before { background: var(--danger); }
+
+.log-bad { color: var(--danger); }
+.log-bad::before { background: var(--danger); }
 
 /* ---------- Connection badge ---------- */
 .conn-badge {
@@ -2914,6 +3075,11 @@ h2::after {
   scrollbar-width: thin;
 }
 
+.event-card-display .card-flip-btn,
+.event-card-display .card-discard-btn {
+  display: none;
+}
+
 .event-ok-btn {
   width: 100%;
   padding: 12px;
@@ -2933,6 +3099,21 @@ h2::after {
   background: rgba(244, 201, 93, 0.14);
   color: var(--gold);
   font-weight: 700;
+}
+
+.event-delete-btn {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 11px;
+  border-color: rgba(226, 97, 75, 0.7);
+  background: rgba(73, 18, 20, 0.72);
+  color: #ffd0c7;
+  font-weight: 800;
+}
+
+.event-delete-btn:hover {
+  border-color: #ff7d68;
+  background: rgba(128, 31, 31, 0.9);
 }
 
 @keyframes fade-in {

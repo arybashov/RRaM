@@ -639,6 +639,10 @@ function livingDwarfUnits(game) {
     unit.alive !== false && unit.position);
 }
 
+function findLivingDwarfUnit(game, unitId) {
+  return livingDwarfUnits(game).find((unit) => unit.id === unitId) ?? null;
+}
+
 function occupiedStopCells(game, { exceptCharacterId = null, exceptDwarfId = null } = {}) {
   const occupied = new Set();
   for (const character of game.characters ?? []) {
@@ -1257,13 +1261,17 @@ export function availableAttackTargets(game, playerId, characterId) {
   const attacker = ownCharacter(game, playerId, characterId);
   if (attacker.beastFight) return []; // занят зверем — игроков не атакует
   const adjacent = new Set(neighbors(attacker.position));
-  return game.characters
+  const targets = game.characters
     .filter((character) =>
       character.owner !== playerId
       && character.hp > 0
       && character.position
       && adjacent.has(character.position))
     .map((character) => character.id);
+  for (const unit of livingDwarfUnits(game)) {
+    if (adjacent.has(unit.position)) targets.push(unit.id);
+  }
+  return targets;
 }
 
 function engage(game, playerId, { attackerId, targetId } = {}) {
@@ -1782,6 +1790,13 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   if (attacker.beastFight) {
     throw new Error('В схватке со зверем нельзя атаковать игрока: добейте зверя или убегайте.');
   }
+  const dwarfTarget = findLivingDwarfUnit(game, targetId);
+  if (dwarfTarget) {
+    if (!availableAttackTargets(game, playerId, attackerId).includes(targetId)) {
+      throw new Error('Атаковать дварфа можно только на соседней клетке.');
+    }
+    return attackDwarf(game, playerId, attacker, dwarfTarget, dieIndex);
+  }
   const target = game.characters.find((character) => character.id === targetId);
   if (!target || target.owner === playerId || target.hp <= 0 || !target.position) {
     throw new Error('Цель атаки недоступна.');
@@ -1938,6 +1953,133 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
       discardedCount,
       traps: trap.triggered,
       attackerDefeated,
+      attackerHp: attacker.hp,
+    },
+    winnerId: game.winnerId,
+  };
+}
+
+function attackDwarf(game, playerId, attacker, unit, dieIndex) {
+  const targetCell = unit.position;
+  const damage = game.turn.dice[0] + game.turn.dice[1];
+  let griffinDamage = 0;
+
+  const terrainCards = game.terrainCards ?? [];
+  const placedGriffins = terrainCards.filter((card) =>
+    card.ownerId === playerId
+    && card.characterId === attacker.id
+    && card.cardId === 'griffin'
+    && !card.faceDown);
+  if (attacker.role === 'O' && placedGriffins.length > 0) {
+    let damagePerGriffin = 0;
+    if (damage === 2) damagePerGriffin = 10;
+    else if (damage === 3) damagePerGriffin = 20;
+    else if (damage === 4) damagePerGriffin = 25;
+    else if (damage >= 5) damagePerGriffin = 30;
+    griffinDamage = damagePerGriffin * placedGriffins.length;
+  }
+  if (griffinDamage > 0) {
+    for (const card of placedGriffins) card.faceDown = true;
+  }
+
+  const weaponDisabledByLakeFrog = Boolean(attacker.frogSpell);
+  const activeTerrainWeapons = terrainCards
+    .filter((card) => card.ownerId === playerId
+      && card.characterId === attacker.id
+      && !card.faceDown
+      && WEAPON_CARDS[card.cardId])
+    .map((card) => card.cardId);
+  const faceDownTerrainWeapons = terrainCards
+    .filter((card) => card.ownerId === playerId
+      && card.characterId === attacker.id
+      && card.faceDown
+      && WEAPON_CARDS[card.cardId])
+    .map((card) => card.cardId);
+  const weaponCandidateIds = [...attacker.inventory, ...activeTerrainWeapons]
+    .filter((id) => WEAPON_CARDS[id]);
+  const roleBlockedWeapon = weaponCandidateIds
+    .map((id) => ({ id, ...WEAPON_CARDS[id] }))
+    .find((candidate) => candidate.role && candidate.role !== attacker.role);
+  let weapon = null;
+  if (!weaponDisabledByLakeFrog) {
+    for (const id of weaponCandidateIds) {
+      const w = WEAPON_CARDS[id];
+      if (!w || (w.role && w.role !== attacker.role)) continue;
+      if (!weapon || w.damage > weapon.damage) weapon = { id, ...w };
+    }
+  }
+  const weaponDamage = weapon ? weapon.damage : 0;
+  const weaponPiercing = weapon ? Boolean(weapon.piercing) : false;
+  let weaponSuppressedReason = null;
+  let weaponSuppressedName = null;
+  let weaponSuppressedRole = null;
+  if (!weapon) {
+    if (weaponDisabledByLakeFrog && weaponCandidateIds.length > 0) {
+      const id = weaponCandidateIds[0];
+      weaponSuppressedReason = 'lake_frog';
+      weaponSuppressedName = WEAPON_CARDS[id].name;
+      weaponSuppressedRole = WEAPON_CARDS[id].role ?? null;
+    } else if (roleBlockedWeapon) {
+      weaponSuppressedReason = 'wrong_role';
+      weaponSuppressedName = roleBlockedWeapon.name;
+      weaponSuppressedRole = roleBlockedWeapon.role ?? null;
+    } else if (faceDownTerrainWeapons.length > 0) {
+      const id = faceDownTerrainWeapons[0];
+      weaponSuppressedReason = 'face_down';
+      weaponSuppressedName = WEAPON_CARDS[id].name;
+      weaponSuppressedRole = WEAPON_CARDS[id].role ?? null;
+    }
+  }
+
+  const activeClubs = attacker.role === 'V'
+    ? terrainCards.filter((card) =>
+      card.ownerId === playerId
+      && card.characterId === attacker.id
+      && card.cardId === 'club'
+      && !card.faceDown)
+    : [];
+  const clubDamage = CLUB_DAMAGE * activeClubs.length;
+  const dealtDamage = damage + griffinDamage + clubDamage + weaponDamage;
+
+  unit.hp = Math.max(0, unit.hp - dealtDamage);
+  const defeated = unit.hp === 0;
+  if (defeated) {
+    unit.alive = false;
+    unit.position = null;
+    unit.routeIndex = -1;
+  }
+
+  lockMovement(game);
+  spendDie(game, dieIndex);
+  return {
+    attacked: {
+      attackerId: attacker.id,
+      targetId: unit.id,
+      targetType: 'dwarf',
+      targetName: unit.name ?? 'Дварф',
+      targetCell,
+      dieIndex,
+      damage,
+      griffinDamage,
+      griffinTurnedFaceDown: griffinDamage > 0,
+      clubDamage,
+      clubCount: activeClubs.length,
+      weaponDamage,
+      weaponName: weapon?.name ?? null,
+      weaponPiercing,
+      weaponDisabledByLakeFrog,
+      weaponSuppressedReason,
+      weaponSuppressedName,
+      weaponSuppressedRole,
+      totalDamage: dealtDamage,
+      armorAbsorbed: 0,
+      dealtDamage,
+      targetHp: unit.hp,
+      defeated,
+      lootCount: 0,
+      discardedCount: 0,
+      traps: [],
+      attackerDefeated: false,
       attackerHp: attacker.hp,
     },
     winnerId: game.winnerId,

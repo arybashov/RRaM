@@ -41,6 +41,17 @@ function rollAndSplit(game, pid) {
   apply(game, pid, 'turn:setMode', { mode: 'split' });
 }
 
+function setCharacterDice(game, character, dice = [3, 4]) {
+  game.turn.hasRolled = true;
+  game.turn.diceByCharacter[character.id] = [...dice];
+  game.turn.usedDiceByCharacter[character.id] = [false, false];
+  game.turn.activeDiceCharacterId = character.id;
+  game.turn.dice = game.turn.diceByCharacter[character.id];
+  game.turn.usedDice = game.turn.usedDiceByCharacter[character.id];
+  game.turn.modeByCharacter[character.id] = 'split';
+  game.turn.mode = 'split';
+}
+
 // ── Создание игры ─────────────────────────────────────────────────
 
 test('createGame — 10 персонажей (5 + 5)', () => {
@@ -403,6 +414,57 @@ test('dwarves — сейчас не получают игровые кубики
   const diceIds = Object.keys(g.turn.diceByCharacter);
   assert.ok(diceIds.length > 0);
   assert.ok(!diceIds.some((id) => id.startsWith('dwarf:')));
+});
+
+test('player attack — adjacent dwarf is a legal target', () => {
+  const g = freshGame();
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  const unit = g.dwarves.units[0];
+  unit.position = neighbors(warrior.position)[0];
+  unit.routeIndex = 0;
+  unit.alive = true;
+  setCharacterDice(g, warrior, [3, 4]);
+
+  const targets = availableAttackTargets(g, 'p1', warrior.id);
+
+  assert.ok(targets.includes(unit.id));
+});
+
+test('player attack — damages a dwarf and spends one die', () => {
+  const g = freshGame();
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  const unit = g.dwarves.units[0];
+  unit.position = neighbors(warrior.position)[0];
+  unit.routeIndex = 0;
+  unit.alive = true;
+  unit.hp = 100;
+  setCharacterDice(g, warrior, [3, 4]);
+
+  const result = apply(g, 'p1', 'action:attack', { attackerId: warrior.id, targetId: unit.id });
+
+  assert.equal(result.attacked.targetType, 'dwarf');
+  assert.equal(result.attacked.dealtDamage, 7);
+  assert.equal(unit.hp, 93);
+  assert.equal(g.turn.usedDiceByCharacter[warrior.id][0], true);
+  assert.equal(unit.alive, true);
+});
+
+test('player attack — defeated dwarf leaves the board without loot', () => {
+  const g = freshGame();
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  const unit = g.dwarves.units[0];
+  unit.position = neighbors(warrior.position)[0];
+  unit.routeIndex = 0;
+  unit.alive = true;
+  unit.hp = 6;
+  setCharacterDice(g, warrior, [3, 4]);
+
+  const result = apply(g, 'p1', 'action:attack', { attackerId: warrior.id, targetId: unit.id });
+
+  assert.equal(result.attacked.defeated, true);
+  assert.equal(result.attacked.lootCount, 0);
+  assert.equal(unit.alive, false);
+  assert.equal(unit.position, null);
 });
 
 test('dwarves — атакуют персонажа рядом вместо шага по маршруту', () => {
