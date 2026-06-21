@@ -2096,6 +2096,7 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
     && card.characterId === defender.id
     && card.faceDown === true
     && TRAP_CARDS[card.cardId]);
+  const attackerInventory = Array.isArray(attacker.inventory) ? attacker.inventory : [];
   let incomingDamage = intendedDamage;
   for (const card of cards) {
     if (TRAP_CARDS[card.cardId].negateIncoming) incomingDamage = 0;
@@ -2110,12 +2111,12 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
     if (t.retreatAttacker) retreatSteps = Math.max(retreatSteps, t.retreatAttacker);
     // Ночной филин: защищающийся забирает одну карту из инвентаря нападающего.
     let stolen = null;
-    if (t.stealCard && attacker.inventory.length > 0) {
-      stolen = attacker.inventory.shift();
+    if (t.stealCard && attackerInventory.length > 0) {
+      stolen = attackerInventory.shift();
       if (defender.inventory.length < INVENTORY_LIMIT) defender.inventory.push(stolen);
       else game.discard.push(stolen); // нет места — карта в сброс
     }
-    if (!stolen && Array.isArray(t.stealFromRoles)) {
+    if (!stolen && Array.isArray(t.stealFromRoles) && attacker.owner) {
       const source = t.stealFromRoles
         .map((role) => game.characters.find((ch) =>
           ch.owner === attacker.owner
@@ -2132,7 +2133,7 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
     // Порча: при уроне ≥ порога у каждого персонажа нападающего по 1 ингредиенту
     // возвращается в сброс (упрощение «обратно в колоды»).
     let purged = 0;
-    if (t.purgeIngredientsMin && incomingDamage >= t.purgeIngredientsMin) {
+    if (t.purgeIngredientsMin && incomingDamage >= t.purgeIngredientsMin && attacker.owner) {
       for (const ch of game.characters) {
         if (ch.owner !== attacker.owner) continue;
         const idx = ch.inventory.findIndex((id) => CARD_BY_ID[id]?.type === 'ingredient');
@@ -2348,26 +2349,72 @@ function resolveDwarfAttack(game, unit) {
   const attackProfile = DWARF_ATTACK[unit.kind] ?? DWARF_ATTACK.ordinary;
   if (target.distance > attackProfile.range) return null;
 
+  const fromCell = unit.position;
+  const targetCell = target.character.position ?? target.cellId;
   const beforeHp = target.character.hp;
-  target.character.hp = Math.max(0, target.character.hp - attackProfile.damage);
+  const armorAbsorb = activeArmorAbsorb(game, target.character);
+  const afterArmor = Math.max(0, attackProfile.damage - armorAbsorb);
+  const trap = resolveDefenderTraps(game, unit, target.character, afterArmor);
+  const dealtDamage = trap.incomingDamage;
+
+  target.character.hp = Math.max(0, target.character.hp - dealtDamage);
   const defeated = target.character.hp === 0;
   let discardedCount = 0;
   if (defeated) {
     discardedCount = defeatByDwarf(game, target.character);
   }
+
+  if (trap.attackerSelfDamage > 0) {
+    unit.hp = Math.max(0, (unit.hp ?? 100) - trap.attackerSelfDamage);
+  }
+  if (trap.retreatSteps > 0 && unit.alive !== false && unit.hp > 0) {
+    retreatDwarf(game, unit, trap.retreatSteps);
+  }
+  const attackerDefeated = unit.hp <= 0;
+  if (attackerDefeated) {
+    unit.alive = false;
+    unit.position = null;
+    unit.routeIndex = -1;
+  }
+
   return {
     unitId: unit.id,
     unitKind: unit.kind,
     targetId: target.character.id,
-    fromCell: unit.position,
-    targetCell: target.character.position ?? target.cellId,
+    fromCell,
+    targetCell,
     distance: target.distance,
     damage: attackProfile.damage,
+    totalDamage: attackProfile.damage,
+    armorAbsorbed: armorAbsorb,
+    dealtDamage,
     hpBefore: beforeHp,
     hpAfter: target.character.hp,
     defeated,
     discardedCount,
+    traps: trap.triggered,
+    attackerSelfDamage: trap.attackerSelfDamage,
+    attackerHp: unit.hp ?? 0,
+    attackerDefeated,
   };
+}
+
+function retreatDwarf(game, unit, steps) {
+  const state = game.dwarves;
+  const route = state?.route ?? [];
+  if (!route.length || !unit.position || steps <= 0) return;
+  const currentIndex = strictDwarfRouteIndex(state, unit);
+  if (currentIndex < 0) return;
+  const occupied = occupiedStopCells(game, { exceptDwarfId: unit.id });
+  const minIndex = Math.max(0, currentIndex - steps);
+  for (let index = minIndex; index < currentIndex; index += 1) {
+    const cellId = route[index];
+    if (!occupied.has(cellId)) {
+      unit.position = cellId;
+      unit.routeIndex = index;
+      return;
+    }
+  }
 }
 
 // Шаг колонны за один ход дварфов. Лидеры (выше по индексу) ходят первыми и

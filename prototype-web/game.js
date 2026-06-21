@@ -30,6 +30,8 @@ let fogEnabled = localStorage.getItem(FOG_ENABLED_KEY) !== 'false';
 let tutorialEnabled = localStorage.getItem(TUTORIAL_ENABLED_KEY) !== 'false';
 let serverDebugCommandsEnabled = false;
 let serverLocalActionJournalEnabled = false;
+let authUser = null;
+let authMode = 'login';
 
 // ── Константы ─────────────────────────────────────────────────────
 const ROLE_NAMES = { K: 'Кузнец', P: 'Помощник', V: 'Воин', O: 'Охотник', S: 'Шаман' };
@@ -476,6 +478,7 @@ const dieButtons     = [document.querySelector('#die1'), document.querySelector(
 // Лобби-DOM (создаётся динамически)
 let lobbyEl, nameInput, createBtn, vsAiBtn,
     lobbyStatusEl, connBadgeEl, connRttEl, menuEl, menuBtn;
+let authStatusEl = null;
 let settingsEl = null;
 let matchResultEl = null;
 let encyclopediaEl = null;
@@ -502,7 +505,9 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260620-16'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260621-10'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
+const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
 
 // ── Старт ─────────────────────────────────────────────────────────
 showAppVersion();
@@ -530,7 +535,6 @@ inventoryEl?.addEventListener('click', onInventoryClick);
     if (e.key === 'Enter') { e.preventDefault(); sendGameChat(); }
   });
 }
-syncLocalDebugUi();
 buildCardBox();
 buildEventOverlay();
 buildLobbyOverlay();
@@ -711,6 +715,9 @@ function handleMsg({ type, payload }) {
       checkClientVersion(payload?.serverVersion);
       serverDebugCommandsEnabled = payload?.debugCommands === true;
       serverLocalActionJournalEnabled = payload?.localActionJournal === true;
+      authUser = payload?.authUser ?? null;
+      if (authUser?.displayName) localStorage.setItem(NAME_KEY, authUser.displayName);
+      syncAuthUi();
       syncLocalDebugUi();
       if (Array.isArray(payload?.cardCatalog)) {
         serverCardCatalog = payload.cardCatalog;
@@ -1183,6 +1190,31 @@ function buildLobbyOverlay() {
         <div class="lobby-version">сборка v${APP_VERSION}</div>
         <p class="lobby-sub">Настольная игра онлайн</p>
         <div id="lobbyStatus" class="lobby-status"></div>
+        <section id="authPanel" class="lobby-auth" aria-label="Аккаунт">
+          <div id="authSignedOut" class="auth-signed-out">
+            <div class="auth-title">Аккаунт</div>
+            <div class="auth-mode-tabs" role="tablist" aria-label="Режим входа">
+              <button id="authModeLogin" class="active" type="button">Вход</button>
+              <button id="authModeRegister" type="button">Регистрация</button>
+            </div>
+            <div class="auth-fields">
+              <input id="authLogin" type="text" placeholder="Логин" maxlength="24" autocomplete="username" autocapitalize="off" spellcheck="false" />
+              <input id="authEmail" class="hidden" type="email" placeholder="Почта" maxlength="254" autocomplete="email" autocapitalize="off" spellcheck="false" />
+              <input id="authPassword" type="password" placeholder="Пароль" maxlength="128" autocomplete="current-password" />
+            </div>
+            <div class="auth-actions">
+              <button id="authSubmitBtn" type="button">Войти</button>
+            </div>
+          </div>
+          <div id="authSignedIn" class="auth-signed-in hidden">
+            <div>
+              <div class="auth-title">Вы вошли</div>
+              <div id="authUserName" class="auth-user-name"></div>
+            </div>
+            <button id="authLogoutBtn" type="button">Выйти</button>
+          </div>
+          <div id="authStatus" class="auth-status"></div>
+        </section>
         <input id="playerName" type="text" placeholder="Ваше имя" maxlength="32" autocomplete="off" />
         <div id="lobbyList" class="lobby-list">
           <div class="lobby-list-title">Открытые игры</div>
@@ -1211,10 +1243,23 @@ function buildLobbyOverlay() {
   createBtn     = lobbyEl.querySelector('#createBtn');
   vsAiBtn       = lobbyEl.querySelector('#vsAiBtn');
   lobbyStatusEl = lobbyEl.querySelector('#lobbyStatus');
+  authStatusEl  = lobbyEl.querySelector('#authStatus');
 
   // Восстановить сохранённое имя
   nameInput.value = localStorage.getItem(NAME_KEY) || '';
   nameInput.addEventListener('input', () => localStorage.setItem(NAME_KEY, nameInput.value.trim()));
+  lobbyEl.querySelector('#authModeLogin').addEventListener('click', () => setAuthMode('login'));
+  lobbyEl.querySelector('#authModeRegister').addEventListener('click', () => setAuthMode('register'));
+  lobbyEl.querySelector('#authSubmitBtn').addEventListener('click', () => submitAuth(authMode));
+  lobbyEl.querySelector('#authLogoutBtn').addEventListener('click', logoutAuth);
+  lobbyEl.querySelector('#authPassword').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') { event.preventDefault(); submitAuth(authMode); }
+  });
+  lobbyEl.querySelector('#authEmail').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') { event.preventDefault(); submitAuth('register'); }
+  });
+  setAuthMode('login');
+  syncAuthUi();
 
   createBtn.addEventListener('click', () => {
     if (!ws) { connect(); setLobbyStatus('Подключение… попробуйте ещё раз через секунду.'); return; }
@@ -1557,17 +1602,17 @@ function canUseLocalActionJournal() {
 }
 
 function syncLocalDebugUi() {
-  const enabled = canUseLocalActionJournal();
-  document.body.classList.toggle('local-debug', enabled);
-  if (localJournalEl) localJournalEl.hidden = !enabled;
+  const debugJournalEnabled = canUseLocalActionJournal();
+  document.body.classList.toggle('local-debug', debugJournalEnabled);
+  if (localJournalEl) localJournalEl.hidden = !debugJournalEnabled;
   if (guidePanelEl) {
-    guidePanelEl.hidden = !enabled;
+    guidePanelEl.hidden = false;
     guidePanelEl.classList.toggle('tutorial-disabled', !tutorialEnabled);
   }
-  if (enabled) {
+  if (debugJournalEnabled) {
     renderLog();
-    renderGuidePanel();
   }
+  renderGuidePanel();
 }
 
 function currentGuideHint() {
@@ -1818,11 +1863,10 @@ function pushCardTutorial(card) {
 
 function renderGuidePanel() {
   if (!guidePanelEl || !guideHintTitleEl || !guideHintTextEl) return;
-  if (!canUseLocalActionJournal()) return;
   guidePanelEl.classList.toggle('tutorial-disabled', !tutorialEnabled);
+  if (guideTurnStatusEl) guideTurnStatusEl.textContent = currentGuideTurnStatus();
   if (!tutorialEnabled) return;
   const hint = currentGuideHint();
-  if (guideTurnStatusEl) guideTurnStatusEl.textContent = currentGuideTurnStatus();
   guideHintTitleEl.textContent = hint.title;
   guideHintTextEl.textContent = hint.text;
 }
@@ -1842,9 +1886,10 @@ function normalizeGuideMessageType(type) {
 }
 
 function pushGameMessage(text, type = 'info') {
-  if (!canUseLocalActionJournal() || !gameMessagesEl) return false;
+  if (!gameMessagesEl) return false;
   const message = String(text ?? '').trim();
   if (!message) return true;
+  if (guidePanelEl) guidePanelEl.hidden = false;
   const el = document.createElement('div');
   const safeType = normalizeGuideMessageType(type);
   el.className = `guide-message guide-message-${safeType}`;
@@ -1858,7 +1903,7 @@ function pushGameMessage(text, type = 'info') {
 }
 
 function pushTutorialMessage(text, type = 'hint') {
-  if (!tutorialEnabled || !canUseLocalActionJournal()) return false;
+  if (!tutorialEnabled) return false;
   return pushGameMessage(`Подсказка: ${text}`, type);
 }
 
@@ -1984,7 +2029,7 @@ function closeSettings(statusMsg) {
   }
 }
 
-const name = () => nameInput?.value.trim() || localStorage.getItem(NAME_KEY) || 'Игрок';
+const name = () => authUser?.displayName || nameInput?.value.trim() || localStorage.getItem(NAME_KEY) || 'Игрок';
 
 function showLobby()  {
   lobbyEl.classList.remove('hidden');
@@ -2081,6 +2126,131 @@ function cancelWaitingRoom() {
 
 function setLobbyStatus(text) {
   if (lobbyStatusEl) lobbyStatusEl.textContent = text;
+}
+
+function syncAuthUi() {
+  if (!lobbyEl) return;
+  const signedOut = lobbyEl.querySelector('#authSignedOut');
+  const signedIn = lobbyEl.querySelector('#authSignedIn');
+  const userName = lobbyEl.querySelector('#authUserName');
+  const isAuthed = Boolean(authUser);
+  signedOut?.classList.toggle('hidden', isAuthed);
+  signedIn?.classList.toggle('hidden', !isAuthed);
+  if (userName) {
+    userName.textContent = authUser ? `${authUser.displayName} (@${authUser.login})` : '';
+  }
+  if (nameInput) {
+    nameInput.disabled = isAuthed;
+    nameInput.classList.toggle('is-auth-name', isAuthed);
+    if (authUser?.displayName) nameInput.value = authUser.displayName;
+  }
+}
+
+function setAuthMode(mode) {
+  authMode = mode === 'register' ? 'register' : 'login';
+  const isRegister = authMode === 'register';
+  lobbyEl?.querySelector('#authEmail')?.classList.toggle('hidden', !isRegister);
+  lobbyEl?.querySelector('#authModeLogin')?.classList.toggle('active', !isRegister);
+  lobbyEl?.querySelector('#authModeRegister')?.classList.toggle('active', isRegister);
+  const submitBtn = lobbyEl?.querySelector('#authSubmitBtn');
+  if (submitBtn) submitBtn.textContent = isRegister ? 'Зарегистрироваться' : 'Войти';
+  const passwordInput = lobbyEl?.querySelector('#authPassword');
+  if (passwordInput) passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
+  setAuthStatus('');
+}
+
+async function submitAuth(mode) {
+  const loginInput = lobbyEl?.querySelector('#authLogin');
+  const emailInput = lobbyEl?.querySelector('#authEmail');
+  const passwordInput = lobbyEl?.querySelector('#authPassword');
+  const login = loginInput?.value.trim() ?? '';
+  const email = emailInput?.value.trim() ?? '';
+  const password = passwordInput?.value ?? '';
+  const displayName = nameInput?.value.trim() || login;
+  if (!login || !password) {
+    setAuthStatus('Введите логин и пароль.', 'error');
+    return;
+  }
+  if (mode === 'register' && !email) {
+    setAuthStatus('Введите почту для регистрации.', 'error');
+    return;
+  }
+
+  setAuthBusy(true);
+  setAuthStatus(mode === 'register' ? 'Регистрируем...' : 'Входим...');
+  try {
+    const requestBody = {
+      login,
+      password,
+      displayName,
+    };
+    if (mode === 'register') requestBody.email = email;
+    const result = await authFetch(mode === 'register' ? '/auth/register' : '/auth/login', requestBody);
+    authUser = result.user ?? null;
+    if (authUser?.displayName) localStorage.setItem(NAME_KEY, authUser.displayName);
+    if (passwordInput) passwordInput.value = '';
+    syncAuthUi();
+    setAuthStatus(authUser ? 'Готово.' : '');
+    forceReconnect();
+  } catch (error) {
+    setAuthStatus(error.message || 'Ошибка входа.', 'error');
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function logoutAuth() {
+  setAuthBusy(true);
+  setAuthStatus('Выходим...');
+  try {
+    await authFetch('/auth/logout', {});
+    authUser = null;
+    syncAuthUi();
+    setAuthStatus('');
+    forceReconnect();
+  } catch (error) {
+    setAuthStatus(error.message || 'Не удалось выйти.', 'error');
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+function setAuthBusy(busy) {
+  lobbyEl?.querySelectorAll('#authPanel button, #authPanel input').forEach((el) => {
+    el.disabled = busy;
+  });
+  if (!busy) syncAuthUi();
+}
+
+function setAuthStatus(text, tone = '') {
+  if (!authStatusEl) return;
+  authStatusEl.textContent = text;
+  authStatusEl.classList.toggle('is-error', tone === 'error');
+}
+
+async function authFetch(path, body = null) {
+  const options = {
+    method: body ? 'POST' : 'GET',
+    credentials: 'include',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  };
+  const res = await fetch(`${authHttpBase()}${path}`, options);
+  let data = null;
+  try { data = await res.json(); } catch {}
+  if (!res.ok) {
+    throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
+  }
+  return data ?? {};
+}
+
+function authHttpBase() {
+  const url = new URL(SERVER_URL);
+  url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
+  url.pathname = '';
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
 }
 
 // Список открытых игр в лобби (приходит пушем по 'lobby:list').
@@ -2622,8 +2792,7 @@ function renderDice() {
   });
   endTurnBtn.classList.toggle('attention', myTurn && allSpent && g.turn.hasRolled);
   endTurnBtn.classList.toggle('roll-ready', canRoll);
-  endTurnBtn.title = canRoll ? 'Бросить кубики' : 'Конец хода';
-  endTurnBtn.setAttribute('aria-label', endTurnBtn.title);
+  setEndTurnButtonMode(canRoll ? 'roll' : 'end');
 
   // «Передать» открывает «ящик» — теперь всегда доступно для просмотра карт команды
   if (transferModeBtn) {
@@ -3087,6 +3256,21 @@ function appendDwarfToken(unit, cx, cy, selectedAttackTargets = new Set(), selec
   boardVp.appendChild(g);
 }
 
+function setEndTurnButtonMode(mode) {
+  if (!endTurnBtn) return;
+  const isRoll = mode === 'roll';
+  const title = isRoll ? 'Бросить кубики' : 'Конец хода';
+  const icon = endTurnBtn.querySelector('img');
+  if (icon) {
+    const nextSrc = isRoll ? ROLL_TURN_ICON : END_TURN_ICON;
+    if (icon.getAttribute('src') !== nextSrc) {
+      icon.src = nextSrc;
+    }
+  }
+  endTurnBtn.title = title;
+  endTurnBtn.setAttribute('aria-label', title);
+}
+
 function renderDwarves(dwarfState) {
   const units = (dwarfState?.units ?? []).filter(unit => unit.alive && unit.position);
   if (!units.length) return;
@@ -3155,6 +3339,10 @@ function renderCharacters() {
     portrait.alt = '';
     portrait.draggable = false;
     btn.appendChild(portrait);
+    const hpLabel = document.createElement('span');
+    hpLabel.className = 'character-nav-hp';
+    hpLabel.textContent = `${hp} HP`;
+    btn.appendChild(hpLabel);
     btn.title = `${ROLE_NAMES[char.role]} · HP ${hp}`;
     btn.setAttribute(
       'aria-label',
@@ -3164,6 +3352,7 @@ function renderCharacters() {
     btn.disabled = char.hp <= 0 || !characterPosition(char);
     btn.addEventListener('click', () => {
       selectCharacter(char.id);
+      focusCharacter(char.id);
     });
     charactersEl.appendChild(btn);
   }
@@ -5052,6 +5241,12 @@ function focusCells(ids, padFactor = 2.5, maxScale = MAX_S) {
   applyView();
 }
 
+function focusCharacter(characterId) {
+  const char = getGame()?.characters?.find(c => c.id === characterId);
+  const pos = char ? (tokenDisplayPos.get(char.id) ?? characterPosition(char)) : null;
+  if (pos) focusCells([pos], 1.75, 4.6);
+}
+
 function focusMine() {
   const ids = (getGame()?.characters ?? [])
     .filter(c => c.owner === myPlayerId)
@@ -5254,6 +5449,14 @@ function attackBreakdownText(a) {
   return `${beforeDefense} = ${a.totalDamage}${afterDefense}; нанесено ${a.dealtDamage}`;
 }
 
+function dwarfAttackBreakdownText(attack) {
+  const defenses = [];
+  if (attack.armorAbsorbed > 0) defenses.push(`броня -${attack.armorAbsorbed}`);
+  if ((attack.traps ?? []).some((trap) => trap.negated)) defenses.push('ловушка: урон 0');
+  const afterDefense = defenses.length ? `; ${defenses.join(', ')}` : '';
+  return `урон ${attack.damage}${afterDefense}; нанесено ${attack.dealtDamage ?? attack.damage}`;
+}
+
 function weaponSuppressedText(a) {
   if (a.weaponSuppressedReason === 'lake_frog') return 'отключено Озёрной лягушкой';
   if (a.weaponSuppressedReason === 'face_down') return 'лежит рубашкой вверх';
@@ -5454,7 +5657,20 @@ function handleActionResult(result) {
       }
       for (const attack of result.dwarves.attacks ?? []) {
         const dead = attack.defeated ? ' Персонаж выбыл.' : '';
-        addLog(`Дварф атакует ${attack.targetId}: −${attack.damage} HP.${dead}`, { type: attack.defeated ? 'bad' : 'sys' });
+        const breakdown = dwarfAttackBreakdownText(attack);
+        addLog(`Дварф атакует ${characterLabelById(attack.targetId)}: ${breakdown}.${dead}`, { type: attack.defeated ? 'bad' : 'sys' });
+        for (const trap of attack.traps ?? []) {
+          const parts = [];
+          if (trap.negated) parts.push('урон отменён');
+          if (trap.attackerSelfDamage > 0) parts.push(`дварф теряет ${trap.attackerSelfDamage} HP`);
+          if (trap.retreat > 0) parts.push(`дварф отброшен на ${trap.retreat}`);
+          if (trap.dot > 0) parts.push(`дварф получает дебафф −${trap.dot} HP/ход`);
+          const detail = parts.length ? `: ${parts.join(', ')}` : '';
+          addLog(`Секрет «${trap.name}» сработал против дварфа${detail}.`, { type: 'sys' });
+        }
+        if (attack.attackerDefeated) {
+          addLog('Дварф повержен сработавшим секретом.', { type: 'sys' });
+        }
       }
     } else if (result.dwarves.type === 'entry') {
       addLog(`Дварфы вышли из ворот: ${result.dwarves.toCell}.`, { type: 'sys' });

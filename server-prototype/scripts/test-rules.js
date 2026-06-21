@@ -487,6 +487,79 @@ test('dwarves — атакуют персонажа рядом вместо ша
   assert.ok(victim.hp < 100);
 });
 
+test('dwarves — атака учитывает активную броню персонажа', () => {
+  const g = freshGame();
+  const route = dwarfRoute();
+  const victim = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  for (const character of g.characters) character.position = null;
+  g.dwarves.entryTurn = 0;
+  g.dwarves.active = true;
+  g.dwarves.mainTurnsCompleted = 1;
+  g.dwarves.units.forEach((dwarf) => {
+    dwarf.position = null;
+    dwarf.routeIndex = -1;
+    dwarf.alive = true;
+    dwarf.exited = false;
+  });
+  const unit = g.dwarves.units[0];
+  unit.position = route[0];
+  unit.routeIndex = 0;
+  unit.hp = 100;
+  victim.position = neighbors(route[0])[0];
+  victim.hp = 100;
+  placeArmor(g, victim, 'shield_dr'); // 20 absorb vs ordinary dwarf damage 10
+  __setDwarfDiceRoller(() => [0, 0]);
+
+  apply(g, 'p1', 'turn:end');
+  const result = apply(g, 'p2', 'turn:end');
+  const attack = result.dwarves.attacks.find(item => item.targetId === victim.id);
+
+  assert.ok(attack);
+  assert.equal(attack.damage, 10);
+  assert.equal(attack.armorAbsorbed, 20);
+  assert.equal(attack.dealtDamage, 0);
+  assert.equal(victim.hp, 100);
+  __setDwarfDiceRoller();
+});
+
+test('dwarves — секрет срабатывает против атаки дварфа', () => {
+  const g = freshGame();
+  const route = dwarfRoute();
+  const victim = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  for (const character of g.characters) character.position = null;
+  g.dwarves.entryTurn = 0;
+  g.dwarves.active = true;
+  g.dwarves.mainTurnsCompleted = 1;
+  g.dwarves.units.forEach((dwarf) => {
+    dwarf.position = null;
+    dwarf.routeIndex = -1;
+    dwarf.alive = true;
+    dwarf.exited = false;
+  });
+  const unit = g.dwarves.units[0];
+  unit.position = route[0];
+  unit.routeIndex = 0;
+  unit.hp = 100;
+  victim.position = neighbors(route[0])[0];
+  victim.hp = 100;
+  placeTrap(g, victim, 'amanita');
+  __setDwarfDiceRoller(() => [0, 0]);
+
+  apply(g, 'p1', 'turn:end');
+  const result = apply(g, 'p2', 'turn:end');
+  const attack = result.dwarves.attacks.find(item => item.targetId === victim.id);
+
+  assert.ok(attack);
+  assert.equal(attack.dealtDamage, 10);
+  assert.equal(victim.hp, 90);
+  assert.equal(attack.traps.length, 1);
+  assert.equal(attack.traps[0].cardId, 'amanita');
+  assert.equal(attack.traps[0].attackerSelfDamage, 10);
+  assert.equal(unit.hp, 90);
+  assert.ok(g.discard.includes('amanita'));
+  __setDwarfDiceRoller();
+});
+
 test('dwarves — убийство последнего персонажа игрока завершает партию', () => {
   const g = freshGame();
   const route = dwarfRoute();

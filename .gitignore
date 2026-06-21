@@ -4,6 +4,9 @@ node_modules/
 # Логи
 *.log
 
+# Локальные данные сервера
+server-prototype/data/
+
 # Окружение
 .env
 .env.*

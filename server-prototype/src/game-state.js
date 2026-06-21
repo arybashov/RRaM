@@ -6,11 +6,13 @@ import { mapSnapshot, reachableCells } from './map.js';
 // Хранилище комнат, игроков и сессий. Игровую логику не знает —
 // делегирует движку правил (rules.js) и отдает персональные снимки.
 
-export function createStore() {
+export function createStore({ roomPersistence = null } = {}) {
   const rooms = new Map(); // roomId -> room
   const codes = new Map(); // code -> roomId
+  loadPersistedRooms();
 
-  function createRoom({ playerName, connectionId, vsBot = false, isPublic = false }) {
+  function createRoom({ playerName, userId = null, connectionId, vsBot = false, isPublic = false }) {
+    const now = Date.now();
     const room = {
       id: randomUUID(),
       code: makeUniqueCode(codes),
@@ -20,9 +22,11 @@ export function createStore() {
       game: null,
       vsBot: false,
       public: vsBot ? false : isPublic === true,
+      createdAt: now,
+      updatedAt: now,
     };
 
-    const player = makePlayer({ playerName, connectionId, seatIndex: 0 });
+    const player = makePlayer({ playerName, userId, connectionId, seatIndex: 0 });
     room.players.push(player);
 
     if (vsBot) {
@@ -43,21 +47,22 @@ export function createStore() {
 
     rooms.set(room.id, room);
     codes.set(room.code, room.id);
+    persistRoom(room);
     return { room, player };
   }
 
-  function joinRoom({ code, playerName, connectionId }) {
+  function joinRoom({ code, playerName, userId = null, connectionId }) {
     const roomId = codes.get(normalizeCode(code));
     const room = roomId ? rooms.get(roomId) : null;
-    return addPlayer({ room, playerName, connectionId });
+    return addPlayer({ room, playerName, userId, connectionId });
   }
 
-  function joinById({ roomId, playerName, connectionId }) {
+  function joinById({ roomId, playerName, userId = null, connectionId }) {
     const room = roomId ? rooms.get(roomId) : null;
-    return addPlayer({ room, playerName, connectionId });
+    return addPlayer({ room, playerName, userId, connectionId });
   }
 
-  function addPlayer({ room, playerName, connectionId }) {
+  function addPlayer({ room, playerName, userId = null, connectionId }) {
     if (!room) {
       throw new Error('Комната не найдена.');
     }
@@ -67,6 +72,7 @@ export function createStore() {
 
     const player = makePlayer({
       playerName,
+      userId,
       connectionId,
       seatIndex: room.players.length,
     });
@@ -78,6 +84,7 @@ export function createStore() {
       room.game = rules.createGame(room.players);
     }
 
+    persistRoom(room);
     return { room, player };
   }
 
@@ -120,12 +127,16 @@ export function createStore() {
       if (!room.players.some((p) => !p.isBot)) {
         rooms.delete(room.id);
         codes.delete(room.code);
+        deletePersistedRoom(room);
+      } else {
+        persistRoom(room);
       }
     } else if (room.game && !room.game.over) {
       const opponent = room.players.find((p) => p.id !== playerId);
       room.game.over = true;
       room.game.winnerId = opponent ? opponent.id : null;
       room.revision += 1;
+      persistRoom(room);
     }
     return { room };
   }
@@ -143,6 +154,8 @@ export function createStore() {
 
     player.connectionId = connectionId;
     player.connected = true;
+    room.revision += 1;
+    persistRoom(room);
     return { room, player };
   }
 
@@ -151,15 +164,9 @@ export function createStore() {
       const player = room.players.find((p) => p.connectionId === connectionId);
       if (player) {
         player.connected = false;
-        // Брошенную комнату, которая ещё не стартовала и где не осталось
-        // живых людей, удаляем — иначе она будет висеть мусором в лобби.
-        if (
-          room.status === 'waiting'
-          && !room.players.some((p) => !p.isBot && p.connected)
-        ) {
-          rooms.delete(room.id);
-          codes.delete(room.code);
-        }
+        // Обычный дисконнект не удаляет комнату: ее можно открыть после рестарта.
+        room.revision += 1;
+        persistRoom(room);
         return room;
       }
     }
@@ -177,6 +184,7 @@ export function createStore() {
 
     const result = rules.apply(room.game, playerId, type, payload);
     room.revision += 1;
+    persistRoom(room);
     return { room, result };
   }
 
@@ -194,6 +202,7 @@ export function createStore() {
       you: forPlayerId ?? null,
       players: room.players.map((p) => ({
         id: p.id,
+        userId: p.userId ?? null,
         name: p.name,
         side: p.side,
         seatIndex: p.seatIndex,
@@ -238,6 +247,25 @@ export function createStore() {
     return out;
   }
 
+  function loadPersistedRooms() {
+    const persistedRooms = roomPersistence?.loadRooms?.() ?? [];
+    for (const persistedRoom of persistedRooms) {
+      const room = normalizePersistedRoom(persistedRoom);
+      if (!room || rooms.has(room.id) || codes.has(room.code)) continue;
+      rooms.set(room.id, room);
+      codes.set(room.code, room.id);
+    }
+  }
+
+  function persistRoom(room) {
+    if (!roomPersistence?.saveRoom || !room?.id) return;
+    roomPersistence.saveRoom(room);
+  }
+
+  function deletePersistedRoom(room) {
+    roomPersistence?.deleteRoom?.(room);
+  }
+
   return {
     createRoom,
     joinRoom,
@@ -250,6 +278,44 @@ export function createStore() {
     getRoom,
     snapshot,
     adminRooms,
+  };
+}
+
+function normalizePersistedRoom(room) {
+  if (!room || typeof room !== 'object' || !room.id || !room.code) return null;
+  const code = normalizeCode(room.code);
+  if (!code) return null;
+  const players = Array.isArray(room.players) ? room.players : [];
+  if (players.length === 0) return null;
+
+  const normalizedPlayers = players.map((player, index) => {
+    const isBot = player?.isBot === true;
+    return {
+      ...player,
+      id: player?.id || randomUUID(),
+      userId: player?.userId ?? null,
+      sessionToken: player?.sessionToken || randomUUID(),
+      connectionId: null,
+      connected: isBot,
+      isBot,
+      seatIndex: Number.isInteger(player?.seatIndex) ? player.seatIndex : index,
+      side: player?.side ?? (index === 0 ? 'green' : 'red'),
+      name: normalizePlayerName(player?.name),
+    };
+  });
+
+  const status = room.status === 'active' && room.game ? 'active' : 'waiting';
+  return {
+    ...room,
+    code,
+    revision: Number(room.revision ?? 0),
+    status,
+    players: normalizedPlayers,
+    vsBot: room.vsBot === true,
+    public: room.public === true,
+    game: status === 'active' ? room.game : null,
+    createdAt: Number(room.createdAt ?? Date.now()),
+    updatedAt: Number(room.updatedAt ?? room.createdAt ?? Date.now()),
   };
 }
 
@@ -548,9 +614,10 @@ function syncExternalSnapshotDice(game) {
   }
 }
 
-function makePlayer({ playerName, connectionId, seatIndex }) {
+function makePlayer({ playerName, userId = null, connectionId, seatIndex }) {
   return {
     id: randomUUID(),
+    userId,
     sessionToken: randomUUID(),
     connectionId,
     connected: true,

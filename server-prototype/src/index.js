@@ -5,6 +5,9 @@ import { createStore } from './game-state.js';
 import { ClientCommand, ServerEvent, GAME_COMMANDS } from './protocol.js';
 import { runBotTurn } from './bot.js';
 import { registerAdmin } from './admin.js';
+import { registerAuth, getAuthUserFromRequest } from './auth.js';
+import { createAuthStore } from './auth-store.js';
+import { createRoomPersistence } from './room-persistence.js';
 import { BASE_CARD_CATALOG, BUILD_VERSION, CARD_CATALOG } from './constants.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -15,12 +18,15 @@ const DEBUG_COMMANDS_ENABLED = process.env.DEBUG_COMMANDS === '1'
 
 // trustProxy: за nginx реальный IP клиента приходит в X-Forwarded-For (req.ip).
 const app = Fastify({ logger: true, trustProxy: true });
-const store = createStore();
+const roomPersistence = createRoomPersistence();
+const store = createStore({ roomPersistence });
+const authStore = createAuthStore();
 const clients = new Map();
 const botRunning = new Set();        // roomId → бот сейчас ходит
 const lobbySubscribers = new Set();  // connectionId → смотрит список открытых игр
 
 await app.register(websocket);
+registerAuth(app, { authStore });
 
 // Админ-панель (/admin, /admin/data) — диагностика клиентов и комнат.
 // Авторизация: форма логина с сессионной кукой (или Basic Auth для curl/nginx).
@@ -34,10 +40,12 @@ app.get('/health', async () => ({
 app.get('/ws', { websocket: true }, (socket, req) => {
   const connectionId = randomUUID();
   const now = Date.now();
+  const authUser = getAuthUserFromRequest(req, authStore);
   clients.set(connectionId, {
     socket,
     roomId: null,
     playerId: null,
+    user: authUser,
     fogEnabled: true,
     // Диагностика для админки
     ip: req?.ip ?? '?',
@@ -52,6 +60,7 @@ app.get('/ws', { websocket: true }, (socket, req) => {
     serverVersion: BUILD_VERSION,
     debugCommands: DEBUG_COMMANDS_ENABLED,
     localActionJournal: DEBUG_COMMANDS_ENABLED,
+    authUser,
     cardCatalog: [...CARD_CATALOG, ...BASE_CARD_CATALOG],
   });
 
@@ -174,7 +183,8 @@ function routeCommand(connectionId, message) {
       const vsBot = message.payload?.vsBot === true;
       const isPublic = message.payload?.public === true;
       const { room, player } = store.createRoom({
-        playerName: message.payload?.playerName,
+        playerName: playerNameFor(client, message.payload),
+        userId: client.user?.id ?? null,
         connectionId,
         vsBot,
         isPublic,
@@ -197,7 +207,8 @@ function routeCommand(connectionId, message) {
     case ClientCommand.ROOM_JOIN: {
       const { room, player } = store.joinRoom({
         code: message.payload?.code,
-        playerName: message.payload?.playerName,
+        playerName: playerNameFor(client, message.payload),
+        userId: client.user?.id ?? null,
         connectionId,
       });
       bindClient(client, room.id, player.id);
@@ -227,7 +238,8 @@ function routeCommand(connectionId, message) {
     case ClientCommand.LOBBY_JOIN: {
       const { room, player } = store.joinById({
         roomId: message.payload?.roomId,
-        playerName: message.payload?.playerName,
+        playerName: playerNameFor(client, message.payload),
+        userId: client.user?.id ?? null,
         connectionId,
       });
       bindClient(client, room.id, player.id);
@@ -303,6 +315,10 @@ function routeCommand(connectionId, message) {
 function bindClient(client, roomId, playerId) {
   client.roomId = roomId;
   client.playerId = playerId;
+}
+
+function playerNameFor(client, payload = {}) {
+  return client.user?.displayName ?? payload?.playerName;
 }
 
 function assertJoined(client) {
