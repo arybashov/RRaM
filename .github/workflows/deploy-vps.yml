@@ -21,5 +21,11 @@ jobs:
   deploy:
     runs-on: [self-hosted, rram-vps]
     steps:
+      - name: Подготовить рабочую копию на VPS
+        run: |
+          git -C /root/rram restore --source=HEAD --worktree --staged \
+            server-prototype/package.json \
+            server-prototype/package-lock.json || true
+
       - name: Деплой на VPS (git pull + клиент + npm + pm2 + nginx)
         run: bash /root/rram/server-prototype/deploy/deploy-web.sh

@@ -19,7 +19,7 @@ cp -rf "$REPO/prototype-web/." "$WEBROOT/"
 
 # Сервер: зависимости + перезапуск под PM2
 cd "$REPO/server-prototype"
-npm install
+npm ci
 pm2 restart rram --update-env || HOST=0.0.0.0 PORT=8787 pm2 start src/index.js --name rram
 pm2 save
 
