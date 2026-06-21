@@ -28,15 +28,23 @@ export function registerAuth(app, { authStore }) {
   }));
 
   app.post('/auth/register', async (req, reply) => {
-    const { user, token } = authStore.register(req.body ?? {}, requestMeta(req));
-    setAuthCookie(req, reply, token);
-    return { user };
+    try {
+      const { user, token } = authStore.register(req.body ?? {}, requestMeta(req));
+      setAuthCookie(req, reply, token);
+      return { user };
+    } catch (error) {
+      return authError(reply, error, 400);
+    }
   });
 
   app.post('/auth/login', async (req, reply) => {
-    const { user, token } = authStore.login(req.body ?? {}, requestMeta(req));
-    setAuthCookie(req, reply, token);
-    return { user };
+    try {
+      const { user, token } = authStore.login(req.body ?? {}, requestMeta(req));
+      setAuthCookie(req, reply, token);
+      return { user };
+    } catch (error) {
+      return authError(reply, error, 401);
+    }
   });
 
   app.post('/auth/logout', async (req, reply) => {
@@ -83,6 +91,13 @@ function requestMeta(req) {
   return {
     userAgent: req?.headers?.['user-agent'] ?? '',
   };
+}
+
+function authError(reply, error, statusCode) {
+  const message = error instanceof Error && error.message
+    ? error.message
+    : 'Ошибка авторизации.';
+  return reply.code(statusCode).send({ error: message, message });
 }
 
 function applyCors(req, reply, allowedOrigins) {
