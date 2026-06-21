@@ -79,12 +79,21 @@ export function createStore({ roomPersistence = null } = {}) {
     room.players.push(player);
     room.revision += 1;
 
+    let startedPvp = false;
     if (room.players.length === PLAYER_LIMIT) {
       room.status = 'active';
       room.game = rules.createGame(room.players);
+      startedPvp = shouldRecordPvpRoom(room);
     }
 
     persistRoom(room);
+    if (startedPvp) {
+      recordPvpRoomEvent(room, {
+        kind: 'game:start',
+        seq: room.revision,
+        gameAfter: cloneForRecord(room.game),
+      });
+    }
     return { room, player };
   }
 
@@ -132,11 +141,24 @@ export function createStore({ roomPersistence = null } = {}) {
         persistRoom(room);
       }
     } else if (room.game && !room.game.over) {
+      const shouldRecord = shouldRecordPvpRoom(room);
+      const gameBefore = shouldRecord ? cloneForRecord(room.game) : null;
       const opponent = room.players.find((p) => p.id !== playerId);
       room.game.over = true;
       room.game.winnerId = opponent ? opponent.id : null;
       room.revision += 1;
       persistRoom(room);
+      if (shouldRecord) {
+        recordPvpRoomEvent(room, {
+          kind: 'game:forfeit',
+          seq: room.revision,
+          actor: player,
+          actionType: 'room:leave',
+          result: { winnerId: room.game.winnerId },
+          gameBefore,
+          gameAfter: cloneForRecord(room.game),
+        });
+      }
     }
     return { room };
   }
@@ -182,9 +204,25 @@ export function createStore({ roomPersistence = null } = {}) {
       throw new Error('Игра еще не началась — ждем второго игрока.');
     }
 
+    const shouldRecord = shouldRecordPvpRoom(room);
+    const gameBefore = shouldRecord ? cloneForRecord(room.game) : null;
+    const actor = room.players.find((p) => p.id === playerId);
+    const seq = Number(room.revision ?? 0) + 1;
     const result = rules.apply(room.game, playerId, type, payload);
-    room.revision += 1;
+    room.revision = seq;
     persistRoom(room);
+    if (shouldRecord) {
+      recordPvpRoomEvent(room, {
+        kind: 'command',
+        seq,
+        actor,
+        actionType: type,
+        payload: cloneForRecord(payload),
+        result: cloneForRecord(result),
+        gameBefore,
+        gameAfter: cloneForRecord(room.game),
+      });
+    }
     return { room, result };
   }
 
@@ -266,6 +304,41 @@ export function createStore({ roomPersistence = null } = {}) {
     roomPersistence?.deleteRoom?.(room);
   }
 
+  function recordPvpRoomEvent(room, {
+    kind,
+    seq,
+    actor = null,
+    actionType = null,
+    payload = null,
+    result = null,
+    gameBefore = null,
+    gameAfter = null,
+  }) {
+    if (!roomPersistence?.saveRoomEvent || !shouldRecordPvpRoom(room)) return;
+    roomPersistence.saveRoomEvent({
+      roomId: room.id,
+      roomCode: room.code,
+      seq,
+      kind,
+      status: room.status,
+      actorPlayerId: actor?.id ?? null,
+      actorUserId: actor?.userId ?? null,
+      actorSide: actor?.side ?? null,
+      actionType,
+      players: room.players.map((player) => ({
+        id: player.id,
+        userId: player.userId ?? null,
+        seatIndex: player.seatIndex,
+        side: player.side,
+        name: player.name,
+      })),
+      payload,
+      result,
+      gameBefore,
+      gameAfter,
+    });
+  }
+
   return {
     createRoom,
     joinRoom,
@@ -279,6 +352,23 @@ export function createStore({ roomPersistence = null } = {}) {
     snapshot,
     adminRooms,
   };
+}
+
+function shouldRecordPvpRoom(room) {
+  return Boolean(
+    room
+    && room.status === 'active'
+    && room.game
+    && room.vsBot !== true
+    && Array.isArray(room.players)
+    && room.players.length >= PLAYER_LIMIT
+    && room.players.every((player) => player?.isBot !== true)
+  );
+}
+
+function cloneForRecord(value) {
+  if (value == null) return null;
+  return JSON.parse(JSON.stringify(value));
 }
 
 function normalizePersistedRoom(room) {
