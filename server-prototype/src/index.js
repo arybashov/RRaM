@@ -152,7 +152,7 @@ function routeCommand(connectionId, message) {
     }
 
     case 'client:setFog': {
-      client.fogEnabled = message.payload?.enabled !== false;
+      client.fogEnabled = DEBUG_COMMANDS_ENABLED ? message.payload?.enabled !== false : true;
       const room = client.roomId ? store.getRoom(client.roomId) : null;
       if (room) {
         send(client.socket, ServerEvent.STATE_SNAPSHOT, {

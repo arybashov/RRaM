@@ -507,7 +507,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260621-13'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260621-14'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
 
@@ -717,6 +717,7 @@ function handleMsg({ type, payload }) {
       checkClientVersion(payload?.serverVersion);
       serverDebugCommandsEnabled = payload?.debugCommands === true;
       serverLocalActionJournalEnabled = payload?.localActionJournal === true;
+      enforceFogAvailability();
       authUser = payload?.authUser ?? null;
       if (authUser?.displayName) localStorage.setItem(NAME_KEY, authUser.displayName);
       syncAuthUi();
@@ -724,7 +725,7 @@ function handleMsg({ type, payload }) {
       if (Array.isArray(payload?.cardCatalog)) {
         serverCardCatalog = payload.cardCatalog;
       }
-      wsSend('client:setFog', { enabled: fogEnabled });
+      wsSend('client:setFog', { enabled: canConfigureFog() ? fogEnabled : true });
       showLobby();
       break;
 
@@ -1603,10 +1604,23 @@ function canUseLocalActionJournal() {
   return serverLocalActionJournalEnabled && isLocalDebugClient();
 }
 
+function canConfigureFog() {
+  return serverDebugCommandsEnabled && isLocalDebugClient();
+}
+
+function enforceFogAvailability() {
+  if (!canConfigureFog()) {
+    fogEnabled = true;
+    localStorage.setItem(FOG_ENABLED_KEY, 'true');
+  }
+}
+
 function syncLocalDebugUi() {
   const debugJournalEnabled = canUseLocalActionJournal();
   document.body.classList.toggle('local-debug', debugJournalEnabled);
   if (localJournalEl) localJournalEl.hidden = !debugJournalEnabled;
+  const fogToggle = settingsEl?.querySelector('#setFogToggle');
+  if (fogToggle) fogToggle.hidden = !canConfigureFog();
   if (guidePanelEl) {
     guidePanelEl.hidden = false;
     guidePanelEl.classList.toggle('tutorial-disabled', !tutorialEnabled);
@@ -1972,7 +1986,7 @@ function buildSettingsOverlay() {
         <input id="setServer" type="text" autocomplete="off" />
       </label>
       <p class="lobby-label-hint">Оставьте пустым — основной сервер rram.com.ru. Можно указать другой адрес (например, запасной).</p>
-      <label class="settings-toggle">
+      <label id="setFogToggle" class="settings-toggle">
         <input id="setFogEnabled" type="checkbox" />
         <span>
           <strong>Туман войны</strong>
@@ -1997,14 +2011,14 @@ function buildSettingsOverlay() {
   settingsEl.querySelector('#setSaveBtn').addEventListener('click', () => {
     const n = settingsEl.querySelector('#setName').value.trim();
     const s = settingsEl.querySelector('#setServer').value.trim();
-    fogEnabled = settingsEl.querySelector('#setFogEnabled').checked;
+    fogEnabled = canConfigureFog() ? settingsEl.querySelector('#setFogEnabled').checked : true;
     tutorialEnabled = settingsEl.querySelector('#setTutorialEnabled').checked;
     if (n) { localStorage.setItem(NAME_KEY, n); if (nameInput) nameInput.value = n; }
     if (s) localStorage.setItem('rram_server', s);
     else   localStorage.removeItem('rram_server');
     localStorage.setItem(FOG_ENABLED_KEY, String(fogEnabled));
     localStorage.setItem(TUTORIAL_ENABLED_KEY, String(tutorialEnabled));
-    wsSend('client:setFog', { enabled: fogEnabled });
+    wsSend('client:setFog', { enabled: canConfigureFog() ? fogEnabled : true });
     syncLocalDebugUi();
     renderBoard();
     closeSettings('Настройки сохранены.');
@@ -2015,10 +2029,12 @@ function buildSettingsOverlay() {
 
 function openSettings(from) {
   settingsReturnTo = from;
+  enforceFogAvailability();
   settingsEl.querySelector('#setName').value   = localStorage.getItem(NAME_KEY) || '';
   settingsEl.querySelector('#setServer').value = localStorage.getItem('rram_server') || '';
   settingsEl.querySelector('#setFogEnabled').checked = fogEnabled;
   settingsEl.querySelector('#setTutorialEnabled').checked = tutorialEnabled;
+  syncLocalDebugUi();
   settingsEl.classList.remove('hidden');
 }
 
