@@ -47,8 +47,8 @@ import {
 } from './map.js';
 
 const GOLD_FEATHER_SET = new Set(GOLD_FEATHER_CARDS);
-// Дварфы выходят из ворот с 1-го хода основных игроков.
-const DWARF_ENTRY_TURN = 1;
+// Дварфы выходят из ворот после 5-го полного круга основных игроков.
+const DWARF_ENTRY_TURN = 5;
 const DWARF_UNITS = Object.freeze([
   { id: 'dwarf:ordinary:1', kind: 'ordinary', name: 'Дварф', hp: 100 },
   { id: 'dwarf:ordinary:2', kind: 'ordinary', name: 'Дварф', hp: 100 },
