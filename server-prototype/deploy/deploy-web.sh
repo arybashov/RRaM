@@ -19,6 +19,10 @@ cp -rf "$REPO/prototype-web/." "$WEBROOT/"
 
 # Сервер: зависимости + перезапуск под PM2
 cd "$REPO/server-prototype"
+if ! command -v make >/dev/null 2>&1; then
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential python3
+fi
 npm ci
 pm2 restart rram --update-env || HOST=0.0.0.0 PORT=8787 pm2 start src/index.js --name rram
 pm2 save
