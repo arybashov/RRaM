@@ -498,6 +498,8 @@ let invSuppressClickUntil = 0;
 let approachTarget = null;      // { mineId, enemyId, until } — подход к врагу
 let attackFxTargetId = null;
 let attackFxTimer = null;
+const characterNavHitIds = new Set();
+const characterNavHitTimers = new Map();
 let recentDamageLogSkips = [];
 let heartbeatTimer = null;
 let lastServerMsgAt = 0;
@@ -507,7 +509,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260621-14'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260621-15'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
 
@@ -1383,6 +1385,7 @@ function hideGameMenu() { menuEl.classList.add('hidden'); }
 function resetToLobby() {
   hideGameMenu();
   hideMatchResult();
+  clearCharacterNavHitEffects();
   clearSession();
   pendingResume = false;
   serverRoom = null;
@@ -3351,6 +3354,7 @@ function renderCharacters() {
     btn.className = 'character-nav-btn';
     if (char.id === selectedCharId) btn.classList.add('active');
     if (char.combatOpponentId || char.beastFight) btn.classList.add('in-combat');
+    if (characterNavHitIds.has(char.id)) btn.classList.add('hit');
     const portrait = document.createElement('img');
     portrait.className = 'character-nav-portrait';
     portrait.src = characterNavArtHref(char);
@@ -3976,6 +3980,24 @@ function triggerAttackEffect(targetId) {
     attackFxTargetId = null;
     renderBoard();
   }, 480);
+}
+
+function triggerCharacterNavHitEffect(characterId) {
+  if (!characterId) return;
+  characterNavHitIds.add(characterId);
+  clearTimeout(characterNavHitTimers.get(characterId));
+  renderCharacters();
+  characterNavHitTimers.set(characterId, setTimeout(() => {
+    characterNavHitIds.delete(characterId);
+    characterNavHitTimers.delete(characterId);
+    renderCharacters();
+  }, 650));
+}
+
+function clearCharacterNavHitEffects() {
+  for (const timer of characterNavHitTimers.values()) clearTimeout(timer);
+  characterNavHitTimers.clear();
+  characterNavHitIds.clear();
 }
 
 function showDamageNumber({ charId = null, cellId = null, amount, overBeast = false }) {
@@ -5731,6 +5753,7 @@ function handleActionResult(result) {
         }
       }
       for (const attack of result.dwarves.attacks ?? []) {
+        triggerCharacterNavHitEffect(attack.targetId);
         const dead = attack.defeated ? ' Персонаж выбыл.' : '';
         const breakdown = dwarfAttackBreakdownText(attack);
         addLog(`Дварф атакует ${characterLabelById(attack.targetId)}: ${breakdown}.${dead}`, { type: attack.defeated ? 'bad' : 'sys' });
@@ -5893,6 +5916,7 @@ function handleActionResult(result) {
   if (result.attacked) {
     const a = result.attacked;
     triggerAttackEffect(a.targetId);
+    if (a.targetType !== 'dwarf') triggerCharacterNavHitEffect(a.targetId);
     const attacker = getGame()?.characters.find(c => c.id === a.attackerId);
     const target = getGame()?.characters.find(c => c.id === a.targetId);
     const targetDwarf = a.targetType === 'dwarf' ? dwarfById(a.targetId) : null;
@@ -6119,6 +6143,7 @@ function diffAndLog(prevRoom, nextRoom) {
     const prevChar = prevG.characters.find(c => c.id === char.id);
     if (prevChar && char.hp < prevChar.hp) {
       const damage = prevChar.hp - char.hp;
+      triggerCharacterNavHitEffect(char.id);
       if (consumeDamageLogSkip(char.id, damage)) continue;
       showDamageNumber({
         charId: char.id,

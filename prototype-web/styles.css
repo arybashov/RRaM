@@ -549,6 +549,51 @@ h2::after {
   filter: brightness(1.72) contrast(1.06) saturate(1.08);
 }
 
+.character-nav-btn.hit {
+  border-color: #ff4a36;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 55, 36, 0.58), transparent 64%),
+    var(--panel-solid);
+  box-shadow:
+    0 0 0 2px rgba(255, 54, 36, 0.88),
+    0 0 20px rgba(255, 35, 20, 0.78);
+  animation: character-nav-hit-pulse 0.62s ease-out;
+}
+
+.character-nav-btn.hit .character-nav-portrait {
+  filter: brightness(1.95) contrast(1.14) saturate(1.28);
+}
+
+.character-nav-btn.hit .character-nav-hp {
+  background: rgba(95, 8, 8, 0.92);
+  color: #fff8eb;
+}
+
+.character-nav-btn.hit:disabled {
+  opacity: 0.72;
+}
+
+@keyframes character-nav-hit-pulse {
+  0% {
+    transform: translateY(0) scale(1);
+    box-shadow:
+      0 0 0 1px rgba(255, 54, 36, 0.55),
+      0 0 8px rgba(255, 35, 20, 0.38);
+  }
+  38% {
+    transform: translateY(-1px) scale(1.06);
+    box-shadow:
+      0 0 0 3px rgba(255, 54, 36, 0.95),
+      0 0 28px rgba(255, 35, 20, 0.9);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow:
+      0 0 0 2px rgba(255, 54, 36, 0.75),
+      0 0 18px rgba(255, 35, 20, 0.56);
+  }
+}
+
 .character-nav-btn.in-combat::after {
   content: "!";
   position: absolute;
