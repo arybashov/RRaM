@@ -10,13 +10,18 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "test": "node --test scripts/test-rules.js scripts/test-bot.js scripts/test-store.js",
+    "test:e2e": "playwright test scripts/e2e",
+    "test:e2e:install": "playwright install chromium",
     "smoke": "node scripts/smoke.js",
     "smoke:bot": "node scripts/smoke-bot.js",
-    "test:all": "npm test && npm run smoke && npm run smoke:bot"
+    "test:all": "npm test && npm run smoke && npm run smoke:bot && npm run test:e2e"
   },
   "dependencies": {
     "@fastify/websocket": "^11.2.0",
     "better-sqlite3": "^12.11.1",
     "fastify": "^5.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0"
   }
 }

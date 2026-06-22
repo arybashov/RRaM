@@ -482,6 +482,7 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
   // вражеские фишки вне зоны скрываются (position: null). Движение туманом не
   // ограничено — ходить можно на длину кубиков и в неизведанное.
   const visible = forPlayerId && fogEnabled ? fogVisibleCells(game, forPlayerId) : null;
+  const revealTurnDice = !forPlayerId || game.turn.activePlayerId === forPlayerId;
   return {
     over: game.over,
     winnerId: game.winnerId,
@@ -515,10 +516,10 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
     turn: {
       activePlayerId: game.turn.activePlayerId,
       rollsLeft: game.turn.rollsLeft,
-      dice: game.turn.dice,
-      usedDice: game.turn.usedDice,
-      diceByCharacter: game.turn.diceByCharacter ?? {},
-      usedDiceByCharacter: game.turn.usedDiceByCharacter ?? {},
+      dice: revealTurnDice ? game.turn.dice : null,
+      usedDice: revealTurnDice ? game.turn.usedDice : [false, false],
+      diceByCharacter: revealTurnDice ? game.turn.diceByCharacter ?? {} : {},
+      usedDiceByCharacter: revealTurnDice ? game.turn.usedDiceByCharacter ?? {} : {},
       movementArea: sanitizeMovementArea(game.turn.movementArea),
       movementAreaByCharacter: Object.fromEntries(
         Object.entries(game.turn.movementAreaByCharacter ?? {})

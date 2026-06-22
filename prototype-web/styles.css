@@ -767,11 +767,17 @@ body.local-debug .local-journal {
 }
 
 .guide-hint {
+  position: relative;
   padding: 10px 12px;
+  padding-right: 42px;
   border-left: 4px solid var(--accent);
 }
 
 .guide-panel.tutorial-disabled .guide-hint {
+  display: none;
+}
+
+.guide-panel.guide-hint-dismissed .guide-hint {
   display: none;
 }
 
@@ -819,12 +825,59 @@ body.local-debug .local-journal {
 }
 
 .guide-message {
-  padding: 9px 11px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: start;
+  gap: 8px;
+  padding: 9px 7px 9px 11px;
   color: var(--ink);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.3;
   animation: guide-message-in 0.16s ease-out;
+}
+
+.guide-message-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.guide-hint-close,
+.guide-message-close,
+.toast-close {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: currentColor;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.72;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.guide-hint-close {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+}
+
+.guide-hint-close:hover,
+.guide-hint-close:focus-visible,
+.guide-message-close:hover,
+.toast-close:hover,
+.guide-message-close:focus-visible,
+.toast-close:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  opacity: 1;
+  outline: none;
 }
 
 .guide-message-success {
@@ -1558,6 +1611,123 @@ body.local-debug .local-journal {
   font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
+}
+
+.combat-stats {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(118, 180, 255, 0.35);
+  border-left: 4px solid #76b4ff;
+  border-radius: var(--radius-sm);
+  background: rgba(29, 69, 116, 0.22);
+}
+
+.combat-stats-title {
+  margin-bottom: 8px;
+  color: #b9d6ff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.combat-stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.combat-stat-chip {
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(9, 14, 24, 0.48);
+  color: #dce8f5;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.combat-stat-defense {
+  border-color: rgba(111, 202, 255, 0.45);
+  color: #bfe8ff;
+}
+
+.combat-stat-attack {
+  border-color: rgba(255, 127, 98, 0.5);
+  color: #ffd0c7;
+}
+
+.combat-stat-support {
+  border-color: rgba(137, 224, 166, 0.5);
+  color: #c8f5d6;
+}
+
+.combat-stat-muted {
+  border-color: rgba(178, 186, 199, 0.28);
+  color: #aeb7c4;
+}
+
+.placed-terrain-cards {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(137, 224, 166, 0.35);
+  border-left: 4px solid #89e0a6;
+  border-radius: var(--radius-sm);
+  background: rgba(25, 86, 49, 0.16);
+}
+
+.placed-terrain-title {
+  color: #c8f5d6;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.placed-terrain-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(137, 224, 166, 0.2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.placed-terrain-row span {
+  min-width: 0;
+}
+
+.placed-terrain-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.placed-terrain-row button {
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.terrain-return-btn {
+  border-color: rgba(137, 224, 166, 0.55);
+  background: rgba(25, 86, 49, 0.45);
+  color: #d9ffe5;
+}
+
+.terrain-flip-btn {
+  border-color: rgba(244, 201, 93, 0.45);
+  background: rgba(244, 201, 93, 0.12);
+  color: var(--gold);
 }
 
 .card {
@@ -2855,6 +3025,8 @@ body.local-debug .local-journal {
 }
 
 .cardbox-rows {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -3189,12 +3361,14 @@ body.local-debug .local-journal {
 .event-card-reveal {
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   background: var(--bg-2);
   border: 1px solid var(--line-strong);
   border-radius: 16px;
   width: 90%;
   max-width: 360px;
   max-height: 92dvh;
+  min-height: 0;
   padding: 24px;
   text-align: center;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
@@ -3202,6 +3376,7 @@ body.local-debug .local-journal {
 }
 
 .event-title {
+  flex: none;
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -3210,9 +3385,11 @@ body.local-debug .local-journal {
 }
 
 .event-card-display {
+  flex: 1 1 auto;
   min-height: 0;
-  margin-bottom: 24px;
-  overflow: hidden;
+  margin-bottom: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .event-card-display .card {
@@ -3223,24 +3400,20 @@ body.local-debug .local-journal {
 
 .event-card-display .card.card-face {
   width: min(72vw, 260px);
-  max-height: calc(92dvh - 170px);
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
   transform: none;
-  scrollbar-width: thin;
 }
 
 .event-card-display .card.card-face .inventory-card-art,
 .event-card-display .card.card-face .generated-card-art {
-  max-height: min(52dvh, 390px);
+  max-height: min(46dvh, 360px);
   object-fit: contain;
 }
 
 .event-card-display .card.card-face .card-desc {
-  max-height: 24dvh;
-  overflow-y: auto;
   font-size: 12px;
   line-height: 1.35;
-  scrollbar-width: thin;
 }
 
 .event-card-display .card-flip-btn,
@@ -3249,6 +3422,7 @@ body.local-debug .local-journal {
 }
 
 .event-ok-btn {
+  flex: none;
   width: 100%;
   padding: 12px;
   background: var(--accent);
@@ -3260,6 +3434,7 @@ body.local-debug .local-journal {
 }
 
 .event-return-btn {
+  flex: none;
   width: 100%;
   margin-bottom: 8px;
   padding: 11px;
@@ -3270,6 +3445,7 @@ body.local-debug .local-journal {
 }
 
 .event-delete-btn {
+  flex: none;
   width: 100%;
   margin-bottom: 8px;
   padding: 11px;
@@ -3338,6 +3514,7 @@ body.local-debug .local-journal {
 
 .inventory-action-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -3347,11 +3524,21 @@ body.local-debug .local-journal {
   font-weight: 600;
 }
 
+.inventory-action-row span {
+  flex: 1 1 190px;
+  min-width: 0;
+  line-height: 1.35;
+}
+
 .inventory-action-row button {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 88px;
+  max-width: 100%;
   padding: 7px 12px;
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.15;
+  white-space: normal;
   border-color: transparent;
   background: linear-gradient(135deg, var(--gold) 0%, #d8a13a 100%);
   color: #2a1c02;
@@ -3360,6 +3547,18 @@ body.local-debug .local-journal {
 .inventory-action-row button:disabled { opacity: 0.5; }
 
 @media (max-width: 620px) {
+  .placed-terrain-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .placed-terrain-row span {
+    grid-column: 1 / -1;
+  }
+
+  .placed-terrain-row button {
+    width: 100%;
+  }
+
   .inventory-action-row {
     align-items: stretch;
     flex-direction: column;
@@ -3367,6 +3566,22 @@ body.local-debug .local-journal {
 
   .inventory-action-row button {
     width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .inventory-action-row {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .inventory-action-row span {
+    flex-basis: 100%;
+  }
+
+  .inventory-action-row button {
+    flex: 1 1 96px;
+    min-height: 34px;
   }
 }
 
@@ -3406,14 +3621,112 @@ body.local-debug .local-journal {
 }
 
 @media (max-width: 620px) {
-  .cardbox-rows { padding: 8px; }
-  .cbx-row { gap: 6px; padding: 6px; }
-  .cbx-portrait { width: 66px; }
-  .cbx-portrait img { width: 60px; height: 85px; }
-  .cbx-card { width: 68px; min-height: 91px; }
-  .cbx-card-art { width: 60px; height: 85px; }
-  .cbx-tele-slot { padding-left: 6px; margin-left: 0; }
-  .cbx-tele-empty { width: 68px; min-height: 91px; }
+  .cardbox-overlay {
+    align-items: stretch;
+    padding: 6px;
+  }
+
+  .cardbox {
+    width: 100%;
+    max-height: calc(100dvh - 12px);
+    border-radius: 10px;
+  }
+
+  .cardbox-head {
+    padding: 8px 10px;
+  }
+
+  .cardbox-close {
+    width: 30px;
+    height: 30px;
+  }
+
+  .cardbox-transfer-targets {
+    gap: 4px;
+    padding: 0 8px 6px;
+  }
+
+  .cbx-target-btn {
+    flex: 1 1 68px;
+    min-height: 28px;
+    padding-inline: 8px;
+  }
+
+  .cardbox-rows {
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .cbx-row {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr) 54px;
+    gap: 5px;
+    padding: 5px;
+  }
+
+  .cbx-portrait {
+    width: 46px;
+    font-size: 10px;
+  }
+
+  .cbx-portrait img {
+    width: 42px;
+    height: 60px;
+    border-radius: 5px;
+  }
+
+  .cbx-hp {
+    bottom: 3px;
+    min-width: 26px;
+    padding-inline: 5px;
+    font-size: 10px;
+    line-height: 15px;
+  }
+
+  .cbx-slots {
+    gap: 4px;
+  }
+
+  .cbx-card {
+    width: 52px;
+    min-height: 74px;
+    padding: 2px;
+    border-radius: 6px;
+  }
+
+  .cbx-card-art,
+  .generated-card-cbx {
+    width: 48px;
+    height: 68px;
+    border-radius: 4px;
+  }
+
+  .generated-card-cbx .generated-card-frame {
+    inset: 4px;
+    padding: 4px 3px;
+  }
+
+  .generated-card-cbx .generated-card-title {
+    min-height: 16px;
+    font-size: 7px;
+  }
+
+  .cbx-tele-slot {
+    align-items: flex-start;
+    padding-left: 5px;
+    margin-left: 0;
+  }
+
+  .cbx-tele-empty {
+    width: 52px;
+    min-height: 74px;
+    padding: 5px 3px;
+  }
+
+  .cardbox-hint {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
 }
 
 /* Передача через ящик: подсветка запрета */
@@ -3437,7 +3750,11 @@ body.local-debug .local-journal {
 }
 
 .toast {
-  padding: 10px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(520px, calc(100vw - 28px));
+  padding: 10px 10px 10px 18px;
   border-radius: 30px;
   background: rgba(23, 33, 51, 0.9);
   backdrop-filter: blur(8px);
@@ -3449,6 +3766,11 @@ body.local-debug .local-journal {
   animation: toast-in 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28),
              toast-out 0.3s 2.7s forwards;
   pointer-events: auto;
+}
+
+.toast-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .toast-success { border-color: var(--accent); color: var(--accent); }

@@ -599,10 +599,11 @@ function drawDeckForCell(cellId) {
 }
 
 function drawPileForDeck(game, deckName) {
-  if (deckName === 'mixed') return game.deck;
+  const pileName = DRAW_DECK_ALIASES[deckName] ?? deckName;
+  if (pileName === 'mixed') return game.deck;
   if (!game.decks) game.decks = buildDecks();
-  if (!game.decks[deckName]) game.decks[deckName] = buildDeck(deckName);
-  return game.decks[deckName];
+  if (!game.decks[pileName]) game.decks[pileName] = buildDeck(pileName);
+  return game.decks[pileName];
 }
 
 function autoDrawAfterMove(game, playerId, character, {
@@ -3032,6 +3033,9 @@ function rollDie() {
 // Добор по рубашке клетки. Красная колода и Сказочная опушка обрабатываются
 // отдельными событиями, трофеи не входят в случайный добор.
 const DRAW_DECKS = Object.freeze(['mixed', 'forest', 'dark_forest', 'sheep', 'lake', 'recipes', 'blueprints']);
+const DRAW_DECK_ALIASES = Object.freeze({
+  forest_trail: 'forest',
+});
 
 function buildDeck(deckName = 'mixed') {
   const deck = [];

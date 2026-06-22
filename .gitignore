@@ -6,6 +6,8 @@ node_modules/
 
 # Локальные данные сервера
 server-prototype/data/
+server-prototype/playwright-report/
+server-prototype/test-results/
 
 # Окружение
 .env

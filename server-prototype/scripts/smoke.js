@@ -7,6 +7,7 @@ import { WebSocket } from 'ws';
 const PORT = 8799;
 process.env.PORT = String(PORT);
 process.env.HOST = '127.0.0.1';
+process.env.NODE_ENV = 'production';
 
 // Импорт запускает сервер (top-level await app.listen в index.js).
 await import('../src/index.js');

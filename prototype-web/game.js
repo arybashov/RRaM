@@ -32,6 +32,7 @@ let serverDebugCommandsEnabled = false;
 let serverLocalActionJournalEnabled = false;
 let authUser = null;
 let authMode = 'login';
+let guideHintDismissed = false;
 
 // ── Константы ─────────────────────────────────────────────────────
 const ROLE_NAMES = { K: 'Кузнец', P: 'Помощник', V: 'Воин', O: 'Охотник', S: 'Шаман' };
@@ -316,6 +317,30 @@ const CARD_CATALOG_META = Object.freeze({
   yarn: { role: "K,P,S", type: "ingredient", copies: 1, name: "Клубок сплетённой шерсти", desc: "Ингредиент обрядов и изделий." },
 });
 
+const ACTIVE_ARMOR_STATS = Object.freeze({
+  bark: 5,
+  chainmail_light: 15,
+  armor_zhest: 15,
+  shield_lom: 15,
+  shield_kalan: 10,
+  shield_dr: 20,
+  shield_revenge: 25,
+  helm_shem: 20,
+  helm_ttm: 25,
+  armor_il: 25,
+  leather_shirt: 20,
+});
+
+const ACTIVE_WEAPON_STATS = Object.freeze({
+  irikon: { damage: 35, piercing: true, role: 'K' },
+  topormol: { damage: 25, piercing: true },
+  sword_sech: { damage: 15, piercing: true },
+  sword_lorp: { damage: 15, piercing: true },
+  axe_sun: { damage: 50, piercing: true },
+});
+
+const ACTIVE_CLUB_DAMAGE = 10;
+
 const MISSING_CARD_ART = Object.freeze(Object.fromEntries(
   Object.entries(CARD_CATALOG_META).filter(([cardId]) => !CARD_FACE_ART[cardId]),
 ));
@@ -324,6 +349,7 @@ const CARD_BACK_ART_BY_DECK = Object.freeze({
   base: 'backs/base-cards',
   mixed: 'backs/mixed-ground',
   forest: 'backs/forest',
+  forest_trail: 'backs/forest-trail',
   dark_forest: 'backs/dark-forest',
   sheep: 'backs/sheep',
   red: 'backs/red-beasts',
@@ -468,6 +494,8 @@ const inventoryTitleEl = document.querySelector('#inventoryTitle');
 const logEl          = document.querySelector('#log');
 const localJournalEl = document.querySelector('#localJournal');
 const guidePanelEl   = document.querySelector('#guidePanel');
+const guideHintEl    = document.querySelector('.guide-hint');
+const guideHintCloseEl = document.querySelector('#guideHintClose');
 const guideTurnStatusEl = document.querySelector('#guideTurnStatus');
 const guideHintTitleEl = document.querySelector('#guideHintTitle');
 const guideHintTextEl  = document.querySelector('#guideHintText');
@@ -509,7 +537,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260621-17'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260622-2'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
 
@@ -545,6 +573,11 @@ buildLobbyOverlay();
 connect();
 document.getElementById('fitBtn')?.addEventListener('click', fitAll);
 document.getElementById('focusBtn')?.addEventListener('click', focusMine);
+guideHintCloseEl?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  guideHintDismissed = true;
+  renderGuidePanel();
+});
 loadBoardMap().then(() => {
   buildBoard();
   requestAnimationFrame(() => {
@@ -769,6 +802,13 @@ function handleMsg({ type, payload }) {
       const prevDice   = serverRoom?.game?.turn?.dice;
       const prevActive = serverRoom?.game?.turn?.activePlayerId;
       serverRoom = payload.room;
+      if (serverRoom?.you && myPlayerId !== serverRoom.you) {
+        myPlayerId = serverRoom.you;
+        selectedCharId = null;
+        positions.clear();
+        localUsedDice = [false, false];
+        pendingTeleport = null;
+      }
       syncTerrainCards();
 
       // Сброс локального трекинга кубиков при смене состояния
@@ -1068,10 +1108,27 @@ function activeMovementCharacter() {
   return null;
 }
 
-function getDrawCharacter(preferred = getSelChar()) {
+function canDrawNowWithCharacter(char) {
+  return Boolean(
+    char
+    && canDrawWithCharacter(char)
+    && !hasCharacterDrawnThisTurn(char.id)
+    && drawDieIndex(char.id) != null,
+  );
+}
+
+function getDrawCharacter(preferred = getSelChar(), requireFreeDie = false) {
   const moving = activeMovementCharacter();
-  if (canDrawWithCharacter(moving)) return moving;
-  if (canDrawWithCharacter(preferred)) return preferred;
+  const seen = new Set();
+  const candidates = [moving, preferred, ...drawableCharacters()]
+    .filter((char) => {
+      if (!char || seen.has(char.id)) return false;
+      seen.add(char.id);
+      return true;
+    });
+  const canUse = requireFreeDie ? canDrawNowWithCharacter : canDrawWithCharacter;
+  const candidate = candidates.find(canUse);
+  if (candidate) return candidate;
   return preferred;
 }
 
@@ -1101,7 +1158,7 @@ function plannedResourceDraw(preferred = getSelChar()) {
 }
 
 function hasDrawOpportunity(preferred = getSelChar()) {
-  return canDrawWithCharacter(getDrawCharacter(preferred)) || Boolean(plannedResourceDraw(preferred));
+  return canDrawNowWithCharacter(getDrawCharacter(preferred, true)) || Boolean(plannedResourceDraw(preferred));
 }
 
 // Свободный кубик «завис» после автосплита/добора: движение зафиксировано
@@ -1268,10 +1325,12 @@ function buildLobbyOverlay() {
 
   createBtn.addEventListener('click', () => {
     if (!ws) { connect(); setLobbyStatus('Подключение… попробуйте ещё раз через секунду.'); return; }
+    clearLocalSessionState();
     wsSend('room:create', { playerName: name(), public: true });
   });
   vsAiBtn.addEventListener('click', () => {
     if (!ws) { connect(); setLobbyStatus('Подключение… попробуйте ещё раз через секунду.'); return; }
+    clearLocalSessionState();
     wsSend('room:create', { playerName: name(), vsBot: true });
   });
   lobbyEl.querySelector('#cancelWaitBtn').addEventListener('click', cancelWaitingRoom);
@@ -1385,6 +1444,13 @@ function hideGameMenu() { menuEl.classList.add('hidden'); }
 function resetToLobby() {
   hideGameMenu();
   hideMatchResult();
+  clearLocalSessionState();
+  resetLobby();
+  showLobby();
+  render();
+}
+
+function clearLocalSessionState() {
   clearCharacterNavHitEffects();
   clearSession();
   pendingResume = false;
@@ -1398,9 +1464,6 @@ function resetToLobby() {
   localUsedDice = [false, false];
   pendingTeleport = null;
   eventLog.length = 0;
-  resetLobby();
-  showLobby();
-  render();
 }
 
 function buildMatchResultOverlay() {
@@ -1625,8 +1688,8 @@ function syncLocalDebugUi() {
   const fogToggle = settingsEl?.querySelector('#setFogToggle');
   if (fogToggle) fogToggle.hidden = !canConfigureFog();
   if (guidePanelEl) {
-    guidePanelEl.hidden = false;
     guidePanelEl.classList.toggle('tutorial-disabled', !tutorialEnabled);
+    syncGuidePanelVisibility();
   }
   if (debugJournalEnabled) {
     renderLog();
@@ -1702,7 +1765,7 @@ function currentGuideHint() {
   if (craftHint) return craftHint;
 
   const drawn = hasCharacterDrawnThisTurn(selected.id);
-  const drawReady = canDrawWithCharacter(getDrawCharacter(selected));
+  const drawReady = canDrawNowWithCharacter(getDrawCharacter(selected, true));
   const drawDie = drawDieIndex(selected.id);
   if (!drawn && drawReady && drawDie != null) {
     return {
@@ -1883,11 +1946,26 @@ function pushCardTutorial(card) {
 function renderGuidePanel() {
   if (!guidePanelEl || !guideHintTitleEl || !guideHintTextEl) return;
   guidePanelEl.classList.toggle('tutorial-disabled', !tutorialEnabled);
+  guidePanelEl.classList.toggle('guide-hint-dismissed', guideHintDismissed);
   if (guideTurnStatusEl) guideTurnStatusEl.textContent = currentGuideTurnStatus();
-  if (!tutorialEnabled) return;
+  if (!tutorialEnabled || guideHintDismissed) {
+    syncGuidePanelVisibility();
+    return;
+  }
   const hint = currentGuideHint();
   guideHintTitleEl.textContent = hint.title;
   guideHintTextEl.textContent = hint.text;
+  syncGuidePanelVisibility();
+}
+
+function hasVisibleGuideMessages() {
+  return Boolean(gameMessagesEl?.children.length);
+}
+
+function syncGuidePanelVisibility() {
+  if (!guidePanelEl) return;
+  const showHint = tutorialEnabled && !guideHintDismissed;
+  guidePanelEl.hidden = !showHint && !hasVisibleGuideMessages();
 }
 
 function currentGuideTurnStatus() {
@@ -1912,12 +1990,28 @@ function pushGameMessage(text, type = 'info') {
   const el = document.createElement('div');
   const safeType = normalizeGuideMessageType(type);
   el.className = `guide-message guide-message-${safeType}`;
-  el.textContent = message;
+  const body = document.createElement('span');
+  body.className = 'guide-message-text';
+  body.textContent = message;
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'guide-message-close';
+  closeBtn.setAttribute('aria-label', 'Close message');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    el.remove();
+    syncGuidePanelVisibility();
+  });
+  el.append(body, closeBtn);
   gameMessagesEl.prepend(el);
   while (gameMessagesEl.children.length > 5) {
     gameMessagesEl.lastElementChild?.remove();
   }
-  setTimeout(() => el.remove(), 6500);
+  setTimeout(() => {
+    el.remove();
+    syncGuidePanelVisibility();
+  }, 6500);
   return true;
 }
 
@@ -2123,13 +2217,7 @@ function showRoomCode() {
 }
 
 function cancelWaitingRoom() {
-  clearSession();
-  myPlayerId = null;
-  myRoomId = null;
-  serverRoom = null;
-  currentRoomId = null;
-  positions.clear();
-  selectedCharId = null;
+  clearLocalSessionState();
   resetLobby();
 
   stopHeartbeat();
@@ -2291,6 +2379,7 @@ function renderLobbyList(rooms) {
   `).join('');
   box.querySelectorAll('.lobby-list-join').forEach(btn => {
     btn.addEventListener('click', () => {
+      clearLocalSessionState();
       wsSend('lobby:join', { roomId: btn.dataset.room, playerName: name() });
     });
   });
@@ -2482,7 +2571,7 @@ function directCardAction(mode) {
   if (!char) { showActionWarning('Сначала выберите персонажа.'); render(); return; }
   if (!getDice(char.id)) { showActionWarning('Сначала бросьте кубики.'); render(); return; }
   if (mode === 'draw') {
-    const drawChar = getDrawCharacter(char);
+    const drawChar = getDrawCharacter(char, true);
     if (drawChar?.id !== char.id) {
       char = drawChar;
       selectedCharId = char.id;
@@ -2514,7 +2603,7 @@ function directCardAction(mode) {
     }
   }
 
-  const dieIndex = drawDieIndex();
+  const dieIndex = drawDieIndex(char.id);
   if (dieIndex == null) {
     showActionWarning('Кубики потрачены — на добор не осталось кубика. На ресурс надо приходить одним кубиком (раздельные кубики), а не суммой.');
     render();
@@ -2838,7 +2927,7 @@ function renderDice() {
         ? 'Взять карту можно только на ресурсной клетке'
       : !free
         ? 'Кубики потрачены — на ресурс приходите одним кубиком (раздельные кубики), а не суммой'
-      : !canDrawWithCharacter(getDrawCharacter(sel))
+      : !canDrawNowWithCharacter(getDrawCharacter(sel, true))
         ? 'Можно дойти до ресурса одним кубиком и взять карту вторым: сначала поставьте фишку'
       : 'Взять карту из колоды (тратит кубик)';
   }
@@ -3384,6 +3473,107 @@ const expandedCards = new Set(); // индексы раскрытых карт �
 const faceDownCards = new Set(); // `${characterId}:${index}` — подготовлена рубашкой вверх
 let invExpandedFor = null;       // для какого персонажа набор актуален
 
+function renderCombatStatsSummary(char, activeTerrainCards) {
+  const armorCards = activeTerrainCards.filter((card) => ACTIVE_ARMOR_STATS[card.id]);
+  const armorTotal = armorCards.reduce((sum, card) => sum + (ACTIVE_ARMOR_STATS[card.id] ?? 0), 0);
+
+  const activeWeapons = activeTerrainCards
+    .map((card) => {
+      const stats = ACTIVE_WEAPON_STATS[card.id];
+      if (!stats) return null;
+      return { ...card, ...stats };
+    })
+    .filter(Boolean);
+  const usableWeapons = activeWeapons.filter((weapon) => !weapon.role || weapon.role === char.role);
+  const bestWeapon = usableWeapons
+    .sort((a, b) => (b.damage ?? 0) - (a.damage ?? 0))[0] ?? null;
+
+  const activeClubs = char.role === 'V'
+    ? activeTerrainCards.filter((card) => card.id === 'club').length
+    : 0;
+  const clubDamage = activeClubs * ACTIVE_CLUB_DAMAGE;
+
+  const activeGriffins = char.role === 'O'
+    ? activeTerrainCards.filter((card) => card.id === 'griffin').length
+    : 0;
+
+  const shamanCarpets = char.role === 'S'
+    ? activeTerrainCards.filter((card) => card.id === 'shaman_carpet').length
+    : 0;
+
+  const chips = [];
+  if (armorTotal > 0) {
+    chips.push({
+      kind: 'defense',
+      label: `Броня -${armorTotal}`,
+      title: armorCards.map((card) => `${card.name}: -${ACTIVE_ARMOR_STATS[card.id]}`).join(', '),
+    });
+  }
+  if (bestWeapon) {
+    chips.push({
+      kind: 'attack',
+      label: `Оружие +${bestWeapon.damage}${bestWeapon.piercing ? ' без защиты' : ''}`,
+      title: bestWeapon.name,
+    });
+  }
+  if (clubDamage > 0) {
+    chips.push({
+      kind: 'attack',
+      label: `Дубина +${clubDamage}`,
+      title: `${activeClubs} активн. × ${ACTIVE_CLUB_DAMAGE}`,
+    });
+  }
+  if (activeGriffins > 0) {
+    chips.push({
+      kind: 'attack',
+      label: `Гриффон ×${activeGriffins}`,
+      title: 'Бонус зависит от суммы кубиков: 2 = +10, 3 = +20, 4 = +25, 5+ = +30 за карту',
+    });
+  }
+  if (shamanCarpets > 0) {
+    chips.push({
+      kind: 'support',
+      label: `Лечение +${shamanCarpets * 5}/ход`,
+      title: 'Шаман и союзники на соседних клетках',
+    });
+  }
+
+  const wrongRoleWeapons = activeWeapons.filter((weapon) => weapon.role && weapon.role !== char.role);
+  for (const weapon of wrongRoleWeapons) {
+    chips.push({
+      kind: 'muted',
+      label: `${weapon.name} не по классу`,
+      title: `Нужен: ${ROLE_NAMES[weapon.role] ?? weapon.role}`,
+    });
+  }
+
+  if (chips.length === 0) return '';
+  return '<div class="combat-stats">'
+    + '<div class="combat-stats-title">Активные характеристики</div>'
+    + '<div class="combat-stats-grid">'
+    + chips.map((chip) =>
+      `<span class="combat-stat-chip combat-stat-${chip.kind}" title="${escapeHtml(chip.title)}">${escapeHtml(chip.label)}</span>`,
+    ).join('')
+    + '</div></div>';
+}
+
+function renderPlacedTerrainCardsControls(placedTerrainCards) {
+  if (!placedTerrainCards.length) return '';
+  return '<div class="placed-terrain-cards">'
+    + '<div class="placed-terrain-title">Карты на персонаже</div>'
+    + placedTerrainCards.map((card) => {
+      const name = card.name ?? getCardName(card.id) ?? card.id;
+      const state = card.faceDown ? 'рубашкой вверх' : 'лицом вверх';
+      const nextState = card.faceDown ? 'Лицом вверх' : 'Рубашкой вверх';
+      return `<div class="placed-terrain-row">`
+        + `<span>${escapeHtml(name)} <small>${state}</small></span>`
+        + `<button class="terrain-flip-btn" data-terrain-card-id="${escapeHtml(card.terrainCardId)}">${nextState}</button>`
+        + `<button class="terrain-return-btn" data-terrain-card-id="${escapeHtml(card.terrainCardId)}">В инвентарь</button>`
+        + `</div>`;
+    }).join('')
+    + '</div>';
+}
+
 function renderInventory() {
   const char = getSelChar();
   if (inventoryTitleEl) inventoryTitleEl.textContent = char ? ROLE_NAMES[char.role] : 'Персонаж';
@@ -3414,17 +3604,20 @@ function renderInventory() {
   const hasFreeDie = Boolean(dice) && (!used[0] || !used[1]);
   const hasRam = !bf && inv.some(card => card.id === 'sheep_ram');
   const actionRows = [];
-  const activeTerrainCards = [...terrainCards.entries()]
+  const placedTerrainCards = [...terrainCards.entries()]
     .filter(([, card]) =>
       card.ownerId === myPlayerId
       && card.characterId === char.id
-      && !card.faceDown
       && card.cardId)
     .map(([terrainCardId, card]) => ({
       terrainCardId,
       id: card.cardId,
       name: card.cardData?.name ?? getCardName(card.cardId),
+      faceDown: Boolean(card.faceDown),
     }));
+  const activeTerrainCards = placedTerrainCards.filter((card) => !card.faceDown);
+  const combatStatsInfo = renderCombatStatsSummary(char, activeTerrainCards);
+  const placedTerrainInfo = renderPlacedTerrainCardsControls(placedTerrainCards);
   if (char.frogSpell) {
     actionRows.push(
       `<div class="inventory-action-row"><span>Озёрная лягушка: оружие отключено. Снять заклятие: сумма ${char.frogSpell.dischargeTotal ?? 8}+ на броске.</span></div>`,
@@ -3580,14 +3773,15 @@ function renderInventory() {
   const actionsInfo = actionRows.length
     ? `<div class="inventory-actions"><div class="inventory-actions-title">Доступные действия</div>${actionRows.join('')}</div>`
     : '';
+  const topInfo = beastInfo + combatStatsInfo + placedTerrainInfo + actionsInfo;
 
   const visibleCards = inv
     .map((card, index) => ({ card, index }));
-  inventoryEl.className = (visibleCards.length || bf) ? 'inventory' : 'inventory empty';
+  inventoryEl.className = (visibleCards.length || topInfo) ? 'inventory' : 'inventory empty';
   inventoryEl.innerHTML = visibleCards.length
-    ? beastInfo + actionsInfo
+    ? topInfo
       + `<div class="inventory-cards-strip">${visibleCards.map(({ card, index }) => renderCard(card, index)).join('')}</div>`
-    : (beastInfo || 'Инвентарь пуст.');
+    : (topInfo || 'Инвентарь пуст.');
   inventoryEl.querySelectorAll('.craft-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation(); // не раскрывать карту под кнопкой
     const dieIndex = firstFreeDieIndexFor(char.id);
@@ -3629,6 +3823,17 @@ function renderInventory() {
       ...cardActionPayload(e.currentTarget),
       deck: e.currentTarget.dataset.deck,
     });
+  }));
+  inventoryEl.querySelectorAll('.terrain-return-btn').forEach((button) => button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    wsSend('action:terrainRemove', { id: e.currentTarget.dataset.terrainCardId });
+  }));
+  inventoryEl.querySelectorAll('.terrain-flip-btn').forEach((button) => button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const terrainCardId = e.currentTarget.dataset.terrainCardId;
+    const card = terrainCards.get(terrainCardId);
+    if (!card) return;
+    wsSend('action:terrainFlip', { id: terrainCardId, faceDown: !card.faceDown });
   }));
   inventoryEl.querySelectorAll('.use-lake-frog-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -3713,6 +3918,7 @@ const CARD_TYPE_LABELS = {
 const CARD_DECK_LABELS = {
   mixed: 'смешанный грунт',
   forest: 'лес',
+  forest_trail: 'лесная тропа',
   dark_forest: 'тёмный лес',
   sheep: 'баран',
   red: 'красная',
@@ -5020,7 +5226,7 @@ function buildBoard() {
 
   const centers = boardMap.editorSource?.centers ?? {};
   for (const c of boardMap.cells) {
-    const ctr = c.center ?? centers[c.id];
+    const ctr = centers[c.id] ?? c.center;
     if (!ctr) continue;
     const cx = ctr.u * VBW, cy = ctr.v * VBH;
     const cell = {
@@ -5422,7 +5628,19 @@ function showToast(text, type = 'info') {
   initToasts();
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
-  el.textContent = text;
+  const body = document.createElement('span');
+  body.className = 'toast-text';
+  body.textContent = text;
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'toast-close';
+  closeBtn.setAttribute('aria-label', 'Close message');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    el.remove();
+  });
+  el.append(body, closeBtn);
   toastContainer.appendChild(el);
   setTimeout(() => el.remove(), 3100);
 }
@@ -6222,12 +6440,8 @@ function diffAndLog(prevRoom, nextRoom) {
   if (nextActive !== myPlayerId) {
     if (detailedRemoteActions) return;
     // Бросок кубиков
-    if (!turnHasAnyDice(prevG.turn) && turnHasAnyDice(nextG.turn)) {
-      const firstDice = Object.values(nextG.turn.diceByCharacter ?? {})[0] ?? nextG.turn.dice;
-      addLog(firstDice
-        ? `${oppName} бросил кубики персонажей. Первый бросок: [${firstDice[0]}, ${firstDice[1]}].`
-        : `${oppName} бросил кубики персонажей.`,
-        { type: 'opp' });
+    if (!prevG.turn.hasRolled && nextG.turn.hasRolled) {
+      addLog(`${oppName} бросил кубики персонажей.`, { type: 'opp' });
     }
     // Изменения инвентаря (добор / передача)
     for (const char of nextG.characters.filter(c => c.owner === oppId)) {
