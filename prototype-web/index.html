@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>RRaM</title>
-    <link rel="stylesheet" href="./styles.css?v=20260623-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260623-2" />
   </head>
   <body>
     <main class="app">
@@ -44,8 +44,8 @@
           </button>
         </nav>
         <div class="board-controls">
-          <button id="focusBtn" class="board-ctl" aria-label="К моим фишкам" title="К моим фишкам">◎</button>
-          <button id="fitBtn" class="board-ctl" aria-label="Вся карта" title="Вся карта">⤢</button>
+          <button id="blueprintsDeckBtn" class="deck-draw-btn" data-deck="blueprints" data-role="K" aria-label="Чертежи (колода кузнеца)" title="Чертежи — колода кузнеца">Чертежи</button>
+          <button id="recipesDeckBtn" class="deck-draw-btn" data-deck="recipes" data-role="S" aria-label="Рецепты (колода шамана)" title="Рецепты — колода шамана">Рецепты</button>
         </div>
         <section id="guidePanel" class="guide-panel" aria-label="Подсказки и сообщения">
           <article class="guide-hint">
@@ -79,6 +79,6 @@
       </section>
     </main>
 
-    <script src="./game.js?v=20260623-1"></script>
+    <script src="./game.js?v=20260623-2"></script>
   </body>
 </html>

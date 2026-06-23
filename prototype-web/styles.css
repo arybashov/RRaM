@@ -625,6 +625,97 @@ h2::after {
   opacity: 0.88;
 }
 
+/* Кнопки проф-колод (правый верх борда): Чертежи — Кузнец, Рецепты — Шаман */
+.deck-draw-btn {
+  min-width: 88px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.34);
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+#blueprintsDeckBtn { border-color: rgba(122, 170, 214, 0.65); }
+#recipesDeckBtn { border-color: rgba(244, 201, 93, 0.65); }
+.deck-draw-btn:not(:disabled):hover { filter: brightness(1.14); }
+.deck-draw-btn:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+
+/* Фан-добор: карта выезжает в центр и переворачивается по клику */
+.profdraw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.3s ease;
+}
+.profdraw-overlay.hidden { display: none; }
+.profdraw-overlay.is-active {
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+.profdraw-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  perspective: 1400px;
+}
+
+.profdraw-card {
+  position: relative;
+  width: min(70vw, 280px);
+  height: min(82dvh, 392px);
+  transform: translateY(40px) scale(0.6);
+  opacity: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.42s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.42s ease;
+  cursor: pointer;
+}
+.profdraw-overlay.is-active .profdraw-card { transform: translateY(0) scale(1); opacity: 1; }
+.profdraw-overlay.is-active .profdraw-card.is-flipped { transform: translateY(0) scale(1) rotateY(180deg); }
+.profdraw-overlay.is-active .profdraw-card.is-leaving { transform: translateY(-30px) scale(0.4) rotateY(180deg); opacity: 0; }
+
+.profdraw-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+}
+.profdraw-back img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profdraw-front { transform: rotateY(180deg); background: var(--bg-2); }
+.profdraw-front .card.card-face { width: 100%; height: 100%; border-radius: 12px; padding: 0; }
+.profdraw-front .card.card-face .inventory-card-art,
+.profdraw-front .card.card-face .generated-card-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* В оверлее-ревиле карта только для показа — прячем кнопки строки инвентаря (↻/✕) */
+.profdraw-front .card button { display: none; }
+
+.profdraw-hint {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 6px 14px;
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.3s ease 0.2s;
+}
+.profdraw-overlay.is-active .profdraw-hint { opacity: 1; }
+
 /* ---------- Док действий ---------- */
 .dock {
   flex: none;
@@ -724,15 +815,12 @@ h2::after {
 .sheet-body .log { max-height: none; }
 .sheet-body h2:first-child { margin-top: 4px; }
 
+/* Журнал скрыт всегда — в т.ч. в локальной (local-debug) версии: мешает. */
 .local-journal {
   display: none;
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
-}
-
-body.local-debug .local-journal {
-  display: block;
 }
 
 .local-journal h2 {
@@ -3497,6 +3585,7 @@ body.local-debug .local-journal {
 .inventory-actions {
   display: grid;
   gap: 8px;
+  margin-top: 12px;
   padding: 10px 12px;
   border: 1px solid rgba(244, 201, 93, 0.45);
   border-left: 4px solid var(--gold);
@@ -3512,12 +3601,13 @@ body.local-debug .local-journal {
   letter-spacing: 0.04em;
 }
 
+/* Строка действия: описание сверху, кнопка во всю ширину под ним —
+   ровный тонкий стек одинаковых кнопок, без разъезда текст/кнопка. */
 .inventory-action-row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   padding-top: 8px;
   border-top: 1px solid rgba(244, 201, 93, 0.2);
   font-size: 12px;
@@ -3525,21 +3615,20 @@ body.local-debug .local-journal {
 }
 
 .inventory-action-row span {
-  flex: 1 1 190px;
   min-width: 0;
   line-height: 1.35;
 }
 
 .inventory-action-row button {
-  flex: 0 1 auto;
-  min-width: 88px;
-  max-width: 100%;
-  padding: 7px 12px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 12px;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.15;
   white-space: normal;
   border-color: transparent;
+  border-radius: var(--radius-sm);
   background: linear-gradient(135deg, var(--gold) 0%, #d8a13a 100%);
   color: #2a1c02;
 }
@@ -3557,31 +3646,6 @@ body.local-debug .local-journal {
 
   .placed-terrain-row button {
     width: 100%;
-  }
-
-  .inventory-action-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .inventory-action-row button {
-    width: 100%;
-  }
-}
-
-@media (max-width: 900px) {
-  .inventory-action-row {
-    align-items: stretch;
-    justify-content: flex-start;
-  }
-
-  .inventory-action-row span {
-    flex-basis: 100%;
-  }
-
-  .inventory-action-row button {
-    flex: 1 1 96px;
-    min-height: 34px;
   }
 }
 

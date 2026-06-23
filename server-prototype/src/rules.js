@@ -167,6 +167,8 @@ export function apply(game, playerId, type, payload = {}) {
       return endTurn(game, playerId);
     case 'action:draw':
       return draw(game, playerId, payload);
+    case 'action:drawProfession':
+      return drawProfession(game, playerId, payload);
     case 'action:discardCard':
       return discardCard(game, playerId, payload);
     case 'action:transfer':
@@ -450,6 +452,61 @@ function draw(game, playerId, { characterId, dieIndex } = {}) {
 
   return {
     drawn,
+  };
+}
+
+// Профессиональные колоды (ТЗ: «рецепты — только шаман; чертежи — только кузнец»).
+const PROFESSION_DECK_BY_ROLE = Object.freeze({ S: 'recipes', K: 'blueprints' });
+
+// Добор из проф-колоды — без точки на карте: Шаман/Кузнец обращается к своей
+// колоде за цену любого свободного кубика (значение не важно, как и обычный добор).
+function drawProfession(game, playerId, { characterId, dieIndex } = {}) {
+  assertActive(game, playerId);
+  assertRolled(game);
+  requireSplit(game, characterId);
+  dieValue(game, dieIndex); // только валидируем доступность кубика; значение на добор не влияет
+
+  const character = ownCharacter(game, playerId, characterId);
+  const deckName = PROFESSION_DECK_BY_ROLE[character.role];
+  if (!deckName) {
+    throw new Error('Брать из проф-колоды могут только Кузнец (чертежи) и Шаман (рецепты).');
+  }
+  if (hasCharacterDrawnThisTurn(game, character.id)) {
+    throw new Error('Этот персонаж уже брал карту в этом броске — выберите другого персонажа или другое действие.');
+  }
+  if (combatOpponent(game, character)) {
+    throw new Error('В бою персонаж не может брать карты: атакуйте, передайте карты или убегайте.');
+  }
+  if (character.beastFight) {
+    throw new Error('В схватке со зверем персонаж не может брать карты: добейте зверя или убегайте.');
+  }
+  if (character.inventory.length + 1 > INVENTORY_LIMIT) {
+    throw new Error('Инвентарь персонажа полон.');
+  }
+  const pile = drawPileForDeck(game, deckName);
+  if (pile.length < 1) {
+    throw new Error('Колода пуста.');
+  }
+
+  const cardId = pile.shift();
+  character.inventory.push(cardId);
+  markCharacterDrawnThisTurn(game, character.id);
+  lockMovement(game);
+  spendDie(game, dieIndex);
+
+  const card = CARD_BY_ID[cardId];
+  return {
+    drawn: {
+      characterId: character.id,
+      card: cardId,
+      name: card?.name,
+      type: card?.type,
+      desc: card?.desc,
+      cards: [{ card: cardId, name: card?.name, type: card?.type, desc: card?.desc }],
+      count: 1,
+      deck: deckName,
+      profession: true, // клиент покажет флип-анимацию вместо обычного «Взята карта»
+    },
   };
 }
 
