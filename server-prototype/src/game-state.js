@@ -62,6 +62,18 @@ export function createStore({ roomPersistence = null } = {}) {
     return addPlayer({ room, playerName, userId, connectionId });
   }
 
+  function watchRoom({ roomId, code }) {
+    const resolvedRoomId = roomId || codes.get(normalizeCode(code));
+    const room = resolvedRoomId ? rooms.get(resolvedRoomId) : null;
+    if (!room) {
+      throw new Error('Комната не найдена.');
+    }
+    if (room.vsBot || !room.public) {
+      throw new Error('Комната недоступна для просмотра.');
+    }
+    return { room };
+  }
+
   function addPlayer({ room, playerName, userId = null, connectionId }) {
     if (!room) {
       throw new Error('Комната не найдена.');
@@ -102,11 +114,12 @@ export function createStore({ roomPersistence = null } = {}) {
   function listPublicRooms() {
     const list = [];
     for (const room of rooms.values()) {
+      const canJoin = room.status === 'waiting' && room.players.length < PLAYER_LIMIT;
+      const canWatch = room.status === 'active' && Boolean(room.game);
       if (
         room.public
-        && room.status === 'waiting'
         && !room.vsBot
-        && room.players.length < PLAYER_LIMIT
+        && (canJoin || canWatch)
         && room.players.some((p) => !p.isBot && p.connected)
       ) {
         const host = room.players.find((p) => !p.isBot);
@@ -115,6 +128,9 @@ export function createStore({ roomPersistence = null } = {}) {
           hostName: host?.name ?? 'Игрок',
           playerCount: room.players.length,
           playerLimit: PLAYER_LIMIT,
+          status: room.status,
+          canJoin,
+          canWatch,
         });
       }
     }
@@ -237,6 +253,7 @@ export function createStore({ roomPersistence = null } = {}) {
       code: room.code,
       revision: room.revision,
       status: room.status,
+      spectator: options.spectator === true,
       you: forPlayerId ?? null,
       players: room.players.map((p) => ({
         id: p.id,
@@ -343,6 +360,7 @@ export function createStore({ roomPersistence = null } = {}) {
     createRoom,
     joinRoom,
     joinById,
+    watchRoom,
     leaveRoom,
     listPublicRooms,
     resumeSession,

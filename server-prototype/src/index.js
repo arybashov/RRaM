@@ -45,6 +45,7 @@ app.get('/ws', { websocket: true }, (socket, req) => {
     socket,
     roomId: null,
     playerId: null,
+    role: 'lobby',
     user: authUser,
     fogEnabled: true,
     // Диагностика для админки
@@ -70,7 +71,7 @@ app.get('/ws', { websocket: true }, (socket, req) => {
 
   socket.on('close', () => {
     const client = clients.get(connectionId);
-    const room = client?.roomId ? store.markDisconnected(connectionId) : null;
+    const room = client?.roomId && client?.playerId ? store.markDisconnected(connectionId) : null;
     clients.delete(connectionId);
     lobbySubscribers.delete(connectionId);
     if (room) {
@@ -156,7 +157,7 @@ function routeCommand(connectionId, message) {
       const room = client.roomId ? store.getRoom(client.roomId) : null;
       if (room) {
         send(client.socket, ServerEvent.STATE_SNAPSHOT, {
-          room: store.snapshot(room, client.playerId, { fogEnabled: client.fogEnabled }),
+          room: snapshotForClient(room, client),
         });
       }
       break;
@@ -172,6 +173,7 @@ function routeCommand(connectionId, message) {
       if (now - (client.lastChatAt ?? 0) < 400) break; // троттлинг от флуда
       client.lastChatAt = now;
       const player = room.players.find((p) => p.id === client.playerId);
+      if (!player) break;
       const msg = { scope: 'room', name: player?.name ?? 'Игрок', text, ts: now };
       for (const c of clients.values()) {
         if (c.roomId === client.roomId) send(c.socket, 'chat:message', msg);
@@ -224,7 +226,28 @@ function routeCommand(connectionId, message) {
       break;
     }
 
+    case ClientCommand.ROOM_WATCH: {
+      const { room } = store.watchRoom({
+        roomId: message.payload?.roomId,
+        code: message.payload?.code,
+      });
+      bindClient(client, room.id, null, 'spectator');
+      lobbySubscribers.delete(connectionId);
+      send(client.socket, ServerEvent.ROOM_WATCHED, {
+        roomId: room.id,
+        code: room.code,
+      });
+      send(client.socket, ServerEvent.STATE_SNAPSHOT, {
+        room: snapshotForClient(room, client),
+      });
+      break;
+    }
+
     case ClientCommand.ROOM_LEAVE: {
+      if (client.roomId && !client.playerId) {
+        bindClient(client, null, null);
+        break;
+      }
       if (client.roomId && client.playerId) {
         const roomId = client.roomId;
         store.leaveRoom({ roomId, playerId: client.playerId });
@@ -312,13 +335,23 @@ function routeCommand(connectionId, message) {
       }
       }
       }
-function bindClient(client, roomId, playerId) {
+function bindClient(client, roomId, playerId, role = playerId ? 'player' : 'lobby') {
   client.roomId = roomId;
   client.playerId = playerId;
+  client.role = role;
 }
 
 function playerNameFor(client, payload = {}) {
   return client.user?.displayName ?? payload?.playerName;
+}
+
+function snapshotForClient(room, client) {
+  const spectator = client.role === 'spectator' || !client.playerId;
+  return store.snapshot(room, spectator ? null : client.playerId, {
+    fogEnabled: spectator ? false : client.fogEnabled,
+    revealAllInventories: DEBUG_COMMANDS_ENABLED && !spectator,
+    spectator,
+  });
 }
 
 function assertJoined(client) {
@@ -334,10 +367,7 @@ function broadcastState(roomId) {
   for (const client of clients.values()) {
     if (client.roomId === roomId) {
       send(client.socket, ServerEvent.STATE_SNAPSHOT, {
-        room: store.snapshot(room, client.playerId, {
-          fogEnabled: client.fogEnabled,
-          revealAllInventories: DEBUG_COMMANDS_ENABLED,
-        }),
+        room: snapshotForClient(room, client),
       });
     }
   }

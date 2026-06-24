@@ -406,13 +406,77 @@ const BASE_CARD_IDS = new Set([
 ]);
 
 function cardDeck(cardId) {
-  return CARD_DECK_BY_ID[cardId] ?? CARD_CATALOG_META[cardId]?.deck ?? 'base';
+  const serverCard = typeof serverCardCatalog !== 'undefined' && Array.isArray(serverCardCatalog)
+    ? serverCardCatalog.find(card => card.id === cardId)
+    : null;
+  return serverCard?.deck ?? CARD_DECK_BY_ID[cardId] ?? CARD_CATALOG_META[cardId]?.deck ?? cardRegistryDeck(cardId) ?? 'base';
 }
 
 function cardBackArt(cardId) {
   const deck = BASE_CARD_IDS.has(cardId) ? 'base' : cardDeck(cardId);
   const art = CARD_BACK_ART_BY_DECK[deck] ?? CARD_BACK_ART_BY_DECK.unknown;
   return `./assets/cards/${art}.png?v=${APP_VERSION}`;
+}
+
+function cardBackArtByDeck(deck) {
+  const art = CARD_BACK_ART_BY_DECK[deck] ?? CARD_BACK_ART_BY_DECK.unknown;
+  return `./assets/cards/${art}.png?v=${APP_VERSION}`;
+}
+
+const CARD_REGISTRY_GAME_ID_OVERRIDES = Object.freeze({
+  art_mixed_002: 'ore_coarse',
+  art_mixed_005: 'raw_hide',
+  art_mixed_006: 'boar_forest',
+  hide_red__2: 'beast_hide',
+  art_trophy_004: 'boar_red',
+  art_trophy_008: 'raw_hide_red',
+  art_recipes_023: 'recipe_obrud',
+  art_fairy_glade_003: 'gold_feather_enemy',
+});
+
+let cardRegistryFaceArtById = null;
+let cardRegistryDeckById = null;
+function registryGameDeck(entry) {
+  const name = String(entry?.name ?? '').toLowerCase();
+  if (entry?.type === 'recipe' || name.startsWith('рецепт')) return 'recipes';
+  if (entry?.type === 'blueprint' || name.startsWith('чертеж') || name.startsWith('чертёж')) return 'blueprints';
+  return entry?.deck ?? null;
+}
+
+function ensureCardRegistryMaps() {
+  if (!cardRegistryFaceArtById) {
+    cardRegistryFaceArtById = new Map();
+    cardRegistryDeckById = new Map();
+    const registry = Array.isArray(window.CARD_ART_REGISTRY) ? window.CARD_ART_REGISTRY : [];
+    registry.forEach((entry) => {
+      if (entry.id && entry.art && !cardRegistryFaceArtById.has(entry.id)) {
+        cardRegistryFaceArtById.set(entry.id, entry.art);
+      }
+      const deck = registryGameDeck(entry);
+      if (entry.id && deck && !cardRegistryDeckById.has(entry.id)) {
+        cardRegistryDeckById.set(entry.id, deck);
+      }
+      const gameId = CARD_REGISTRY_GAME_ID_OVERRIDES[entry.id] ?? entry.gameId;
+      if (gameId && entry.art && !cardRegistryFaceArtById.has(gameId)) {
+        cardRegistryFaceArtById.set(gameId, entry.art);
+      }
+      if (gameId && deck && !cardRegistryDeckById.has(gameId)) {
+        cardRegistryDeckById.set(gameId, deck);
+      }
+    });
+  }
+}
+
+function cardRegistryFaceArt(cardId) {
+  if (!cardId) return null;
+  ensureCardRegistryMaps();
+  return cardRegistryFaceArtById.get(cardId) ?? null;
+}
+
+function cardRegistryDeck(cardId) {
+  if (!cardId) return null;
+  ensureCardRegistryMaps();
+  return cardRegistryDeckById.get(cardId) ?? null;
 }
 
 function cardFaceArtUrl(art) {
@@ -445,6 +509,7 @@ let mySessionToken = null;
 let serverRoom    = null;   // последний state:snapshot
 let autoModeSent  = false;  // флаг: setMode уже отправлен в этом броске
 let pendingResume = false;  // флаг: ждём ответа на session:resume
+let spectatorMode = false;
 let currentRoomId = null;   // ID комнаты для которой уже инициализированы позиции
 let pendingOver   = false;  // партия завершена, но ждём конца анимации шага
 let matchResultLogged = false; // итог уже записан в журнал (чтобы не дублировать)
@@ -520,6 +585,8 @@ let cbxDrag = null;          // активное перетаскивание: {
 let cbxTransferPick = null;  // передача без drag-and-drop: { fromId, cardIndex, cardName }
 let cbxSuppressClick = false;
 let terrainCards = new Map(); // uid → { ownerId, cardIndex, cardId, x, y, cardData }
+const terrainFaceState = new Map(); // uid → faceDown: для анимации переворота при смене стороны
+const terrainFlipAnimUntil = new Map(); // uid → время, до которого крутим анимацию переворота
 const beastCardRects = new Map(); // characterId → положение карты зверя на поле
 let invDrag = null;          // перетаскивание из инвентаря: { cardIndex, ghost, srcEl }
 let invSuppressClickUntil = 0;
@@ -537,7 +604,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260623-2'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260624-5'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
 
@@ -769,6 +836,7 @@ function handleMsg({ type, payload }) {
       break;
 
     case 'room:created':
+      spectatorMode = false;
       myPlayerId     = payload.playerId;
       myRoomId       = payload.roomId;
       mySessionToken = payload.sessionToken;
@@ -781,6 +849,7 @@ function handleMsg({ type, payload }) {
       break;
 
     case 'room:joined':
+      spectatorMode = false;
       myPlayerId     = payload.playerId;
       myRoomId       = payload.roomId;
       mySessionToken = payload.sessionToken;
@@ -788,7 +857,18 @@ function handleMsg({ type, payload }) {
       hideLobby();
       break;
 
+    case 'room:watched':
+      spectatorMode = true;
+      pendingResume = false;
+      myPlayerId = null;
+      myRoomId = payload.roomId;
+      mySessionToken = null;
+      clearLocalSessionState();
+      hideLobby();
+      break;
+
     case 'session:resumed':
+      spectatorMode = false;
       pendingResume = false;
       myPlayerId = payload.playerId;
       myRoomId   = payload.roomId;
@@ -802,6 +882,7 @@ function handleMsg({ type, payload }) {
       const prevDice   = serverRoom?.game?.turn?.dice;
       const prevActive = serverRoom?.game?.turn?.activePlayerId;
       serverRoom = payload.room;
+      spectatorMode = serverRoom?.spectator === true;
       if (serverRoom?.you && myPlayerId !== serverRoom.you) {
         myPlayerId = serverRoom.you;
         selectedCharId = null;
@@ -824,7 +905,7 @@ function handleMsg({ type, payload }) {
           const myWarrior = getGame()?.characters.find(
             c => c.owner === myPlayerId && c.role === 'V',
           );
-          if (myWarrior) selectedCharId = myWarrior.id;
+          selectedCharId = spectatorMode ? null : (myWarrior?.id ?? null);
         } else {
           initPositions();
           restoreFromLog();
@@ -840,7 +921,7 @@ function handleMsg({ type, payload }) {
 
       // Авто-setMode: отправляем один раз после броска кубиков
       const g = getGame();
-      if (g && !getSelChar()) {
+      if (g && !isSpectator() && !getSelChar()) {
         const nextSelectable = getMyChars().find(c => c.hp > 0 && characterPosition(c));
         selectedCharId = nextSelectable?.id ?? null;
       }
@@ -850,7 +931,7 @@ function handleMsg({ type, payload }) {
         const sm = TO_SERVER_MODE[localMode];
         if (sm) { autoModeSent = true; wsSend('turn:setMode', { mode: sm, characterId: selForMode.id }); }
       }
-      if (!hasAnyDice() || prevActive !== g.turn.activePlayerId) {
+      if (g && (!hasAnyDice() || prevActive !== g.turn.activePlayerId)) {
         autoModeSent = false;
         localMode = 'moveSum';
         selectedDieIdx = 0;
@@ -900,7 +981,8 @@ function handleMsg({ type, payload }) {
 // ═════════════════════════════════════════════════════════════════
 
 const getGame     = () => serverRoom?.game ?? null;
-const isMyTurn    = () => getGame()?.turn.activePlayerId === myPlayerId;
+const isSpectator = () => spectatorMode || serverRoom?.spectator === true;
+const isMyTurn    = () => !isSpectator() && getGame()?.turn.activePlayerId === myPlayerId;
 const getDice     = (characterId = selectedCharId) => {
   const turn = getGame()?.turn;
   if (!turn) return null;
@@ -942,6 +1024,7 @@ const areaFor = (characterId = selectedCharId) => {
 };
 
 function getMyChars() {
+  if (isSpectator()) return [];
   return getGame()?.characters.filter(c => c.owner === myPlayerId) ?? [];
 }
 
@@ -1277,16 +1360,16 @@ function buildLobbyOverlay() {
           </div>
           <div id="authStatus" class="auth-status"></div>
         </section>
-        <input id="playerName" type="text" placeholder="Ваше имя" maxlength="32" autocomplete="off" />
-        <div id="lobbyList" class="lobby-list">
+        <input id="playerName" type="text" placeholder="Ваше имя" maxlength="32" autocomplete="off" data-testid="player-name" />
+        <div id="lobbyList" class="lobby-list" data-testid="lobby-list">
           <div class="lobby-list-title">Открытые игры</div>
           <div id="lobbyListItems" class="lobby-list-items"></div>
         </div>
         <div class="lobby-btns">
-          <button id="createBtn">Создать партию</button>
-          <button id="vsAiBtn" class="lobby-vsai-btn">Против ИИ</button>
+          <button id="createBtn" data-testid="create-room">Создать партию</button>
+          <button id="vsAiBtn" class="lobby-vsai-btn" data-testid="create-ai-room">Против ИИ</button>
         </div>
-        <div id="codeDisplay" class="lobby-code hidden">
+        <div id="codeDisplay" class="lobby-code hidden" data-testid="room-code">
           <span class="lobby-code-hint">Ожидание второго игрока — партия видна в списке</span>
           <button id="cancelWaitBtn" class="lobby-cancel-btn">Отменить ожидание</button>
         </div>
@@ -1350,6 +1433,7 @@ function buildLobbyOverlay() {
   tbRight.appendChild(connRttEl);
   connBadgeEl = document.createElement('span');
   connBadgeEl.id = 'connBadge';
+  connBadgeEl.dataset.testid = 'connection-badge';
   tbRight.appendChild(connBadgeEl);
 
   // Кнопка меню (видна только во время игры)
@@ -1538,9 +1622,7 @@ function buildEncyclopediaOverlay() {
 
 function openEncyclopedia() {
   if (!encyclopediaEl) buildEncyclopediaOverlay();
-  const cardEntries = Array.isArray(serverCardCatalog) && serverCardCatalog.length
-    ? serverCardCatalog
-    : Object.entries(CARD_CATALOG_META).map(([id, meta]) => ({ id, ...meta }));
+  const cardEntries = buildEncyclopediaCardEntries();
   encyclopediaEl.querySelector('#encyclopediaCount').textContent = `${CHARACTER_ENCYCLOPEDIA.length} персонажей · ${cardEntries.length} карт`;
   encyclopediaEl.querySelector('#encyclopediaGrid').innerHTML = renderEncyclopediaSections(cardEntries);
   encyclopediaEl.classList.remove('hidden');
@@ -1567,6 +1649,36 @@ function renderEncyclopediaSections(cardEntries) {
     + `<div class="encyclopedia-section-title">Поваренная книга</div>`
     + `<div class="encyclopedia-cookbook-grid">${Object.entries(CRAFT_RECIPES).map(renderCookbookRecipe).join('')}</div>`
     + `</section>`;
+}
+
+function buildEncyclopediaCardEntries() {
+  const playableById = new Map((Array.isArray(serverCardCatalog) && serverCardCatalog.length
+    ? serverCardCatalog
+    : Object.entries(CARD_CATALOG_META).map(([id, meta]) => ({ id, ...meta })))
+    .map(card => [card.id, card]));
+  const registry = Array.isArray(window.CARD_ART_REGISTRY) ? window.CARD_ART_REGISTRY : null;
+  if (!registry?.length) {
+    return [...playableById.values()];
+  }
+  const usedGameIds = new Set();
+  const registryEntries = registry.map((entry) => {
+    const gameId = CARD_REGISTRY_GAME_ID_OVERRIDES[entry.id] ?? entry.gameId ?? entry.id;
+    const playable = playableById.get(gameId);
+    if (playable) usedGameIds.add(playable.id);
+    return {
+      ...entry,
+      ...(playable ?? {}),
+      art: entry.art,
+      source: entry.source,
+      gameId: playable?.id ?? entry.gameId ?? null,
+      inGame: Boolean(playable),
+      copies: Number.isFinite(playable?.copies) ? playable.copies : entry.copies,
+    };
+  });
+  const missingPlayableEntries = [...playableById.values()]
+    .filter(card => !usedGameIds.has(card.id))
+    .map(card => ({ ...card, gameId: card.id, inGame: true }));
+  return [...registryEntries, ...missingPlayableEntries];
 }
 
 function renderEncyclopediaRule(rule) {
@@ -1598,14 +1710,15 @@ function renderEncyclopediaCard(card) {
   const desc = cardDescription(card, deckLabel, typeLabel);
   const copies = Number.isFinite(card.copies) ? card.copies : null;
   const role = card.role && card.role !== '*' ? ` · ${escapeHtml(card.role)}` : '';
-  const copiesLabel = copies === 0 ? 'трофей/событие' : copies === null ? '' : `${copies} шт.`;
-  const grantButton = canDebugGrantCards()
-    ? `<button class="encyclopedia-grant-card" type="button" data-card-id="${escapeHtml(card.id)}">Взять</button>`
+  const copiesLabel = copies === 0 ? 'трофей/событие' : copies === null ? 'не в игровой колоде' : `${copies} шт.`;
+  const grantId = card.gameId ?? card.id;
+  const grantButton = canDebugGrantCards() && card.inGame
+    ? `<button class="encyclopedia-grant-card" type="button" data-card-id="${escapeHtml(grantId)}">Взять</button>`
     : '';
   return `<article class="encyclopedia-card card-${cardClassToken(meta.type)} deck-${cardClassToken(meta.deck)}">`
     + `<button class="encyclopedia-card-toggle" type="button" aria-label="Перевернуть ${escapeHtml(meta.name)}">`
-    +   `<span class="encyclopedia-face encyclopedia-face-front">${renderCardFace(meta, 'gallery')}</span>`
-    +   `<span class="encyclopedia-face encyclopedia-face-back"><img src="${cardBackArt(card.id)}" alt="" draggable="false" /></span>`
+    +   `<span class="encyclopedia-face encyclopedia-face-front">${renderCardFace({ ...meta, art: card.art }, 'gallery')}</span>`
+    +   `<span class="encyclopedia-face encyclopedia-face-back"><img src="${cardBackArtByDeck(meta.deck)}" alt="" draggable="false" /></span>`
     + `</button>`
     + `<div class="encyclopedia-card-body">`
     +   `<div class="encyclopedia-card-name">${escapeHtml(meta.name)}</div>`
@@ -2028,9 +2141,11 @@ function textFromHtml(html) {
 
 function cardDescription(card, deckLabel, typeLabel) {
   if (card.desc) return card.desc;
-  if (CARD_USAGE_DESCRIPTIONS[card.id]) return CARD_USAGE_DESCRIPTIONS[card.id];
+  const usageId = card.gameId ?? card.id;
+  if (CARD_USAGE_DESCRIPTIONS[usageId]) return CARD_USAGE_DESCRIPTIONS[usageId];
   if (card.locked) return `Закрытая карта типа «${typeLabel}». Открывается через крафт или специальное правило.`;
   if (card.copies === 0) return `Особая карта типа «${typeLabel}»: не входит в случайный добор и появляется как трофей или событие.`;
+  if (!Number.isFinite(card.copies)) return `Справочная карта из полного арт-реестра. Тип: ${typeLabel}. В текущую игровую колоду не подключена.`;
   if (card.role) {
     const role = card.role === '*' ? 'любого персонажа' : `ролей ${card.role}`;
     return `Базовая карта для ${role}. Тип: ${typeLabel}.`;
@@ -2039,7 +2154,7 @@ function cardDescription(card, deckLabel, typeLabel) {
 }
 
 function renderCardFace(card, size = 'inventory') {
-  const art = CARD_FACE_ART[card.id];
+  const art = card.art ?? cardRegistryFaceArt(card.id) ?? CARD_FACE_ART[card.id];
   return art
     ? `<img class="inventory-card-art generated-card-${cardClassToken(size)}" src="${cardFaceArtUrl(art)}" alt="${escapeHtml(card.name)}" draggable="false" />`
     : renderGeneratedCardArt(card, size);
@@ -2374,13 +2489,20 @@ function renderLobbyList(rooms) {
     <div class="lobby-list-row">
       <span class="lobby-list-name">${escapeHtml(r.hostName)}</span>
       <span class="lobby-list-count">${r.playerCount}/${r.playerLimit}</span>
-      <button class="lobby-list-join" data-room="${r.roomId}">Войти</button>
+      ${r.canJoin !== false ? `<button class="lobby-list-join" data-room="${r.roomId}" data-testid="join-room">Войти</button>` : ''}
+      ${r.canWatch ? `<button class="lobby-list-watch" data-room="${r.roomId}" data-testid="watch-room">Смотреть</button>` : ''}
     </div>
   `).join('');
   box.querySelectorAll('.lobby-list-join').forEach(btn => {
     btn.addEventListener('click', () => {
       clearLocalSessionState();
       wsSend('lobby:join', { roomId: btn.dataset.room, playerName: name() });
+    });
+  });
+  box.querySelectorAll('.lobby-list-watch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      clearLocalSessionState();
+      wsSend('room:watch', { roomId: btn.dataset.room });
     });
   });
 }
@@ -2869,9 +2991,12 @@ function renderTopbar() {
     return;
   }
   const myTurn = isMyTurn();
+  const spectator = isSpectator();
   const rolls  = g.turn.rollsLeft[myPlayerId] ?? 0;
   const who    = serverRoom.players.find(p => p.id === g.turn.activePlayerId)?.name ?? '…';
-  turnInfoEl.textContent = myTurn
+  turnInfoEl.textContent = spectator
+    ? `Просмотр партии · Ходит ${who}`
+    : myTurn
     ? `Ваш ход · Ходов: ${rolls}`
     : `Ход соперника`;
   endTurnBtn.disabled = !myTurn;
@@ -2910,6 +3035,7 @@ function renderDice() {
     return;
   }
   const myTurn  = isMyTurn();
+  const spectator = isSpectator();
   const sel     = getSelChar();
   const dice    = getDice(sel?.id);
   const used    = getUsedDice(sel?.id);
@@ -2955,13 +3081,22 @@ function renderDice() {
 
   // «Передать» открывает «ящик» — теперь всегда доступно для просмотра карт команды
   if (transferModeBtn) {
+    if (spectator) {
+      transferModeBtn.disabled = true;
+      transferModeBtn.title = 'Режим зрителя: действия недоступны';
+    } else {
     transferModeBtn.disabled = false;
     const canTrans = myTurn && (hasAnyDice() || transferRemaining() > 0);
     transferModeBtn.title = canTrans ? 'Передача карт между персонажами' : 'Просмотр карт команды (передача недоступна)';
+    }
   }
   // «Карта» — кнопка всегда активна; проверку и причину отказа показываем по
   // клику (directCardAction). В подсказке (hover) — текущее состояние.
   if (drawModeBtn) {
+    if (spectator) {
+      drawModeBtn.disabled = true;
+      drawModeBtn.title = 'Режим зрителя: действия недоступны';
+    } else {
     const free = drawDieIndex(sel?.id) != null;
     const opportunity = hasDrawOpportunity(sel);
     const selectedDrawn = sel ? hasCharacterDrawnThisTurn(sel.id) : false;
@@ -2979,10 +3114,15 @@ function renderDice() {
       : !canDrawNowWithCharacter(getDrawCharacter(sel, true))
         ? 'Можно дойти до ресурса одним кубиком и взять карту вторым: сначала поставьте фишку'
       : 'Взять карту из колоды (тратит кубик)';
+    }
   }
   // Режим телепорта всегда доступен; конкретную причину невозможности показываем
   // после выбора цели, а не скрываем действие затемнённой кнопкой.
   if (teleportModeBtn) {
+    if (spectator) {
+      teleportModeBtn.disabled = true;
+      teleportModeBtn.title = 'Режим зрителя: действия недоступны';
+    } else {
     const hasBeads = sel?.inventory?.some(c => c.id === TELEPORT_ID && !c.exhausted);
     const hasFreeDie = dice && (!used[0] || !used[1]);
     const hasFeather = carriesGoldFeather(sel);
@@ -2992,6 +3132,7 @@ function renderDice() {
       : hasBeads && hasFreeDie
       ? 'Кубик 2+: телепорт на свой старт или фиолетовую точку'
       : 'Телепорт: выберите персонажа, бросьте кубики и укажите точку';
+    }
   }
 
 }
@@ -3489,6 +3630,9 @@ function renderCharacters() {
     const hp     = char.hp ?? 100;
     const btn    = document.createElement('button');
     btn.className = 'character-nav-btn';
+    btn.dataset.testid = `character-${char.role}`;
+    btn.dataset.characterId = char.id;
+    btn.dataset.role = char.role;
     if (char.id === selectedCharId) btn.classList.add('active');
     if (char.combatOpponentId || char.beastFight) btn.classList.add('in-combat');
     if (characterNavHitIds.has(char.id)) btn.classList.add('hit');
@@ -3615,14 +3759,20 @@ function renderPlacedTerrainCardsControls(placedTerrainCards) {
       const nextState = card.faceDown ? 'Лицом вверх' : 'Рубашкой вверх';
       return `<div class="placed-terrain-row">`
         + `<span>${escapeHtml(name)} <small>${state}</small></span>`
-        + `<button class="terrain-flip-btn" data-terrain-card-id="${escapeHtml(card.terrainCardId)}">${nextState}</button>`
-        + `<button class="terrain-return-btn" data-terrain-card-id="${escapeHtml(card.terrainCardId)}">В инвентарь</button>`
+        + `<button class="terrain-flip-btn" data-terrain-card-id="${escapeHtml(card.terrainCardId)}" data-testid="terrain-flip">${nextState}</button>`
+        + `<button class="terrain-return-btn" data-terrain-card-id="${escapeHtml(card.terrainCardId)}" data-testid="terrain-return">В инвентарь</button>`
         + `</div>`;
     }).join('')
     + '</div>';
 }
 
 function renderInventory() {
+  if (isSpectator()) {
+    if (inventoryTitleEl) inventoryTitleEl.textContent = 'Просмотр';
+    inventoryEl.className = 'inventory empty';
+    inventoryEl.textContent = 'Режим зрителя: инвентари игроков скрыты.';
+    return;
+  }
   const char = getSelChar();
   if (inventoryTitleEl) inventoryTitleEl.textContent = char ? ROLE_NAMES[char.role] : 'Персонаж';
   if (!char) {
@@ -4063,7 +4213,8 @@ function renderCard(c, i = 0, forceOpen = false) {
     + `</div>`;
 }
 
-// Тап по карте открывает увеличенную карту; размер инвентаря не меняем.
+// Увеличенный просмотр карты — только для карт на террейне (showTerrainCard).
+// В инвентаре тап не открывает полноразмерную карту; выкладка — перетаскиванием.
 function onInventoryClick(e) {
   if (Date.now() < invSuppressClickUntil) {
     e.preventDefault();
@@ -4089,7 +4240,6 @@ function onInventoryClick(e) {
     return;
   }
   if (item) {
-    showInventoryCard(item, i);
     pushCardTutorial(item);
   }
 }
@@ -4301,8 +4451,9 @@ function buildCardBox() {
   cardBoxEl = document.createElement('div');
   cardBoxEl.id = 'cardBox';
   cardBoxEl.className = 'cardbox-overlay hidden';
+  cardBoxEl.dataset.testid = 'cardbox-overlay';
   cardBoxEl.innerHTML = `
-    <div class="cardbox">
+    <div class="cardbox" data-testid="cardbox">
       <div class="cardbox-head">
         <span class="cardbox-title">🧰 Карты команды</span>
         <button class="cardbox-close" id="cardBoxClose" aria-label="Закрыть">✕</button>
@@ -4360,7 +4511,7 @@ function renderCardBox() {
     ? getMyChars()
       .filter((char) => char.id !== cbxTransferPick.fromId)
       .map((char) =>
-        `<button class="cbx-target-btn" data-target-id="${escapeHtml(char.id)}">${escapeHtml(ROLE_NAMES[char.role] ?? char.role)}</button>`)
+        `<button class="cbx-target-btn" data-target-id="${escapeHtml(char.id)}" data-testid="cardbox-target-${escapeHtml(char.role)}">${escapeHtml(ROLE_NAMES[char.role] ?? char.role)}</button>`)
       .join('')
     : '';
   const can = canTransferNow();
@@ -4386,8 +4537,9 @@ function onCardBoxClick(e) {
     return;
   }
   if (cbxSuppressClick) {
+    const suppressCardClick = Boolean(e.target.closest('.cbx-card'));
     cbxSuppressClick = false;
-    return;
+    if (suppressCardClick) return;
   }
   const targetButton = e.target.closest('.cbx-target-btn');
   if (targetButton && cbxTransferPick) {
@@ -4458,7 +4610,7 @@ function renderCbxRow(char) {
   const teleSlot = teleI >= 0
     ? renderCbxCard(inv[teleI], char.id, teleI)
     : '<div class="cbx-tele-empty" title="Слот Бус телепортации">∅</div>';
-  return `<div class="cbx-row${isTarget ? ' transfer-target' : ''}${isSource ? ' transfer-source' : ''}" data-char-id="${char.id}">`
+  return `<div class="cbx-row${isTarget ? ' transfer-target' : ''}${isSource ? ' transfer-source' : ''}" data-char-id="${char.id}" data-role="${char.role}" data-testid="cardbox-row-${char.role}">`
     + `<div class="cbx-portrait side-${side}">`
     +   `<img src="${charCardArt(char.role)}" alt="${ROLE_NAMES[char.role]}" />`
     +   `<span class="cbx-hp">${char.hp ?? 100}</span>`
@@ -4479,7 +4631,7 @@ function renderCbxCard(c, charId, i) {
   const lock = c.locked ? '<span class="cbx-lock" aria-label="Карта закрыта">🔒</span>' : '';
   const selected = cbxTransferPick?.fromId === charId && cbxTransferPick.cardIndex === i;
   return `<div class="cbx-card card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}${c.exhausted ? ' card-exhausted' : ''}${selected ? ' selected-transfer' : ''}"`
-    + ` data-char-id="${charId}" data-i="${i}" data-card-name="${escapeHtml(visualMeta.name)}" title="${escapeHtml(visualMeta.name)}">`
+    + ` data-char-id="${charId}" data-i="${i}" data-card-name="${escapeHtml(visualMeta.name)}" data-testid="cardbox-card" title="${escapeHtml(visualMeta.name)}">`
     + face
     + lock
     + `</div>`;
@@ -4720,7 +4872,7 @@ function renderCombatBoardElements(fogCircles) {
     const pos = bf.cellId ?? characterPosition(char);
     const ctr = cellCenter(pos);
     if (!ctr) continue;
-    const w = HEX_R * 5.5;
+    const w = HEX_R * 3.5; // в размер карт на террейне
     const h = w * (512 / 341);
     const rect = placeBeastCard(ctr, w, h, occupiedCenters, placedBeastRects);
     const { x, y } = rect;
@@ -4776,6 +4928,10 @@ function renderCombatBoardElements(fogCircles) {
   // Карты на террейне (свои)
   const terrainAvoidCenters = terrainCardAvoidCenters(g);
   const placedTerrainRects = [...placedBeastRects];
+  // Чистим состояние сторон для снятых карт, чтобы Map не рос.
+  for (const uid of terrainFaceState.keys()) {
+    if (!terrainCards.has(uid)) { terrainFaceState.delete(uid); terrainFlipAnimUntil.delete(uid); }
+  }
   for (const [uid, tc] of terrainCards) {
     if (tc.ownerId !== myPlayerId && !fogContainsPoint(fogCircles, tc.x, tc.y)) {
       continue;
@@ -4791,8 +4947,18 @@ function renderCombatBoardElements(fogCircles) {
       ? cardBackArt(cardId)
       : cardFaceArtUrl(art);
 
+    // Анимация переворота: запускаем, если сторона карты сменилась с прошлого рендера
+    // (ручной переворот, срабатывание ловушки). Первое появление не анимируем.
+    // Держим окном по времени — переживает повторный рендер сразу после переворота.
+    const prevFace = terrainFaceState.get(uid);
+    if (prevFace !== undefined && prevFace !== tc.faceDown) {
+      terrainFlipAnimUntil.set(uid, performance.now() + 340);
+    }
+    terrainFaceState.set(uid, tc.faceDown);
+    const justFlipped = (terrainFlipAnimUntil.get(uid) ?? 0) > performance.now();
+
     const gEl = document.createElementNS(svgNS, 'g');
-    gEl.setAttribute('class', `combat-element terrain-card ${tc.faceDown ? 'is-face-down' : 'is-face-up'}`);
+    gEl.setAttribute('class', `combat-element terrain-card ${tc.faceDown ? 'is-face-down' : 'is-face-up'}${justFlipped ? ' terrain-card-flipping' : ''}`);
     gEl.setAttribute('data-uid', uid);
     gEl.style.cursor = 'pointer';
     gEl.setAttribute('role', 'button');
@@ -5603,6 +5769,10 @@ function focusCharacter(characterId) {
 }
 
 function focusMine() {
+  if (isSpectator()) {
+    fitAll();
+    return;
+  }
   const ids = (getGame()?.characters ?? [])
     .filter(c => c.owner === myPlayerId)
     .map(c => characterPosition(c))
@@ -5758,7 +5928,7 @@ function showCardReveal(card) {
       if (!onCard) return; // фон не закрывает — управляем кликом по карте
       phase = 'up';
       cardEl.classList.add('is-flipped');
-      hint.textContent = 'Нажмите ещё раз — карта уйдёт в инвентарь';
+      hint.textContent = '';
       return;
     }
     if (phase === 'up') {
@@ -5807,9 +5977,9 @@ function showInventoryCard(card, cardIndex = null) {
   const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
   const char = getSelChar();
 
-  title.textContent = card?.name ?? getCardName(card?.id) ?? 'Карта';
-  title.classList.remove('hidden');
-  title.style.color = 'var(--gold)';
+  // Заголовок не показываем — имя карты уже есть на самом PNG.
+  title.textContent = '';
+  title.classList.add('hidden');
   display.innerHTML = renderCard(card, 999, true);
   returnBtn.classList.add('hidden');
   returnBtn.onclick = null;

@@ -4,48 +4,57 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>RRaM</title>
-    <link rel="stylesheet" href="./styles.css?v=20260623-2" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/ui/brand/favicon-32.png?v=20260624-1" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/ui/brand/rram-game-icon-192.png?v=20260624-1" />
+    <link rel="apple-touch-icon" sizes="512x512" href="./assets/ui/brand/rram-game-icon-512.png?v=20260624-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260624-5" />
   </head>
   <body>
     <main class="app">
       <!-- Тонкая шапка: лого · статус хода · связь+меню -->
       <header class="topbar">
-        <div class="tb-left"><h1>RRaM</h1></div>
+        <div class="tb-left">
+          <h1><img class="app-logo" src="./assets/ui/brand/rram-game-icon-192.png?v=20260624-1" alt="" draggable="false" />RRaM</h1>
+        </div>
         <div class="tb-center">
-          <p id="turnInfo" class="turn-status" aria-live="polite">Загрузка…</p>
+          <p id="turnInfo" class="turn-status" aria-live="polite" data-testid="turn-info">Загрузка…</p>
         </div>
         <div class="tb-right"></div>
       </header>
 
       <!-- Борд — на всё доступное пространство -->
       <section class="board-wrap" aria-label="Карта">
-        <div id="board" class="board" role="group" aria-label="Игровая карта"></div>
-        <div class="board-dice" aria-label="Кубики">
-          <button class="die" id="die1" data-die="0">–</button>
-          <button class="die" id="die2" data-die="1">–</button>
+        <div id="board" class="board" role="group" aria-label="Игровая карта" data-testid="board"></div>
+        <div class="board-dice" aria-label="Кубики" data-testid="board-dice">
+          <button class="die" id="die1" data-die="0" data-testid="die-0">–</button>
+          <button class="die" id="die2" data-die="1" data-testid="die-1">–</button>
         </div>
         <div id="characterDice" class="character-dice" aria-label="Кубики хода"></div>
         <nav id="characters" class="character-nav" aria-label="Мои персонажи"></nav>
         <nav class="action-rail" aria-label="Действия">
-          <button class="mode active action-art-btn" data-mode="moveSum" aria-label="Движение" title="Движение">
+          <button class="mode active action-art-btn" data-mode="moveSum" data-testid="mode-moveSum" aria-label="Движение" title="Движение">
             <img src="./assets/ui/action-icons/movement-v1.png" alt="" draggable="false" />
           </button>
-          <button class="mode action-art-btn" data-mode="transfer" aria-label="Передать" title="Передать">
+          <button class="mode action-art-btn" data-mode="transfer" data-testid="mode-transfer" aria-label="Передать" title="Передать">
             <img src="./assets/ui/action-icons/transfer-v2.png" alt="" draggable="false" />
           </button>
-          <button class="mode action-art-btn" data-mode="draw" aria-label="Взять карту" title="Взять карту">
+          <button class="mode action-art-btn" data-mode="draw" data-testid="mode-draw" aria-label="Взять карту" title="Взять карту">
             <img src="./assets/ui/action-icons/draw-v1.png" alt="" draggable="false" />
           </button>
-          <button class="mode action-art-btn" data-mode="teleport" aria-label="Телепорт" title="Телепорт">
+          <button class="mode action-art-btn" data-mode="teleport" data-testid="mode-teleport" aria-label="Телепорт" title="Телепорт">
             <img src="./assets/ui/action-icons/teleport-v1.png" alt="" draggable="false" />
           </button>
-          <button id="endTurnBtn" class="action-art-btn end-turn-art-btn" aria-label="Бросить кубики" title="Бросить кубики">
+          <button id="endTurnBtn" class="action-art-btn end-turn-art-btn" data-testid="turn-action" aria-label="Бросить кубики" title="Бросить кубики">
             <img src="./assets/ui/action-icons/roll-end-turn-v6.png" alt="" draggable="false" />
           </button>
         </nav>
         <div class="board-controls">
-          <button id="blueprintsDeckBtn" class="deck-draw-btn" data-deck="blueprints" data-role="K" aria-label="Чертежи (колода кузнеца)" title="Чертежи — колода кузнеца">Чертежи</button>
-          <button id="recipesDeckBtn" class="deck-draw-btn" data-deck="recipes" data-role="S" aria-label="Рецепты (колода шамана)" title="Рецепты — колода шамана">Рецепты</button>
+          <button id="blueprintsDeckBtn" class="deck-draw-btn" data-deck="blueprints" data-role="K" aria-label="Чертежи (колода кузнеца)" title="Чертежи — колода кузнеца">
+            <img src="./assets/ui/action-icons/blueprints-hammer-plan-v1.png" alt="" draggable="false" />
+          </button>
+          <button id="recipesDeckBtn" class="deck-draw-btn" data-deck="recipes" data-role="S" aria-label="Рецепты (колода шамана)" title="Рецепты — колода шамана">
+            <img src="./assets/ui/action-icons/recipes-flask-v1.png" alt="" draggable="false" />
+          </button>
         </div>
         <section id="guidePanel" class="guide-panel" aria-label="Подсказки и сообщения">
           <article class="guide-hint">
@@ -60,13 +69,13 @@
       </section>
 
       <!-- Шторка: инвентарь + журнал (сворачиваемая) -->
-      <section class="sheet" id="sheet" aria-label="Инвентарь">
-        <button class="sheet-handle" id="sheetHandle" aria-expanded="false">
+      <section class="sheet" id="sheet" aria-label="Инвентарь" data-testid="sheet">
+        <button class="sheet-handle" id="sheetHandle" aria-expanded="false" data-testid="sheet-handle">
           <span class="sheet-handle-arrow">▲</span> Инвентарь
         </button>
         <div class="sheet-body">
           <h2 id="inventoryTitle">Персонаж</h2>
-          <div id="inventory" class="inventory empty">Выберите персонажа.</div>
+          <div id="inventory" class="inventory empty" data-testid="inventory">Выберите персонажа.</div>
           <section id="localJournal" class="local-journal" aria-label="Журнал действий">
             <h2>Журнал</h2>
             <div class="sheet-chat chat-input-row">
@@ -79,6 +88,7 @@
       </section>
     </main>
 
-    <script src="./game.js?v=20260623-2"></script>
+    <script src="./assets/cards/card-art-registry.js?v=20260624-5"></script>
+    <script src="./game.js?v=20260624-5"></script>
   </body>
 </html>

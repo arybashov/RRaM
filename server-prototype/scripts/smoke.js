@@ -3,6 +3,7 @@
 // Запуск: npm run smoke
 
 import { WebSocket } from 'ws';
+import { CARD_CATALOG } from '../src/constants.js';
 
 const PORT = 8799;
 process.env.PORT = String(PORT);
@@ -13,6 +14,9 @@ process.env.NODE_ENV = 'production';
 await import('../src/index.js');
 
 const URL = `ws://127.0.0.1:${PORT}/ws`;
+const MIXED_DECK_START_COUNT = CARD_CATALOG
+  .filter((card) => card.deck === 'mixed')
+  .reduce((sum, card) => sum + card.copies, 0);
 let failures = 0;
 
 function check(name, condition) {
@@ -97,7 +101,7 @@ await b.waitFor('server:connected');
 a.send('chat:send', { text: 'есть кто?', name: 'Алиса' });
 
 // --- Комната ---
-a.send('room:create', { playerName: 'Алиса' });
+a.send('room:create', { playerName: 'Алиса', public: true });
 const created = await a.waitFor('room:created');
 const { code, playerId: playerA, sessionToken: tokenA, roomId } = created.payload;
 check('создание комнаты возвращает код', typeof code === 'string' && code.length === 4);
@@ -122,8 +126,29 @@ check('свои стартовые позиции опубликованы',
 const enemyAStart = snapA.game.characters.filter(c => c.owner !== playerA);
 check('вражеские фишки согласованы с туманом',
   enemyAStart.every(c => (c.position === null) === Boolean(c.hidden)));
-check('стартовая колода mixed = 14', snapA.game.deckCount === 14);
+check(`стартовая колода mixed = ${MIXED_DECK_START_COUNT}`, snapA.game.deckCount === MIXED_DECK_START_COUNT);
 check('ход у первого игрока', snapA.game.turn.activePlayerId === playerA);
+
+// --- Spectator gets a read-only room snapshot without occupying a player seat ---
+const spectator = new Client('S');
+await spectator.connect();
+await spectator.waitFor('server:connected');
+spectator.send('room:watch', { roomId });
+const watched = await spectator.waitFor('room:watched');
+check('spectator joined room as watcher', watched.payload.roomId === roomId);
+const spectatorSnap = (await spectator.waitFor('state:snapshot')).payload.room;
+check('spectator snapshot has no player identity', spectatorSnap.spectator === true && spectatorSnap.you === null);
+check('spectator sees game characters but no private inventories',
+  spectatorSnap.game.characters.length === 10
+    && spectatorSnap.game.characters.every((c) => c.inventory === undefined));
+check('spectator has no legal targets',
+  Object.keys(spectatorSnap.game.legalTargets.moveSum).length === 0
+    && Object.keys(spectatorSnap.game.legalTargets.dice[0]).length === 0
+    && Object.keys(spectatorSnap.game.legalTargets.dice[1]).length === 0
+    && Object.keys(spectatorSnap.game.legalTargets.attacks).length === 0);
+spectator.send('turn:roll', {});
+const spectatorErr = await spectator.waitFor('server:error');
+check('spectator game command is rejected', /создать комнату|войти в нее/i.test(spectatorErr.payload.message ?? ''));
 
 // --- Чужой ход запрещен ---
 b.send('turn:roll', {});
@@ -151,7 +176,10 @@ check(
 );
 const movedK = a.lastSnapshot.game.characters.find(c => c.id === `${playerA}:K`);
 check('вход на точку добычи сразу добирает карту', movedK.cardCount === 4);
-check('автодобор уменьшил колоду (14-1=13)', a.lastSnapshot.game.deckCount === 13);
+check(
+  `автодобор уменьшил колоду (${MIXED_DECK_START_COUNT}-1=${MIXED_DECK_START_COUNT - 1})`,
+  a.lastSnapshot.game.deckCount === MIXED_DECK_START_COUNT - 1,
+);
 
 // Один бросок на ход: перед вторым броском делаем полный круг ходов.
 a.send('turn:end', {});
@@ -172,7 +200,10 @@ await a.waitFor('state:snapshot');
 // K стартует с 3 базовыми картами, 1 взял автодобором при входе на H014 и ещё 1 — ручным добором.
 const myK = a.lastSnapshot.game.characters.find((c) => c.id === blacksmithA);
 check('кузнец A добрал карту повторно в новом броске (3 базовых + 2 = 5)', myK.cardCount === 5 && Array.isArray(myK.inventory) && myK.inventory.length === 5);
-check('колода уменьшилась (14-2=12)', a.lastSnapshot.game.deckCount === 12);
+check(
+  `колода уменьшилась (${MIXED_DECK_START_COUNT}-2=${MIXED_DECK_START_COUNT - 2})`,
+  a.lastSnapshot.game.deckCount === MIXED_DECK_START_COUNT - 2,
+);
 
 // --- Скрытие чужих карт (ждем тот же снимок у B) ---
 const bSnap = await snapshotAtLeast(b, a.lastSnapshot.revision);
@@ -232,6 +263,7 @@ check('после resume снова виден инвентарь A', Array.isAr
 a.close();
 b.close();
 c.close();
+spectator.close();
 
 console.log(failures === 0 ? '\nВСЕ ПРОВЕРКИ ПРОШЛИ' : `\nПРОВАЛЕНО ПРОВЕРОК: ${failures}`);
 process.exit(failures === 0 ? 0 : 1);

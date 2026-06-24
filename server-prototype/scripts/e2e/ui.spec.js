@@ -1,11 +1,23 @@
 import { test, expect } from '@playwright/test';
-import { createServer } from 'node:http';
-import { createReadStream, existsSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { extname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import net from 'node:net';
+import {
+  closeServer,
+  createAndJoinRoom,
+  endTurn,
+  expectNoViewportOverflow,
+  freePort,
+  grantCard,
+  newGamePage,
+  openGamePage,
+  rollTurn,
+  selectRole,
+  startStaticServer,
+  waitForHttp,
+} from './helpers.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const serverRoot = resolve(here, '../..');
@@ -47,26 +59,136 @@ test.afterAll(async () => {
   try { rmSync(tmpRoot, { recursive: true, force: true }); } catch {}
 });
 
-test('second player can use terrain card controls from the UI', async ({ browser }) => {
-  const p1 = await newGamePage(browser, 'Alice');
-  const p2 = await newGamePage(browser, 'Bob');
+test('lobby creates and joins a two-player room through the UI', async ({ browser }) => {
+  const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
+  const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
 
   await createAndJoinRoom(p1, p2);
-  await p1.evaluate(() => wsSend('turn:end'));
+
+  await expect(p1.getByTestId('board')).toBeVisible();
+  await expect(p2.getByTestId('board')).toBeVisible();
+  await expect(p1.getByTestId('turn-action')).toBeEnabled();
+  await expect(p2.getByTestId('turn-action')).toBeDisabled();
+
+  await p1.context().close();
+  await p2.context().close();
+});
+
+test('spectator can watch an active public room from the lobby', async ({ browser }) => {
+  const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
+  const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
+
+  await createAndJoinRoom(p1, p2);
+
+  const spectator = await newGamePage(browser, { webPort, gamePort, playerName: 'Carol' });
+  await expect(spectator.getByTestId('join-room')).toHaveCount(0);
+  await expect(spectator.getByTestId('watch-room')).toHaveCount(1);
+  await spectator.getByTestId('watch-room').click();
+
+  await expect(spectator.locator('#lobby.hidden')).toHaveCount(1);
+  await expect(spectator.getByTestId('board')).toBeVisible();
+  await expect(spectator.getByTestId('turn-action')).toBeDisabled();
+  await expect(spectator.getByTestId(/^character-/)).toHaveCount(0);
+  await expect(spectator.locator('#inventory')).toContainText('Режим зрителя');
+
+  await expect.poll(() => spectator.evaluate(() => ({
+    spectatorMode,
+    spectator: serverRoom?.spectator,
+    you: serverRoom?.you,
+    characters: getGame()?.characters?.length ?? 0,
+    ownCharacters: getMyChars().length,
+    inventories: getGame()?.characters?.filter((char) => Array.isArray(char.inventory)).length ?? 0,
+    legalMoveTargets: Object.keys(getGame()?.legalTargets?.moveSum ?? {}).length,
+    legalAttackTargets: Object.keys(getGame()?.legalTargets?.attacks ?? {}).length,
+  }))).toEqual({
+    spectatorMode: true,
+    spectator: true,
+    you: null,
+    characters: 10,
+    ownCharacters: 0,
+    inventories: 0,
+    legalMoveTargets: 0,
+    legalAttackTargets: 0,
+  });
+
+  await p1.context().close();
+  await p2.context().close();
+  await spectator.context().close();
+});
+
+test('active player rolls and ends turn from the UI while opponent dice stay hidden', async ({ browser }) => {
+  const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
+  const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
+
+  await createAndJoinRoom(p1, p2);
+  await rollTurn(p1);
+
+  const p1Dice = await p1.getByTestId('board-dice').locator('.die').allTextContents();
+  expect(p1Dice.every((text) => /^[1-6]$/.test(text.trim()))).toBe(true);
+
+  const p2Dice = await p2.getByTestId('board-dice').locator('.die').allTextContents();
+  expect(p2Dice.some((text) => /^[1-6]$/.test(text.trim()))).toBe(false);
+  await expect.poll(() => p2.evaluate(() => getGame()?.turn?.dice)).toBe(null);
+  await expect.poll(() => p2.evaluate(() => Object.keys(getGame()?.turn?.diceByCharacter ?? {}).length)).toBe(0);
+
+  await endTurn(p1);
+  await expect.poll(() => p2.evaluate(() => getGame()?.turn?.activePlayerId === getMyChars()?.[0]?.owner))
+    .toBe(true);
+  await expect(p1.getByTestId('turn-action')).toBeDisabled();
+  await expect(p2.getByTestId('turn-action')).toBeEnabled();
+
+  await p1.context().close();
+  await p2.context().close();
+});
+
+test('cardbox transfers a card between own characters through the UI', async ({ browser }) => {
+  const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
+  const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
+
+  await createAndJoinRoom(p1, p2);
+  await grantCard(p1, 'K', 'bark');
+  await rollTurn(p1);
+  await selectRole(p1, 'K');
+
+  await p1.getByTestId('mode-transfer').click();
+  await expect(p1.getByTestId('cardbox')).toBeVisible();
+  const bark = await p1.evaluate(() => {
+    const smith = getMyChars().find((char) => char.role === 'K');
+    return {
+      index: smith.inventory.findIndex((card) => (card.id ?? card) === 'bark'),
+    };
+  });
+  await p1.locator(`[data-testid="cardbox-row-K"] [data-i="${bark.index}"]`).click();
+  await p1.getByTestId('cardbox-target-P').click();
+
+  await expect.poll(() => p1.evaluate(() => {
+    const smith = getMyChars().find((char) => char.role === 'K');
+    const helper = getMyChars().find((char) => char.role === 'P');
+    return {
+      smithHasBark: smith?.inventory?.some((card) => (card.id ?? card) === 'bark') ?? false,
+      helperHasBark: helper?.inventory?.some((card) => (card.id ?? card) === 'bark') ?? false,
+    };
+  })).toEqual({ smithHasBark: false, helperHasBark: true });
+
+  await p1.context().close();
+  await p2.context().close();
+});
+
+test('second player can use terrain card controls from the UI', async ({ browser }) => {
+  const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
+  const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
+
+  await createAndJoinRoom(p1, p2);
+  await rollTurn(p1);
+  await endTurn(p1);
   await expect.poll(() => p2.evaluate(() => getGame()?.turn?.activePlayerId === getMyChars()?.[0]?.owner))
     .toBe(true);
 
-  await p2.evaluate(() => {
-    const warrior = getMyChars().find((char) => char.role === 'V');
-    selectCharacter(warrior.id);
-    wsSend('debug:grantCard', { characterId: warrior.id, cardId: 'bark' });
-  });
-  await expect.poll(() => p2.evaluate(() => getSelChar()?.inventory?.some((card) => (card.id ?? card) === 'bark')))
-    .toBe(true);
-
+  await grantCard(p2, 'V', 'bark');
   await p2.evaluate(() => {
     document.querySelector('#sheet')?.classList.add('open');
-    const warrior = getSelChar();
+    const warrior = getMyChars().find((char) => char.role === 'V');
+    selectCharacter(warrior.id);
     const cardIndex = warrior.inventory.findIndex((card) => (card.id ?? card) === 'bark');
     wsSend('action:terrainPlace', {
       id: 'e2e-bark',
@@ -80,9 +202,9 @@ test('second player can use terrain card controls from the UI', async ({ browser
 
   await expect(p2.locator('.placed-terrain-cards')).toBeVisible();
   await expect(p2.locator('.combat-stat-defense')).toContainText('5');
-  await expect(p2.locator('.terrain-return-btn')).toBeVisible();
+  await expect(p2.getByTestId('terrain-return')).toBeVisible();
 
-  await p2.locator('.terrain-return-btn').click();
+  await p2.getByTestId('terrain-return').click();
 
   await expect(p2.locator('.placed-terrain-cards')).toHaveCount(0);
   await expect.poll(() => p2.evaluate(() => getSelChar()?.inventory?.some((card) => (card.id ?? card) === 'bark')))
@@ -92,41 +214,40 @@ test('second player can use terrain card controls from the UI', async ({ browser
   await p2.context().close();
 });
 
-test('opponent dice values are hidden in the UI and snapshot', async ({ browser }) => {
-  const p1 = await newGamePage(browser, 'Alice');
-  const p2 = await newGamePage(browser, 'Bob');
+test('session resume restores the room after page reload', async ({ browser }) => {
+  const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
+  const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
 
   await createAndJoinRoom(p1, p2);
-  await p1.evaluate(() => wsSend('turn:roll'));
+  const before = await p1.evaluate(() => ({ roomId: serverRoom.id, playerId: myPlayerId }));
 
-  await expect.poll(() => p1.evaluate(() => Object.keys(getGame()?.turn?.diceByCharacter ?? {}).length))
-    .toBeGreaterThan(0);
-  await expect.poll(() => p2.evaluate(() => getGame()?.turn?.hasRolled))
-    .toBe(true);
-
-  const p1Dice = await p1.locator('.board-dice .die').allTextContents();
-  expect(p1Dice.every((text) => /^[1-6]$/.test(text.trim()))).toBe(true);
-
-  const p2Dice = await p2.locator('.board-dice .die').allTextContents();
-  expect(p2Dice.some((text) => /^[1-6]$/.test(text.trim()))).toBe(false);
-  await expect.poll(() => p2.evaluate(() => getGame()?.turn?.dice)).toBe(null);
-  await expect.poll(() => p2.evaluate(() => Object.keys(getGame()?.turn?.diceByCharacter ?? {}).length)).toBe(0);
+  await openGamePage(p1, { webPort, gamePort });
+  await expect(p1.getByTestId('connection-badge')).toHaveClass(/conn-connected/);
+  await expect.poll(() => p1.evaluate(() => getGame()?.characters?.length ?? 0)).toBe(10);
+  await expect(p1.locator('#lobby.hidden')).toHaveCount(1);
+  await expect.poll(() => p1.evaluate(() => ({ roomId: serverRoom.id, playerId: myPlayerId }))).toEqual(before);
 
   await p1.context().close();
   await p2.context().close();
 });
 
 test('mobile inventory action buttons and cardbox stay inside the viewport', async ({ browser }) => {
-  const p1 = await newGamePage(browser, 'Alice', { width: 720, height: 1280 });
-  const p2 = await newGamePage(browser, 'Bob', { width: 720, height: 1280 });
+  const p1 = await newGamePage(browser, {
+    webPort,
+    gamePort,
+    playerName: 'Alice',
+    viewport: { width: 720, height: 1280 },
+  });
+  const p2 = await newGamePage(browser, {
+    webPort,
+    gamePort,
+    playerName: 'Bob',
+    viewport: { width: 720, height: 1280 },
+  });
 
   await createAndJoinRoom(p1, p2);
-  await p2.evaluate(() => {
-    document.querySelector('#sheet')?.classList.add('open');
-    const warrior = getMyChars().find((char) => char.role === 'V');
-    selectCharacter(warrior.id);
-    wsSend('debug:grantCard', { characterId: warrior.id, cardId: 'dead_ore' });
-  });
+  await grantCard(p2, 'V', 'dead_ore');
+  await p2.evaluate(() => document.querySelector('#sheet')?.classList.add('open'));
   await expect.poll(() => p2.locator('.inventory-action-row').count()).toBeGreaterThan(0);
 
   const actionLayout = await p2.evaluate(() => {
@@ -155,104 +276,18 @@ test('mobile inventory action buttons and cardbox stay inside the viewport', asy
     buttonsInsideViewport: true,
   });
 
-  await p2.locator('.mode[data-mode="transfer"]').click();
-  await expect(p2.locator('#cardBox:not(.hidden)')).toBeVisible();
+  await p2.getByTestId('mode-transfer').click();
+  await expect(p2.getByTestId('cardbox')).toBeVisible();
+  await expectNoViewportOverflow(p2, '[data-testid="cardbox"]');
   const cardboxLayout = await p2.evaluate(() => {
     const box = document.querySelector('.cardbox').getBoundingClientRect();
     const rows = [...document.querySelectorAll('.cbx-row')].map((row) => row.getBoundingClientRect());
     return {
-      fitsViewport: box.left >= -1
-        && box.top >= -1
-        && box.right <= window.innerWidth + 1
-        && box.bottom <= window.innerHeight + 1,
       rowsInsideBox: rows.every((row) => row.left >= box.left - 1 && row.right <= box.right + 1),
     };
   });
-  expect(cardboxLayout).toEqual({ fitsViewport: true, rowsInsideBox: true });
+  expect(cardboxLayout).toEqual({ rowsInsideBox: true });
 
   await p1.context().close();
   await p2.context().close();
 });
-
-async function newGamePage(browser, playerName, viewport = { width: 390, height: 844 }) {
-  const context = await browser.newContext({ viewport });
-  const page = await context.newPage();
-  await page.goto(`http://127.0.0.1:${webPort}/index.html?server=${encodeURIComponent(`ws://127.0.0.1:${gamePort}/ws`)}&e2e=${Date.now()}`);
-  await page.fill('#playerName', playerName);
-  await page.waitForFunction(() => typeof window.wsSend === 'function' && document.querySelector('#connBadge')?.classList.contains('conn-connected'));
-  return page;
-}
-
-async function createAndJoinRoom(p1, p2) {
-  await p1.locator('#createBtn').click();
-  await expect(p1.locator('#codeDisplay')).toBeVisible();
-  await expect(p2.locator('.lobby-list-join')).toHaveCount(1);
-  await p2.locator('.lobby-list-join').click();
-  await expect(p1.locator('#lobby.hidden')).toHaveCount(1);
-  await expect(p2.locator('#lobby.hidden')).toHaveCount(1);
-  await expect(p1.locator('.character-nav-btn')).toHaveCount(5);
-  await expect(p2.locator('.character-nav-btn')).toHaveCount(5);
-}
-
-function freePort() {
-  return new Promise((resolveFreePort, reject) => {
-    const server = net.createServer();
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      server.close(() => resolveFreePort(port));
-    });
-  });
-}
-
-async function waitForHttp(url) {
-  const deadline = Date.now() + 15000;
-  let lastError;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch (error) {
-      lastError = error;
-    }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
-  }
-  throw lastError ?? new Error(`Timed out waiting for ${url}`);
-}
-
-function startStaticServer(root, port) {
-  const server = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
-    const cleanPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
-    const filePath = resolve(root, `.${cleanPath}`);
-    if (!filePath.startsWith(root) || !existsSync(filePath)) {
-      res.writeHead(404);
-      res.end('Not found');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': mimeFor(filePath) });
-    createReadStream(filePath).pipe(res);
-  });
-  return new Promise((resolveServer, reject) => {
-    server.on('error', reject);
-    server.listen(port, '127.0.0.1', () => resolveServer(server));
-  });
-}
-
-function closeServer(server) {
-  if (!server) return Promise.resolve();
-  return new Promise((resolveClose) => server.close(resolveClose));
-}
-
-function mimeFor(filePath) {
-  return {
-    '.html': 'text/html; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.webp': 'image/webp',
-    '.svg': 'image/svg+xml',
-  }[extname(filePath).toLowerCase()] ?? 'application/octet-stream';
-}

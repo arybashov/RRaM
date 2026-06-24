@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test scripts/test-rules.js scripts/test-bot.js scripts/test-store.js",
+    "test": "node --test scripts/test-rules.js scripts/test-bot.js scripts/test-store.js scripts/test-catalog.js",
     "test:e2e": "playwright test scripts/e2e",
     "test:e2e:install": "playwright install chromium",
     "smoke": "node scripts/smoke.js",

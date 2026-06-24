@@ -5,6 +5,7 @@ export const ClientCommand = Object.freeze({
   // комната и сессия
   ROOM_CREATE: 'room:create',
   ROOM_JOIN: 'room:join',
+  ROOM_WATCH: 'room:watch',
   ROOM_LEAVE: 'room:leave',
   SESSION_RESUME: 'session:resume',
   // публичное лобби
@@ -74,6 +75,7 @@ export const ServerEvent = Object.freeze({
   ERROR: 'server:error',
   ROOM_CREATED: 'room:created',
   ROOM_JOINED: 'room:joined',
+  ROOM_WATCHED: 'room:watched',
   SESSION_RESUMED: 'session:resumed',
   // список открытых публичных игр
   LOBBY_LIST: 'lobby:list',

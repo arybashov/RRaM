@@ -3123,10 +3123,17 @@ function buildRedDeck() {
   return shuffle(deck);
 }
 
-// Колода феникса (Сказочная опушка). Два уникальных феникса; перетасованы,
-// чтобы порядок появления не был детерминирован. Не пересобирается при опустошении.
+// Сказочная опушка: все карты fairy_glade с copies > 0. Трофеи с copies:0
+// остаются вне случайной выдачи и появляются только через события/правила.
 function buildFairyDeck() {
-  return shuffle(['phoenix_1', 'phoenix_2']);
+  const deck = [];
+  for (const card of CARD_CATALOG) {
+    if (card.deck !== 'fairy_glade') continue;
+    for (let i = 0; i < card.copies; i += 1) {
+      deck.push(card.id);
+    }
+  }
+  return shuffle(deck);
 }
 
 function shuffle(cards) {
