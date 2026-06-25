@@ -424,20 +424,24 @@ window.CARD_ART_REGISTRY = Object.freeze([
   {
     "id": "art_trophy_001",
     "name": "Бурый медведь",
-    "deck": "trophy",
+    "deck": "red",
     "type": "beast",
     "art": "generated-frame-highres-text/beasts-hides/beasts-hides-001-style-v1-card-highres-text",
     "source": "Звери и шкуры",
-    "inGame": false
+    "inGame": true,
+    "gameId": "art_trophy_001",
+    "copies": 1
   },
   {
     "id": "art_trophy_002",
     "name": "Агрессивный бурый медведь",
-    "deck": "trophy",
+    "deck": "red",
     "type": "beast",
     "art": "generated-frame-highres-text/beasts-hides/beasts-hides-002-style-v1-card-highres-text",
     "source": "Звери и шкуры",
-    "inGame": false
+    "inGame": true,
+    "gameId": "art_trophy_002",
+    "copies": 1
   },
   {
     "id": "wolf",

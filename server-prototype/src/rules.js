@@ -108,7 +108,6 @@ export function createGame(players) {
     deck: buildDeck(),
     decks: buildDecks(),
     redDeck: buildRedDeck(),
-    redIrkonDropped: false,
     discard: [],
     terrainCards: [],
     dwarves: createDwarfState(),
@@ -992,22 +991,16 @@ function move(game, playerId, {
   };
 }
 
-// Красная клетка: 2% шанс найти Ирикон; иначе карта из красной колоды.
+// Красная клетка: карта из красной колоды. Ирикон не выпадает случайно:
+// он доступен только через крафт по чертежу.
 // Зверь начинает схватку, остальные красные карты попадают в инвентарь
 // персонажа, если есть место.
 function drawRedEvent(game, character) {
   let cardId = null;
-  let specialRoll = false;
-  if (!game.redIrkonDropped && Math.random() < 0.02) {
-    cardId = 'irikon';
-    game.redIrkonDropped = true;
-    specialRoll = true;
-  } else {
-    if (game.redDeck.length === 0) {
-      game.redDeck = buildRedDeck();
-    }
-    cardId = game.redDeck.shift();
+  if (game.redDeck.length === 0) {
+    game.redDeck = buildRedDeck();
   }
+  cardId = game.redDeck.shift();
   const card = CARD_BY_ID[cardId];
   const beast = card?.type === 'beast';
   let acquired = false;
@@ -1029,7 +1022,7 @@ function drawRedEvent(game, character) {
     beast,
     acquired,
     discarded,
-    specialRoll,
+    specialRoll: false,
     cellId: character.position,
   };
 }
@@ -3109,8 +3102,8 @@ function buildDecks() {
   return Object.fromEntries(DRAW_DECKS.map((deckName) => [deckName, buildDeck(deckName)]));
 }
 
-// Красная колода: все красные карты кроме Ирикона. Сам Ирикон идёт
-// отдельным редким шансом 2%, а медведь встречается чаще остальных зверей.
+// Красная колода: все красные карты кроме Ирикона. Сам Ирикон доступен
+// только через крафт по чертежу, а медведь встречается чаще остальных зверей.
 function buildRedDeck() {
   const deck = [];
   for (const card of CARD_CATALOG) {

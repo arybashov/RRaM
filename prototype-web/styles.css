@@ -3019,6 +3019,13 @@ h2::after {
   min-width: 0;
 }
 
+.encyclopedia-card-number {
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .encyclopedia-card-name {
   color: var(--ink);
   font-size: 13px;

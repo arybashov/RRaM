@@ -47,9 +47,9 @@ test('card catalog totals are stable', () => {
   assert.equal(BASE_CARD_CATALOG.length, 11);
   assert.equal(copies(BASE_CARD_CATALOG), 11);
   assert.equal(CARD_CATALOG.length, 121);
-  assert.equal(copies(CARD_CATALOG), 175);
+  assert.equal(copies(CARD_CATALOG), 134);
   assert.equal(allCards.length, 132);
-  assert.equal(copies(allCards), 186);
+  assert.equal(copies(allCards), 145);
 });
 
 test('card ids are unique across base and draw catalogs', () => {
@@ -66,15 +66,15 @@ test('draw deck card counts are stable', () => {
     ),
     {
       blueprints: { unique: 20, copies: 20 },
-      dark_forest: { unique: 25, copies: 33 },
+      dark_forest: { unique: 25, copies: 14 },
       fairy_glade: { unique: 6, copies: 4 },
-      forest: { unique: 15, copies: 32 },
+      forest: { unique: 15, copies: 24 },
       lake: { unique: 7, copies: 7 },
       mixed: { unique: 4, copies: 16 },
       recipes: { unique: 27, copies: 32 },
-      red: { unique: 8, copies: 15 },
-      sheep: { unique: 4, copies: 14 },
-      trophy: { unique: 5, copies: 2 },
+      red: { unique: 10, copies: 10 },
+      sheep: { unique: 4, copies: 7 },
+      trophy: { unique: 3, copies: 0 },
     },
   );
 });
@@ -108,8 +108,8 @@ test('sheep deck and ritual hide counts are stable', () => {
   assert.deepEqual(
     Object.fromEntries(byDeck('sheep').map((card) => [card.id, card.copies]).sort()),
     {
-      sheep_hide_c: 3,
-      sheep_hide_r: 4,
+      sheep_hide_c: 0,
+      sheep_hide_r: 0,
       sheep_ram: 2,
       sheep_wool: 5,
     },
@@ -146,31 +146,12 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       blueprint_irikon: 1,
     },
     dark_forest: {
-      armor_il: 1,
       art_dark_forest_001: 1,
       art_dark_forest_002: 1,
-      art_dark_forest_004: 1,
-      art_dark_forest_008: 1,
-      art_dark_forest_020: 1,
-      art_dark_forest_030: 1,
-      art_dark_forest_034: 1,
-      art_dark_forest_038: 1,
-      art_dark_forest_040: 1,
       black_berries: 2,
-      chainmail_light: 1,
       dead_ore: 6,
-      helm_shem: 1,
-      helm_ttm: 1,
-      leather_shirt: 1,
       red_berries: 2,
       return_ring: 2,
-      shield_dr: 1,
-      shield_kalan: 1,
-      shield_lom: 1,
-      shield_revenge: 1,
-      sword_lorp: 1,
-      sword_sech: 1,
-      topormol: 1,
     },
     fairy_glade: {
       art_fairy_glade_001: 1,
@@ -188,12 +169,10 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       art_forest_011: 1,
       art_forest_012: 1,
       bark: 3,
-      beast_hide: 4,
       boar_forest: 2,
       gold_nugget: 2,
       owl_common: 2,
       owl_night: 2,
-      raw_hide: 4,
     },
     lake: {
       art_lake_001: 1,
@@ -240,25 +219,19 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       ritual_hide: 1,
     },
     red: {
+      art_trophy_001: 1,
+      art_trophy_002: 1,
       axe_sun: 1,
       beast_bear: 2,
       boar_red: 2,
-      hide_red: 3,
-      irikon: 1,
-      raw_hide_red: 3,
       task_irikon: 1,
       wolf: 2,
     },
     sheep: {
-      sheep_hide_c: 3,
-      sheep_hide_r: 4,
       sheep_ram: 2,
       sheep_wool: 5,
     },
-    trophy: {
-      art_trophy_001: 1,
-      art_trophy_002: 1,
-    },
+    trophy: {},
   };
 
   for (const [deck, expected] of Object.entries(expectedByDeck)) {
