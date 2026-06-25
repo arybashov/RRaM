@@ -266,6 +266,25 @@ test('server catalog card preview does not show disconnected placeholder text', 
   await expect(p1.locator('#eventOverlay')).toBeVisible();
   await expect(p1.locator('#eventCardDisplay')).not.toContainText('не подключена');
   await expect(p1.locator('#eventCardDisplay .inventory-card-art')).toHaveAttribute('src', /blueprint-topormol-v1\.png/);
+  await p1.locator('#eventOkBtn').click();
+
+  await p1.evaluate(() => {
+    const smith = getMyChars().find((char) => char.role === 'K');
+    const cardIndex = smith.inventory.findIndex((item) => (item.id ?? item) === 'art_dark_forest_013');
+    wsSend('action:terrainPlace', {
+      id: 'e2e-topormol-blueprint',
+      characterId: smith.id,
+      cardIndex,
+      x: 140,
+      y: 190,
+      faceDown: false,
+    });
+  });
+  const terrainImage = p1.locator('.terrain-card[data-uid="e2e-topormol-blueprint"] image');
+  await expect(terrainImage).toHaveAttribute('href', /blueprint-topormol-v1\.png/);
+  const terrainHref = await terrainImage.getAttribute('href');
+  const terrainResponse = await p1.request.get(new URL(terrainHref, p1.url()).toString());
+  expect(terrainResponse.ok()).toBe(true);
 
   await p1.context().close();
   await p2.context().close();

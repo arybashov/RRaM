@@ -635,16 +635,18 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "name": "Чертеж на топормол",
     "deck": "dark_forest",
     "type": "blueprint",
-    "art": "generated-frame-highres-text/dark-forest/dark-forest-013-style-v1-card-highres-text",
+    "art": "dark-forest/blueprint-topormol-v1",
     "source": "Темный лес / чертежи / изделия",
-    "inGame": false
+    "inGame": true,
+    "gameId": "art_dark_forest_013",
+    "copies": 1
   },
   {
     "id": "topormol",
     "name": "Топормол",
     "deck": "dark_forest",
     "type": "weapon",
-    "art": "generated-frame-highres-text/dark-forest/dark-forest-014-style-v1-card-highres-text",
+    "art": "dark-forest/topormol-v1",
     "source": "Темный лес / чертежи / изделия",
     "inGame": true,
     "gameId": "topormol",
