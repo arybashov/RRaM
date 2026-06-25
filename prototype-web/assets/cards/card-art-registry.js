@@ -1239,11 +1239,13 @@ window.CARD_ART_REGISTRY = Object.freeze([
   },
   {
     "id": "art_fairy_glade_005",
-    "name": "Жаба вирид",
+    "name": "Жаба ворчун",
     "deck": "fairy_glade",
-    "type": "beast",
+    "type": "special",
     "art": "generated-frame-highres-text/fairy-glade/fairy-glade-005-square-v1-card-highres-text",
     "source": "Таинственная опушка",
-    "inGame": false
+    "inGame": true,
+    "gameId": "art_fairy_glade_005",
+    "copies": 1
   }
 ]);

@@ -90,7 +90,7 @@ export function createGame(players) {
         beastFight: null, // { cardId, successes } — схватка со зверем с красной клетки
         crafted: [], // id карт, открытых крафтом (напр. 'club' по чертежу)
         dots: [], // дебаффы-ловушки: [{ cardId, damagePerTurn, dischargeMin, name }]
-        frogSpell: null, // Озёрная лягушка: отключает оружие, пока цель не выбросит сумму 8+
+        frogSpell: null, // заклинание жабы: отключает оружие, пока цель не выбросит нужную сумму
       });
     }
   }
@@ -147,6 +147,7 @@ function createDwarfState() {
       position: null,
       routeIndex: -1,
       inventory: [],
+      frogSpell: null,
       alive: true,
       exited: false, // дошёл до конца маршрута (ворот) и ушёл с поля — не возвращается
     })),
@@ -966,7 +967,7 @@ function move(game, playerId, {
 
   if (engagedTarget) linkCombat(game, character, engagedTarget);
 
-  // Клетка-событие: красная — зверь из красной колоды; Сказочная опушка
+  // Клетка-событие: красная — зверь из красной колоды; Таинственная опушка
   // (deck 'fairy_glade') — феникс из колоды феникса (квест Иерихон).
   let redEvent = null;
   const terrain = cellTerrain(toCell);
@@ -1050,9 +1051,8 @@ function drawRedEvent(game, character) {
   };
 }
 
-// Сказочная опушка (квест Иерихон) — встреча с фениксом. Колода феникса
-// уникальна: фениксы не возрождаются. Когда колода пуста — событие не
-// происходит (возвращаем null), клетка при этом остаётся (норма для MVP).
+// Таинственная опушка (квест Иерихон): фениксы запускают схватку, остальные
+// карты этой колоды попадают в инвентарь или сброс при переполнении.
 function drawFairyEvent(game, character) {
   if (!game.fairyDeck) {
     game.fairyDeck = buildFairyDeck();
@@ -1062,13 +1062,26 @@ function drawFairyEvent(game, character) {
   }
   const cardId = game.fairyDeck.shift();
   const card = CARD_BY_ID[cardId];
-  character.beastFight = { cardId, successes: 0, cellId: character.position };
+  const beast = card?.type === 'beast';
+  let acquired = false;
+  let discarded = false;
+  if (beast) {
+    character.beastFight = { cardId, successes: 0, cellId: character.position };
+  } else if (character.inventory.length < INVENTORY_LIMIT) {
+    character.inventory.push(cardId);
+    acquired = true;
+  } else {
+    game.discard.push(cardId);
+    discarded = true;
+  }
   return {
     cardId,
     name: card?.name,
     type: card?.type,
     desc: card?.desc,
-    beast: true,
+    beast,
+    acquired,
+    discarded,
     cellId: character.position,
   };
 }
@@ -1108,6 +1121,7 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   const deactivatedTerrainCards = [];
   let terrainBonus = 0; // бонус к значению кубика
   const placedClubs = [];
+  const placedTopormols = [];
   const placedCards = (game.terrainCards ?? []).filter(
     (card) => card.ownerId === playerId && card.characterId === characterId,
   );
@@ -1121,6 +1135,9 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
     if (card.cardId === 'club' && character.role === 'V' && !card.faceDown) {
       placedClubs.push(card);
     }
+    if (card.cardId === 'topormol' && !card.faceDown) {
+      placedTopormols.push(card);
+    }
     // Будущие эффекты других карт
   }
 
@@ -1129,7 +1146,8 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   const previousSuccesses = character.beastFight.successes;
   let successes = previousSuccesses;
   const clubUsed = placedClubs.length > 0 && effectiveValue >= 4;
-  if (clubUsed || effectiveValue >= beast.killOn) {
+  const topormolUsed = character.inventory.includes('topormol') || placedTopormols.length > 0;
+  if (topormolUsed || clubUsed || effectiveValue >= beast.killOn) {
     killed = true;
   } else if (effectiveValue >= beast.successOn) {
     successes += 1;
@@ -1180,6 +1198,7 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
       hide,
       trophy,
       clubUsed,
+      topormolUsed,
       terrainCardsTurnedFaceDown: deactivatedTerrainCards,
     },
   };
@@ -1483,32 +1502,73 @@ function useDeadOre(game, playerId, { characterId, cardIndex, terrainCardId, dec
   };
 }
 
-function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, targetId } = {}) {
-  assertActive(game, playerId);
-  const shaman = ownCharacter(game, playerId, characterId);
-  if (shaman.role !== 'S') {
-    throw new Error('Озёрную лягушку применяет только Шаман.');
-  }
-  const source = findUsableCard(game, playerId, shaman, 'lake_frog', { cardIndex, terrainCardId });
-  if (!source) {
-    throw new Error('У Шамана нет Озёрной лягушки.');
-  }
+const FROG_SPELL_CARDS = Object.freeze({
+  lake_frog: {
+    shamanOnly: true,
+    dischargeTotal: 8,
+    selfName: 'Озёрная лягушка',
+    noCardError: 'У Шамана нет Озёрной лягушки.',
+    roleError: 'Озёрную лягушку применяет только Шаман.',
+    targetError: 'Цель для Озёрной лягушки недоступна.',
+    rangeError: 'Озёрную лягушку можно наложить только на соседнего противника.',
+    duplicateError: 'На этом персонаже уже действует Озёрная лягушка.',
+  },
+  art_fairy_glade_005: {
+    shamanOnly: false,
+    dischargeTotal: 7,
+    selfName: 'Жаба ворчун',
+    noCardError: 'У персонажа нет Жабы ворчун.',
+    targetError: 'Цель для Жабы ворчун недоступна.',
+    rangeError: 'Жабу ворчун можно наложить только на соседнего противника.',
+    duplicateError: 'На этом персонаже уже действует заклинание жабы.',
+  },
+});
 
-  if (shaman.beastFight && (!targetId || targetId === shaman.id)) {
-    const spent = spendUsableCard(game, shaman, source);
-    const beastId = shaman.beastFight.cardId;
+function findFrogSpellSource(game, playerId, character, payload = {}) {
+  const requested = payload.cardId;
+  if (requested && FROG_SPELL_CARDS[requested]) {
+    const source = findUsableCard(game, playerId, character, requested, payload);
+    return source ? { source, cardId: requested, config: FROG_SPELL_CARDS[requested] } : null;
+  }
+  for (const [cardId, config] of Object.entries(FROG_SPELL_CARDS)) {
+    if (config.shamanOnly && character.role !== 'S') continue;
+    const source = findUsableCard(game, playerId, character, cardId, payload);
+    if (source) return { source, cardId, config };
+  }
+  return null;
+}
+
+function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, targetId, cardId } = {}) {
+  assertActive(game, playerId);
+  const caster = ownCharacter(game, playerId, characterId);
+  const found = findFrogSpellSource(game, playerId, caster, { cardIndex, terrainCardId, cardId });
+  const requestedConfig = cardId && FROG_SPELL_CARDS[cardId];
+  const config = found?.config ?? requestedConfig ?? FROG_SPELL_CARDS.lake_frog;
+  if (!found) {
+    throw new Error(config.noCardError);
+  }
+  if (config.shamanOnly && caster.role !== 'S') {
+    throw new Error(config.roleError);
+  }
+  const { source } = found;
+
+  if (caster.beastFight && (!targetId || targetId === caster.id)) {
+    const spent = spendUsableCard(game, caster, source);
+    const beastId = caster.beastFight.cardId;
     const beastCard = CARD_BY_ID[beastId];
-    shaman.beastFight = null;
+    caster.beastFight = null;
     game.discard.push(beastId);
 
-    const returned = returnLakeFrogCard(game, shaman.id, spent);
-    const hide = addRewardCard(game, shaman, BEAST_HIDE_DROP[beastId] ?? null);
-    const trophy = addRewardCard(game, shaman, BEAST_TROPHY_DROP[beastId] ?? null);
+    const returned = returnLakeFrogCard(game, caster.id, spent);
+    const hide = addRewardCard(game, caster, BEAST_HIDE_DROP[beastId] ?? null);
+    const trophy = addRewardCard(game, caster, BEAST_TROPHY_DROP[beastId] ?? null);
     return {
       lakeFrogUsed: {
         mode: 'beast',
-        casterId: shaman.id,
-        targetId: shaman.id,
+        casterId: caster.id,
+        targetId: caster.id,
+        cardId: spent,
+        name: CARD_BY_ID[spent]?.name ?? config.selfName,
         source: source.source,
         beastId,
         beastName: beastCard?.name ?? beastId,
@@ -1519,30 +1579,64 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, ta
     };
   }
 
-  const target = game.characters.find((character) => character.id === targetId);
-  if (!target || target.owner === playerId || target.hp <= 0 || !target.position) {
-    throw new Error('Цель для Озёрной лягушки недоступна.');
-  }
-  if (!shaman.position || !neighbors(shaman.position).includes(target.position)) {
-    throw new Error('Озёрную лягушку можно наложить только на соседнего противника.');
-  }
-  if (target.frogSpell) {
-    throw new Error('На этом персонаже уже действует Озёрная лягушка.');
+  const dwarfTarget = findLivingDwarfUnit(game, targetId);
+  if (dwarfTarget) {
+    if (found.cardId !== 'art_fairy_glade_005') {
+      throw new Error('На дварфа можно наложить только Жабу ворчун.');
+    }
+    if (!caster.position || !neighbors(caster.position).includes(dwarfTarget.position)) {
+      throw new Error('Жабу ворчун можно наложить только на соседнего дварфа.');
+    }
+    if (dwarfTarget.frogSpell) {
+      throw new Error('На этом дварфе уже действует Жаба ворчун.');
+    }
+    const spent = spendUsableCard(game, caster, source);
+    dwarfTarget.frogSpell = {
+      cardId: spent,
+      casterId: caster.id,
+      ownerId: playerId,
+      dischargeTotal: config.dischargeTotal,
+      name: CARD_BY_ID[spent]?.name ?? config.selfName,
+    };
+    return {
+      lakeFrogUsed: {
+        mode: 'dwarf',
+        casterId: caster.id,
+        targetId: dwarfTarget.id,
+        targetName: dwarfTarget.name ?? 'Дварф',
+        cardId: spent,
+        source: source.source,
+        name: dwarfTarget.frogSpell.name,
+        dischargeTotal: dwarfTarget.frogSpell.dischargeTotal,
+      },
+    };
   }
 
-  const spent = spendUsableCard(game, shaman, source);
+  const target = game.characters.find((character) => character.id === targetId);
+  if (!target || target.owner === playerId || target.hp <= 0 || !target.position) {
+    throw new Error(config.targetError);
+  }
+  if (!caster.position || !neighbors(caster.position).includes(target.position)) {
+    throw new Error(config.rangeError);
+  }
+  if (target.frogSpell) {
+    throw new Error(config.duplicateError);
+  }
+
+  const spent = spendUsableCard(game, caster, source);
   target.frogSpell = {
     cardId: spent,
-    casterId: shaman.id,
+    casterId: caster.id,
     ownerId: playerId,
-    dischargeTotal: 8,
-    name: CARD_BY_ID[spent]?.name ?? 'Озёрная лягушка',
+    dischargeTotal: config.dischargeTotal,
+    name: CARD_BY_ID[spent]?.name ?? config.selfName,
   };
   return {
     lakeFrogUsed: {
       mode: 'player',
-      casterId: shaman.id,
+      casterId: caster.id,
       targetId: target.id,
+      cardId: spent,
       source: source.source,
       targetRole: target.role,
       name: target.frogSpell.name,
@@ -1579,6 +1673,7 @@ function releaseLakeFrogSpell(game, target) {
   return {
     targetId: target.id,
     casterId: spell.casterId,
+    cardId: spell.cardId,
     name: spell.name ?? CARD_BY_ID[spell.cardId]?.name ?? spell.cardId,
     returned,
   };
@@ -1800,35 +1895,56 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
     throw new Error('Нужен чертёж или рецепт на это изделие.');
   }
   // По одной карте на каждый слот материалов (без повторного использования карты).
-  let matchedOption = null;
-  let consumedIdx = null;
+  const materialMatches = [];
   for (const option of roleOptions) {
     const indexes = findMaterialIndexes(character, option.materials);
     if (indexes) {
-      matchedOption = option;
-      consumedIdx = indexes;
-      break;
+      materialMatches.push({ option, consumedIdx: indexes });
     }
   }
-  if (!matchedOption) {
+  if (!materialMatches.length) {
     throw new Error('Не хватает материалов для изделия.');
   }
-  if (matchedOption.dice) {
+  const diceAttempt = (option) => {
+    if (!option.dice) return { canAttempt: true, values: [], success: true };
+    if (!game.turn.dice) return { canAttempt: false, values: [], success: false };
+    if (option.dice.count === 1) {
+      if (!isDieIndex(dieIndex) || game.turn.usedDice[dieIndex]) return { canAttempt: false, values: [], success: false };
+      const values = [game.turn.dice[dieIndex]];
+      return { canAttempt: true, values, success: values[0] >= option.dice.min };
+    }
+    if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
+      return { canAttempt: false, values: [], success: false };
+    }
+    const values = [...game.turn.dice];
+    return { canAttempt: true, values, success: values.every((value) => value >= option.dice.min) };
+  };
+  if (materialMatches.some(({ option }) => option.dice)) {
     assertRolled(game);
-    let values;
+  }
+  const evaluatedMatches = materialMatches.map((match) => ({
+    ...match,
+    diceAttempt: diceAttempt(match.option),
+  }));
+  const singleDieSuccess = evaluatedMatches.find(({ option, diceAttempt: attempt }) =>
+    option.dice?.count === 1 && attempt.canAttempt && attempt.success);
+  const anySuccess = evaluatedMatches.find(({ diceAttempt: attempt }) => attempt.canAttempt && attempt.success);
+  const anyAttempt = evaluatedMatches.find(({ diceAttempt: attempt }) => attempt.canAttempt);
+  const selectedMatch = singleDieSuccess ?? anySuccess ?? anyAttempt;
+  if (!selectedMatch) {
+    throw new Error('Нет доступных кубиков для испытания.');
+  }
+  const matchedOption = selectedMatch.option;
+  const consumedIdx = selectedMatch.consumedIdx;
+  if (matchedOption.dice) {
+    const values = selectedMatch.diceAttempt.values;
     if (matchedOption.dice.count === 1) {
-      values = [dieValue(game, dieIndex)];
       lockMovement(game);
       spendDie(game, dieIndex);
     } else {
-      if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
-        throw new Error('Для испытания нужны оба неиспользованных кубика.');
-      }
-      values = [...game.turn.dice];
       spendAllDice(game);
     }
-    const success = values.every((value) => value >= matchedOption.dice.min);
-    if (!success) {
+    if (!selectedMatch.diceAttempt.success) {
       return {
         craftAttempt: {
           characterId,
@@ -1944,6 +2060,7 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
   // лучшее по урону, доступное атакующему (role — ограничение класса).
   let weapon = null;
   const weaponDisabledByLakeFrog = Boolean(attacker.frogSpell);
+  const weaponSuppressedSpellName = attacker.frogSpell?.name ?? null;
   const terrainCards = game.terrainCards ?? [];
   const activeTerrainWeapons = terrainCards
     .filter((card) => card.ownerId === playerId
@@ -2053,6 +2170,7 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
       weaponDisabledByLakeFrog,
       weaponSuppressedReason,
       weaponSuppressedName,
+      weaponSuppressedSpellName,
       weaponSuppressedRole,
       totalDamage,
       armorAbsorbed: armorAbsorb,
@@ -2093,6 +2211,7 @@ function attackDwarf(game, playerId, attacker, unit, dieIndex) {
   }
 
   const weaponDisabledByLakeFrog = Boolean(attacker.frogSpell);
+  const weaponSuppressedSpellName = attacker.frogSpell?.name ?? null;
   const activeTerrainWeapons = terrainCards
     .filter((card) => card.ownerId === playerId
       && card.characterId === attacker.id
@@ -2154,6 +2273,7 @@ function attackDwarf(game, playerId, attacker, unit, dieIndex) {
   unit.hp = Math.max(0, unit.hp - dealtDamage);
   const defeated = unit.hp === 0;
   if (defeated) {
+    releaseLakeFrogSpell(game, unit);
     unit.alive = false;
     unit.position = null;
     unit.routeIndex = -1;
@@ -2180,6 +2300,7 @@ function attackDwarf(game, playerId, attacker, unit, dieIndex) {
       weaponDisabledByLakeFrog,
       weaponSuppressedReason,
       weaponSuppressedName,
+      weaponSuppressedSpellName,
       weaponSuppressedRole,
       totalDamage: dealtDamage,
       armorAbsorbed: 0,
@@ -2363,6 +2484,7 @@ function advanceDwarves(game) {
   const entries = [];
   const moves = [];
   const attacks = [];
+  const frogReleased = [];
 
   // Первый выход: дварфы выходят из ворот колонной (route[0..n]). Дальше они
   // растягиваются по тропе сами за счёт задержек на погоне и прохода сквозь своих.
@@ -2391,6 +2513,7 @@ function advanceDwarves(game) {
       moves,
       routeIndex: state.routeIndex,
       turn: state.mainTurnsCompleted,
+      frogReleased,
     };
   }
 
@@ -2405,7 +2528,7 @@ function advanceDwarves(game) {
   //    (можно отклоняться к цели ≤5 клеток), но останавливается, как только дошёл
   //    до цели в дальности атаки — чтобы не пройти мимо. Юниты проходят сквозь друг
   //    друга, но не встают на одну клетку. Разные броски → группа сама растягивается.
-  moveDwarfColumn(game, state, unitsOnBoard, moves);
+  moveDwarfColumn(game, state, unitsOnBoard, moves, frogReleased);
 
   // 2) Атака с конечной клетки: бьёт ближайшую цель в радиусе.
   for (const unit of unitsOnBoard) {
@@ -2438,6 +2561,7 @@ function advanceDwarves(game) {
       routeIndex: state.routeIndex,
       turn: state.mainTurnsCompleted,
       attacks,
+      frogReleased,
     };
   }
   return {
@@ -2445,6 +2569,7 @@ function advanceDwarves(game) {
     entries,
     moves,
     attacks,
+    frogReleased,
     routeIndex: state.routeIndex,
     turn: state.mainTurnsCompleted,
   };
@@ -2453,6 +2578,7 @@ function advanceDwarves(game) {
 // Атака дварфа: бьёт ближайшую цель в радиусе и НЕ тратит шаг по маршруту.
 // Возвращает запись об атаке или null, если бить некого.
 function resolveDwarfAttack(game, unit) {
+  if (unit.frogSpell) return null;
   const target = nearestDwarfTarget(game, unit);
   if (!target) return null;
 
@@ -2482,6 +2608,7 @@ function resolveDwarfAttack(game, unit) {
   }
   const attackerDefeated = unit.hp <= 0;
   if (attackerDefeated) {
+    releaseLakeFrogSpell(game, unit);
     unit.alive = false;
     unit.position = null;
     unit.routeIndex = -1;
@@ -2532,7 +2659,7 @@ function retreatDwarf(game, unit, steps) {
 // (атакующий или заблокированный) дварф больше не «замораживает» всю цепочку.
 // Юниты могут проходить сквозь друг друга, но не могут закончить шаг на клетке,
 // где в покое стоит другой юнит (дварф или персонаж).
-function moveDwarfColumn(game, state, units, moves) {
+function moveDwarfColumn(game, state, units, moves, frogReleased = []) {
   if (!state.route?.length) return;
 
   // Проход блокируют только ВРАГИ (персонажи). Сквозь своих проходить можно.
@@ -2549,6 +2676,10 @@ function moveDwarfColumn(game, state, units, moves) {
 
     const dice = dwarfDiceRoller(unit);
     const allowance = (dice[0] ?? 0) + (dice[1] ?? 0);
+    if (unit.frogSpell && allowance >= (unit.frogSpell.dischargeTotal ?? 7)) {
+      const released = releaseLakeFrogSpell(game, unit);
+      if (released) frogReleased.push({ unitId: unit.id, dice, total: allowance, ...released });
+    }
     const startCell = unit.position;
     const startIndex = strictDwarfRouteIndex(state, unit);
     restingCells.delete(startCell); // свою клетку освобождаем на время хода
@@ -2580,6 +2711,7 @@ function moveDwarfColumn(game, state, units, moves) {
     // 2a) Дошёл до ворот — уходит с поля: снимаем фишку, больше не возвращается.
     if (exited) {
       const lastCell = path.length ? path[path.length - 1].cell : startCell;
+      releaseLakeFrogSpell(game, unit);
       unit.position = null;
       unit.routeIndex = lastIndex;
       unit.exited = true;
@@ -2630,6 +2762,7 @@ function moveDwarfColumn(game, state, units, moves) {
 
 // Есть ли у дварфа цель прямо сейчас в дальности его атаки.
 function dwarfHasAttackTarget(game, unit) {
+  if (unit.frogSpell) return false;
   const target = nearestDwarfTarget(game, unit);
   if (!target) return false;
   const profile = DWARF_ATTACK[unit.kind] ?? DWARF_ATTACK.ordinary;
@@ -3139,7 +3272,7 @@ function rollDie() {
   return Math.floor(Math.random() * 6) + 1;
 }
 
-// Добор по рубашке клетки. Красная колода и Сказочная опушка обрабатываются
+// Добор по рубашке клетки. Красная колода и Таинственная опушка обрабатываются
 // отдельными событиями, трофеи не входят в случайный добор.
 const DRAW_DECKS = Object.freeze(['mixed', 'forest', 'dark_forest', 'sheep', 'lake', 'recipes', 'blueprints']);
 const DRAW_DECK_ALIASES = Object.freeze({
@@ -3175,7 +3308,7 @@ function buildRedDeck() {
   return shuffle(deck);
 }
 
-// Сказочная опушка: все карты fairy_glade с copies > 0. Трофеи с copies:0
+// Таинственная опушка: все карты fairy_glade с copies > 0. Трофеи с copies:0
 // остаются вне случайной выдачи и появляются только через события/правила.
 function buildFairyDeck() {
   const deck = [];

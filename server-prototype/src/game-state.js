@@ -610,6 +610,7 @@ function dwarfStateView(state, visible = null) {
         hidden: Boolean(fogged),
         alive: unit.alive !== false,
         cardCount: unit.inventory?.length ?? 0,
+        frogSpell: fogged ? null : frogSpellView(unit.frogSpell),
       };
     }),
   };

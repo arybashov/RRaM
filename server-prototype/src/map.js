@@ -44,7 +44,7 @@ export function cellRole(id) {
 }
 
 // Колода события на клетке: 'fairy_glade' и т.п., либо null. Используется для
-// маршрутизации события (красная клетка vs Сказочная опушка с фениксом).
+// маршрутизации события (красная клетка vs Таинственная опушка с фениксом).
 export function cellDeck(id) {
   return cellsById.get(id)?.deck ?? null;
 }

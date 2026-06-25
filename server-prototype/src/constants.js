@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260625-17';
+export const BUILD_VERSION = '20260625-25';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -30,6 +30,13 @@ export const TELEPORT_CARD = 'teleport_beads';
 export const GOLD_FEATHER_OWN = 'gold_feather_own';
 export const GOLD_FEATHER_ENEMY = 'gold_feather_enemy';
 export const GOLD_FEATHER_CARDS = Object.freeze([GOLD_FEATHER_OWN, GOLD_FEATHER_ENEMY]);
+export const GEM_CARDS = Object.freeze([
+  'art_lake_001',
+  'art_lake_002',
+  'art_lake_003',
+  'art_lake_004',
+  'art_fairy_glade_001',
+]);
 
 // Параметры зверей (встречи на красных клетках и в лесу).
 // damage — урон персонажу в начале каждого хода владельца, пока зверь не убит;
@@ -160,6 +167,197 @@ export const CRAFT_RECIPES = Object.freeze({
       { role: 'P', materials: [['art_dark_forest_002']], dice: { count: 1, min: 5 } },
     ],
   },
+  topormol: {
+    via: 'art_dark_forest_013',
+    result: 'topormol',
+    options: [
+      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['art_mixed_001'], ['art_forest_012', 'art_forest_007']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']], dice: { count: 1, min: 4 } },
+      { role: 'K', materials: [['art_mixed_001'], ['art_forest_012', 'art_forest_007']], dice: { count: 1, min: 4 } },
+    ],
+  },
+  art_dark_forest_004: {
+    role: 'K', via: 'art_dark_forest_003', result: 'art_dark_forest_004',
+    materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']],
+    dice: { count: 2, min: 3 },
+  },
+  chainmail_light_ext: {
+    via: 'art_dark_forest_005', result: 'chainmail_light',
+    options: [
+      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']], dice: { count: 2, min: 3 } },
+      { role: 'K', materials: [['art_mixed_001']], dice: { count: 2, min: 3 } },
+      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']], dice: { count: 1, min: 5 } },
+      { role: 'K', materials: [['art_mixed_001']], dice: { count: 1, min: 5 } },
+    ],
+  },
+  art_dark_forest_008: {
+    role: 'K', via: 'art_dark_forest_007', result: 'art_dark_forest_008',
+    materials: [['art_forest_011']],
+    dice: { count: 2, min: 3 },
+  },
+  shield_dr_ext: {
+    via: 'art_dark_forest_009', result: 'shield_dr',
+    options: [
+      { role: 'K', materials: [['ore_medium', 'ore_coarse', 'bark', 'art_forest_005']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['ore_medium', 'ore_coarse', 'bark', 'art_forest_005']], dice: { count: 1, min: 4 } },
+    ],
+  },
+  shield_lom_ext: {
+    via: 'art_dark_forest_011', result: 'shield_lom',
+    options: [
+      { role: 'K', materials: [['ore_medium', 'ore_coarse', 'art_forest_005']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['ore_medium', 'ore_coarse', 'art_forest_005']], dice: { count: 1, min: 3 } },
+    ],
+  },
+  shield_kalan_ext: {
+    via: 'art_dark_forest_015', result: 'shield_kalan',
+    options: [
+      { role: 'K', materials: [['ore_medium', 'ore_coarse', 'bark']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['ore_medium', 'ore_coarse', 'bark']], dice: { count: 1, min: 4 } },
+    ],
+  },
+  sword_sech_ext: {
+    via: 'art_dark_forest_017', result: 'sword_sech',
+    options: [
+      { role: 'K', materials: [['ore_medium', 'ore_coarse', 'art_mixed_001']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['ore_medium', 'ore_coarse', 'art_mixed_001']], dice: { count: 1, min: 3 } },
+    ],
+  },
+  art_dark_forest_020: {
+    via: 'art_dark_forest_019', result: 'art_dark_forest_020',
+    options: [
+      { role: 'K', materials: [['art_forest_005']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['art_forest_012'], ['raw_ruby']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['art_forest_005']], dice: { count: 1, min: 3 } },
+      { role: 'K', materials: [['art_forest_012'], ['raw_ruby']], dice: { count: 1, min: 3 } },
+    ],
+  },
+  axe_sun_ext: {
+    role: 'K', via: 'art_dark_forest_021', result: 'axe_sun',
+    materials: [['art_forest_011', 'art_dark_forest_002']],
+    dice: { count: 2, min: 4 },
+  },
+  sword_lorp_ext: {
+    role: 'K', via: 'art_dark_forest_026', result: 'sword_lorp',
+    materials: [['ore_medium', 'ore_coarse']],
+    dice: { count: 1, min: 3 },
+  },
+  art_dark_forest_030: {
+    via: 'art_dark_forest_029', result: 'art_dark_forest_030',
+    options: [
+      { role: 'K', materials: [['art_forest_011']], dice: { count: 2, min: 3 } },
+      { role: 'K', materials: [['art_mixed_001'], ['art_mixed_001']], dice: { count: 2, min: 3 } },
+      { role: 'K', materials: [['art_forest_011']], dice: { count: 1, min: 4 } },
+      { role: 'K', materials: [['art_mixed_001'], ['art_mixed_001']], dice: { count: 1, min: 4 } },
+    ],
+  },
+  art_dark_forest_034: {
+    via: 'art_dark_forest_033', result: 'art_dark_forest_034',
+    options: [
+      { role: 'K', materials: [['art_mixed_001'], ['art_mixed_001']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['raw_ruby']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['art_mixed_001'], ['art_mixed_001']], dice: { count: 1, min: 4 } },
+      { role: 'K', materials: [['raw_ruby']], dice: { count: 1, min: 4 } },
+    ],
+  },
+  helm_shem_ext: {
+    role: 'K', via: 'art_dark_forest_035', result: 'helm_shem',
+    materials: [['art_mixed_001'], ['gold_nugget', 'art_dark_forest_001']],
+    dice: { count: 1, min: 5 },
+  },
+  art_dark_forest_038: {
+    via: 'art_dark_forest_037', result: 'art_dark_forest_038',
+    options: [
+      { role: 'K', materials: [['art_forest_011'], ['art_forest_011']], dice: { count: 1, min: 5 } },
+      { role: 'K', materials: [['art_mixed_001'], GOLD_FEATHER_CARDS], dice: { count: 1, min: 5 } },
+    ],
+  },
+  art_dark_forest_040: {
+    via: 'art_dark_forest_039', result: 'art_dark_forest_040',
+    options: [
+      { role: 'K', materials: [['art_forest_011'], ['art_mixed_001']], dice: { count: 2, min: 4 } },
+      { role: 'P', materials: [['art_dark_forest_001']], dice: { count: 1, min: 5 } },
+    ],
+  },
+  helm_ttm_ext: {
+    via: 'art_dark_forest_041', result: 'helm_ttm',
+    options: [
+      { role: 'K', materials: [['art_mixed_001'], ['art_mixed_001'], ['gold_nugget', 'art_dark_forest_001']], dice: { count: 2, min: 3 } },
+      { role: 'K', materials: [['art_mixed_001'], ['art_mixed_001'], ['gold_nugget', 'art_dark_forest_001']], dice: { count: 1, min: 5 } },
+    ],
+  },
+  armor_il_ext: {
+    via: 'art_dark_forest_043', result: 'armor_il',
+    options: [
+      { role: 'K', materials: [['art_forest_011'], ['art_dark_forest_001']], dice: { count: 2, min: 3 } },
+      { role: 'K', materials: [['art_forest_011'], ['art_dark_forest_001']], dice: { count: 1, min: 4 } },
+    ],
+  },
+  art_recipes_004: {
+    role: 'S', via: 'art_recipes_003', result: 'art_recipes_004',
+    materials: [['art_forest_005', 'bark']],
+    dice: { count: 2, min: 2 },
+  },
+  leather_shirt_ext: {
+    role: 'S', via: 'art_recipes_005', result: 'leather_shirt',
+    materials: [['beast_hide', 'hide_red', 'sheep_hide_c'], ['beast_hide', 'hide_red', 'sheep_hide_c'], ['yarn']],
+    dice: { count: 2, min: 3 },
+  },
+  art_recipes_008: {
+    via: 'art_recipes_007', result: 'art_recipes_008',
+    options: [
+      { role: 'S', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse'], ['sheep_hide_r']], dice: { count: 2, min: 4 } },
+      { role: 'S', materials: [['art_mixed_001'], ['sheep_hide_r']], dice: { count: 2, min: 4 } },
+    ],
+  },
+  art_recipes_010: {
+    role: 'S', via: 'art_recipes_009', result: 'art_recipes_010',
+    materials: [['shaman_carpet'], ['bark', 'art_forest_005'], GEM_CARDS],
+    dice: { count: 1, min: 6 },
+  },
+  art_recipes_012: {
+    role: 'S', via: 'art_recipes_011', result: 'art_recipes_012',
+    materials: [['shaman_carpet'], ['bark', 'art_forest_005']],
+    dice: { count: 2, min: 3 },
+  },
+  art_recipes_014: {
+    role: 'S', via: 'art_recipes_013', result: 'art_recipes_014',
+    materials: [['shaman_carpet'], ['bark', 'art_forest_005'], ['art_forest_003']],
+    dice: { count: 2, min: 2 },
+  },
+  art_recipes_016: {
+    role: 'S', via: 'art_recipes_015', result: 'art_recipes_016',
+    materials: [['shaman_carpet'], ['art_lake_007']],
+    dice: { count: 2, min: 2 },
+  },
+  art_recipes_018: {
+    role: 'S', via: 'art_recipes_017', result: 'art_recipes_018',
+    materials: [['art_mixed_003']],
+    dice: { count: 2, min: 2 },
+  },
+  art_recipes_020: {
+    role: 'S', via: 'art_recipes_019', result: 'art_recipes_020',
+    materials: [['art_forest_007', 'art_forest_012'], ['beast_hide', 'hide_red', 'sheep_hide_c']],
+    dice: { count: 2, min: 2 },
+  },
+  art_recipes_021: {
+    role: 'S', via: 'art_recipes_019', result: 'art_recipes_021',
+    materials: [['art_forest_007', 'art_forest_012'], GEM_CARDS],
+    dice: { count: 2, min: 3 },
+  },
+  art_recipes_024: {
+    via: 'recipe_obrud', result: 'art_recipes_024',
+    options: [
+      { role: 'S', materials: [['amanita_glade'], ['art_mixed_003']], dice: { count: 2, min: 2 } },
+      { role: 'S', materials: [['amanita_glade'], ['art_mixed_003']], dice: { count: 1, min: 5 } },
+    ],
+  },
+  art_recipes_026: {
+    role: 'S', via: 'art_recipes_025', result: 'art_recipes_026',
+    materials: [['amanita', 'amanita_color'], ['art_mixed_003']],
+    dice: { count: 2, min: 3 },
+  },
   // Шерсть барана → Клубок; отдельная карта рецепта не требуется.
   yarn: {
     role: 'S',
@@ -230,6 +428,12 @@ export const ARMOR_CARDS = Object.freeze({
   shield_kalan:    { absorb: 10, name: 'Щит Калан' },
   shield_dr:       { absorb: 20, name: 'Щит Др' },
   shield_revenge:  { absorb: 25, name: 'Щит Отмщение' },
+  art_dark_forest_004: { absorb: 15, name: 'Небрежная кольчуга' },
+  art_dark_forest_008: { absorb: 50, name: 'Щит защита духа' },
+  art_dark_forest_034: { absorb: 50, name: 'Щит луна' },
+  art_dark_forest_040: { absorb: 25, name: 'Панцирь' },
+  art_recipes_004: { absorb: 10, name: 'Каска-маска' },
+  art_recipes_008: { absorb: 10, name: 'Разведка' },
   helm_shem:       { absorb: 20, name: 'Шлем Шем' },
   helm_ttm:        { absorb: 25, name: 'Шлем ТТМ' },
   armor_il:        { absorb: 25, name: 'Защита Ил' },
@@ -247,6 +451,10 @@ export const WEAPON_CARDS = Object.freeze({
   sword_sech: { damage: 15, piercing: true, name: 'Меч Сеч' },
   sword_lorp: { damage: 15, piercing: true, name: 'Меч Лорп' },
   axe_sun:    { damage: 50, piercing: true, name: 'Секира Красное солнце' },
+  art_dark_forest_038: { damage: 15, piercing: true, name: 'Топоры близнецы' },
+  art_dark_forest_020: { damage: 10, piercing: false, name: 'Деревянный молоток' },
+  art_recipes_020: { damage: 10, piercing: false, name: 'Обычный посох' },
+  art_recipes_021: { damage: 15, piercing: false, name: 'Посох тэрниа' },
 });
 
 // Туман войны: вражеские персонажи видны только в радиусе N клеток от своих
@@ -310,7 +518,7 @@ export const CARD_CATALOG = Object.freeze([
     desc: 'Ловушка. Выложите рубашкой вверх на свою фишку. Если враг атакует первым, он теряет по 5 HP в начале каждого своего хода, пока не стряхнёт карту (кубик 4+).' },
   // Готовое оружие (флэт-урон, без учёта защиты; держится в руке, многоразовое).
   { id: 'topormol',      deck: 'dark_forest', type: 'weapon',      copies: 0, name: 'Топормол',
-    desc: 'Оружие. Атака по врагу: −25 HP без учёта защиты. Многоразовое.' },
+    desc: 'Оружие. Атака по врагу: −25 HP без учёта защиты. По зверю убивает сразу. Многоразовое.' },
   { id: 'sword_sech',    deck: 'dark_forest', type: 'weapon',      copies: 0, name: 'Меч Сеч',
     desc: 'Оружие. Атака по врагу: −15 HP без учёта защиты. Многоразовое.' },
   { id: 'sword_lorp',    deck: 'dark_forest', type: 'weapon',      copies: 0, name: 'Меч Лорп',
@@ -367,7 +575,7 @@ export const CARD_CATALOG = Object.freeze([
   // --- Чертежи (только кузнец) ---
   { id: 'blueprint_irikon', deck: 'blueprints', type: 'blueprint', copies: 1, name: 'Чертёж Ирикон' },
 
-  // --- Сказочная опушка ---
+  // --- Таинственная опушка ---
   { id: 'phoenix_1',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к своему кузнецу)' },
   { id: 'phoenix_2',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к кузнецу врага)' },
   // copies:0 — не входит в случайную раздачу, появляется только как трофей феникса.
@@ -393,36 +601,36 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_dark_forest_001", deck: "dark_forest", type: "ingredient", copies: 1, name: "Средний золотой самородок" },
   { id: "art_dark_forest_002", deck: "dark_forest", type: "ingredient", copies: 1, name: "Большой золотой самородок" },
   { id: "art_dark_forest_003", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на небрежную кольчугу" },
-  { id: "art_dark_forest_004", deck: "dark_forest", type: "special", copies: 0, name: "Небрежная кольчуга" },
+  { id: "art_dark_forest_004", deck: "dark_forest", type: "armor", copies: 0, name: "Небрежная кольчуга" },
   { id: "art_dark_forest_005", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на легкую кольчугу" },
   { id: "art_dark_forest_007", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на щит защита духа" },
-  { id: "art_dark_forest_008", deck: "dark_forest", type: "special", copies: 0, name: "Щит защита духа" },
+  { id: "art_dark_forest_008", deck: "dark_forest", type: "armor", copies: 0, name: "Щит защита духа" },
   { id: "art_dark_forest_009", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на щит др." },
   { id: "art_dark_forest_011", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на ломщит" },
   { id: "art_dark_forest_013", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на топормол" },
   { id: "art_dark_forest_015", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на щит калан" },
   { id: "art_dark_forest_017", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на меч сеч" },
   { id: "art_dark_forest_019", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на деревянный молоток" },
-  { id: "art_dark_forest_020", deck: "dark_forest", type: "special", copies: 0, name: "Деревянный молоток" },
+  { id: "art_dark_forest_020", deck: "dark_forest", type: "weapon", copies: 0, name: "Деревянный молоток" },
   { id: "art_dark_forest_021", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на красное солнце" },
   { id: "art_dark_forest_026", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на меч лорп" },
   { id: "art_dark_forest_029", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на ошейник" },
   { id: "art_dark_forest_030", deck: "dark_forest", type: "special", copies: 0, name: "Ошейник приручения" },
   { id: "art_dark_forest_031", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на щит отмщение" },
   { id: "art_dark_forest_033", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на щит луна" },
-  { id: "art_dark_forest_034", deck: "dark_forest", type: "special", copies: 0, name: "Щит луна" },
+  { id: "art_dark_forest_034", deck: "dark_forest", type: "armor", copies: 0, name: "Щит луна" },
   { id: "art_dark_forest_035", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж шема" },
   { id: "art_dark_forest_037", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на рецепт близнецы" },
-  { id: "art_dark_forest_038", deck: "dark_forest", type: "special", copies: 0, name: "Топоры близнецы" },
+  { id: "art_dark_forest_038", deck: "dark_forest", type: "weapon", copies: 0, name: "Топоры близнецы" },
   { id: "art_dark_forest_039", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на панцирь" },
-  { id: "art_dark_forest_040", deck: "dark_forest", type: "special", copies: 0, name: "Панцирь" },
+  { id: "art_dark_forest_040", deck: "dark_forest", type: "armor", copies: 0, name: "Панцирь" },
   { id: "art_dark_forest_041", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на шлем ТТМ" },
   { id: "art_dark_forest_043", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на защиту Ил" },
   { id: "art_recipes_003", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на каска-маска" },
-  { id: "art_recipes_004", deck: "recipes", type: "special", copies: 0, name: "Каска-маска" },
+  { id: "art_recipes_004", deck: "recipes", type: "armor", copies: 0, name: "Каска-маска" },
   { id: "art_recipes_005", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на рубашку из кожи" },
   { id: "art_recipes_007", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на одежду разведчика" },
-  { id: "art_recipes_008", deck: "recipes", type: "special", copies: 0, name: "Разведка" },
+  { id: "art_recipes_008", deck: "recipes", type: "armor", copies: 0, name: "Разведка" },
   { id: "art_recipes_009", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на маску трехликого" },
   { id: "art_recipes_010", deck: "recipes", type: "special", copies: 0, name: "Маска трехликого" },
   { id: "art_recipes_011", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на бубун" },
@@ -434,13 +642,14 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_recipes_017", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на маску злая" },
   { id: "art_recipes_018", deck: "recipes", type: "special", copies: 0, name: "Маска злая" },
   { id: "art_recipes_019", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на обычный посох" },
-  { id: "art_recipes_020", deck: "recipes", type: "special", copies: 0, name: "Обычный посох" },
-  { id: "art_recipes_021", deck: "recipes", type: "special", copies: 0, name: "Посох тэрниа" },
+  { id: "art_recipes_020", deck: "recipes", type: "weapon", copies: 0, name: "Обычный посох" },
+  { id: "art_recipes_021", deck: "recipes", type: "weapon", copies: 0, name: "Посох тэрниа" },
   { id: "art_recipes_024", deck: "recipes", type: "special", copies: 0, name: "Обряд трех" },
   { id: "art_recipes_025", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на заклятие хозяин" },
   { id: "art_recipes_026", deck: "recipes", type: "special", copies: 0, name: "Заклятие хозяин" },
   { id: "art_fairy_glade_001", deck: "fairy_glade", type: "ingredient", copies: 1, name: "Редкий самоцвет" },
-  { id: "art_fairy_glade_005", deck: "fairy_glade", type: "beast", copies: 1, name: "Жаба вирид" },
+  { id: "art_fairy_glade_005", deck: "fairy_glade", type: "special", copies: 1, name: "Жаба ворчун",
+    desc: "Заклинание. Любой персонаж может применить в схватке со зверем, чтобы завершить её победой, или против соседнего противника, чтобы отключить оружие цели до броска суммы 7+. После снятия карта возвращается владельцу." },
   // --- FULL_ART_REGISTRY_EXTRA_CARDS_END ---
 ]);
 

@@ -181,6 +181,96 @@ test('cardbox transfers a card between own characters through the UI', async ({ 
   await p2.context().close();
 });
 
+test('mobile cardbox tap with slight movement opens enlarged card preview', async ({ browser }) => {
+  const p1 = await newGamePage(browser, {
+    webPort,
+    gamePort,
+    playerName: 'Alice',
+    viewport: { width: 720, height: 1280 },
+  });
+  const p2 = await newGamePage(browser, {
+    webPort,
+    gamePort,
+    playerName: 'Bob',
+    viewport: { width: 720, height: 1280 },
+  });
+
+  await createAndJoinRoom(p1, p2);
+  await grantCard(p1, 'K', 'bark');
+  await rollTurn(p1);
+  await selectRole(p1, 'K');
+
+  await p1.getByTestId('mode-transfer').click();
+  await expect(p1.getByTestId('cardbox')).toBeVisible();
+  const bark = await p1.evaluate(() => {
+    const smith = getMyChars().find((char) => char.role === 'K');
+    return {
+      index: smith.inventory.findIndex((card) => (card.id ?? card) === 'bark'),
+    };
+  });
+  const card = p1.locator(`[data-testid="cardbox-row-K"] [data-i="${bark.index}"]`);
+  const box = await card.boundingBox();
+  expect(box).not.toBeNull();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await p1.mouse.move(x, y);
+  await p1.mouse.down();
+  await p1.mouse.move(x + 10, y + 8);
+  await p1.mouse.up();
+
+  await expect(p1.locator('#eventOverlay')).toBeVisible();
+  await expect(p1.locator('#eventCardDisplay .card.card-face')).toBeVisible();
+  await expect(p1.locator('#eventOkBtn')).toHaveText('Закрыть');
+
+  await p1.context().close();
+  await p2.context().close();
+});
+
+test('server catalog card preview does not show disconnected placeholder text', async ({ browser }) => {
+  const p1 = await newGamePage(browser, {
+    webPort,
+    gamePort,
+    playerName: 'Alice',
+    viewport: { width: 720, height: 1280 },
+  });
+  const p2 = await newGamePage(browser, {
+    webPort,
+    gamePort,
+    playerName: 'Bob',
+    viewport: { width: 720, height: 1280 },
+  });
+
+  await createAndJoinRoom(p1, p2);
+  await grantCard(p1, 'K', 'art_dark_forest_013');
+  await rollTurn(p1);
+  await selectRole(p1, 'K');
+
+  await p1.getByTestId('mode-transfer').click();
+  await expect(p1.getByTestId('cardbox')).toBeVisible();
+  const topormolBlueprint = await p1.evaluate(() => {
+    const smith = getMyChars().find((char) => char.role === 'K');
+    return {
+      index: smith.inventory.findIndex((card) => (card.id ?? card) === 'art_dark_forest_013'),
+    };
+  });
+  const card = p1.locator(`[data-testid="cardbox-row-K"] [data-i="${topormolBlueprint.index}"]`);
+  const box = await card.boundingBox();
+  expect(box).not.toBeNull();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await p1.mouse.move(x, y);
+  await p1.mouse.down();
+  await p1.mouse.move(x + 8, y + 6);
+  await p1.mouse.up();
+
+  await expect(p1.locator('#eventOverlay')).toBeVisible();
+  await expect(p1.locator('#eventCardDisplay')).not.toContainText('не подключена');
+  await expect(p1.locator('#eventCardDisplay .inventory-card-art')).toHaveAttribute('src', /blueprint-topormol-v1\.png/);
+
+  await p1.context().close();
+  await p2.context().close();
+});
+
 test('second player can use terrain card controls from the UI', async ({ browser }) => {
   const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
   const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
@@ -244,6 +334,58 @@ test('session resume restores the room after page reload', async ({ browser }) =
   await expect.poll(() => p1.evaluate(() => getGame()?.characters?.length ?? 0)).toBe(10);
   await expect(p1.locator('#lobby.hidden')).toHaveCount(1);
   await expect.poll(() => p1.evaluate(() => ({ roomId: serverRoom.id, playerId: myPlayerId }))).toEqual(before);
+
+  await p1.context().close();
+  await p2.context().close();
+});
+
+test('desktop inventory shows actions above cards without card strip scrolling', async ({ browser }) => {
+  const p1 = await newGamePage(browser, {
+    webPort,
+    gamePort,
+    playerName: 'Alice',
+    viewport: { width: 1280, height: 900 },
+  });
+  const p2 = await newGamePage(browser, {
+    webPort,
+    gamePort,
+    playerName: 'Bob',
+    viewport: { width: 1280, height: 900 },
+  });
+
+  await createAndJoinRoom(p1, p2);
+  await grantCard(p1, 'V', 'dead_ore');
+  await selectRole(p1, 'V');
+  await expect.poll(() => p1.locator('.inventory-action-row').count()).toBeGreaterThan(0);
+
+  const layout = await p1.evaluate(() => {
+    const actions = document.querySelector('.inventory-actions');
+    const cards = document.querySelector('.inventory-cards-strip');
+    if (!actions || !cards) return { found: false };
+    const actionRect = actions.getBoundingClientRect();
+    const cardsRect = cards.getBoundingClientRect();
+    const cardRects = [...cards.querySelectorAll('.card.card-face')]
+      .map((card) => card.getBoundingClientRect());
+    const style = getComputedStyle(cards);
+    return {
+      found: true,
+      actionsAboveCards: actionRect.bottom <= cardsRect.top + 1,
+      noHorizontalScroll: cards.scrollWidth <= cards.clientWidth + 1,
+      overflowX: style.overflowX,
+      cardsInsideStrip: cardRects.every((rect) =>
+        rect.left >= cardsRect.left - 1
+        && rect.right <= cardsRect.right + 1
+        && rect.width > 0
+        && rect.height > 0),
+    };
+  });
+  expect(layout).toEqual({
+    found: true,
+    actionsAboveCards: true,
+    noHorizontalScroll: true,
+    overflowX: 'visible',
+    cardsInsideStrip: true,
+  });
 
   await p1.context().close();
   await p2.context().close();

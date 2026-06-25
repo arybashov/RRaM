@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BASE_CARD_CATALOG, CARD_CATALOG } from '../src/constants.js';
+import {
+  ARMOR_CARDS,
+  BASE_CARD_CATALOG,
+  BEASTS,
+  CARD_CATALOG,
+  CRAFT_RECIPES,
+  WEAPON_CARDS,
+} from '../src/constants.js';
 import { createGame } from '../src/rules.js';
 
 const allCards = [...BASE_CARD_CATALOG, ...CARD_CATALOG];
@@ -102,6 +109,58 @@ test('all blueprint cards have one copy', () => {
   const blueprints = allCards.filter((card) => card.type === 'blueprint');
   assert.equal(blueprints.length, 22);
   assert.ok(blueprints.every((card) => card.copies === 1));
+});
+
+test('all visible recipes and blueprints are connected to craft rules', () => {
+  const craftEntries = Object.values(CRAFT_RECIPES);
+  const craftVia = new Set(craftEntries.map((recipe) => recipe.via).filter(Boolean));
+  const craftResults = new Set(craftEntries.map((recipe) => recipe.result).filter(Boolean));
+  const catalogIds = new Set(allCards.map((card) => card.id));
+
+  const disconnectedSources = allCards
+    .filter((card) => ['recipe', 'blueprint'].includes(card.type))
+    .filter((card) => !craftVia.has(card.id))
+    .map((card) => card.id)
+    .sort();
+  assert.deepEqual(disconnectedSources, []);
+
+  const missingResults = [...craftResults]
+    .filter((id) => !catalogIds.has(id))
+    .sort();
+  assert.deepEqual(missingResults, []);
+});
+
+test('combat catalog cards are connected to combat tables', () => {
+  const missingArmor = allCards
+    .filter((card) => card.type === 'armor')
+    .filter((card) => !ARMOR_CARDS[card.id])
+    .map((card) => card.id)
+    .sort();
+  assert.deepEqual(missingArmor, []);
+
+  const weaponHandledElsewhere = new Set(['club']);
+  const missingWeapons = allCards
+    .filter((card) => card.type === 'weapon')
+    .filter((card) => !weaponHandledElsewhere.has(card.id))
+    .filter((card) => !WEAPON_CARDS[card.id])
+    .map((card) => card.id)
+    .sort();
+  assert.deepEqual(missingWeapons, []);
+
+  const missingBeasts = allCards
+    .filter((card) => card.type === 'beast')
+    .filter((card) => !BEASTS[card.id])
+    .map((card) => card.id)
+    .sort();
+  assert.deepEqual(missingBeasts, []);
+});
+
+test('Жаба ворчун is a special card, not a beast encounter', () => {
+  const toad = allCards.find((card) => card.id === 'art_fairy_glade_005');
+  assert.equal(toad?.name, 'Жаба ворчун');
+  assert.equal(toad?.deck, 'fairy_glade');
+  assert.equal(toad?.type, 'special');
+  assert.equal(BEASTS.art_fairy_glade_005, undefined);
 });
 
 test('sheep deck and ritual hide counts are stable', () => {

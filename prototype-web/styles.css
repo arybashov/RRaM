@@ -1154,7 +1154,34 @@ h2::after {
   /* На десктопе шторка не сворачивается — журнал и инвентарь всегда видны */
   .sheet-handle { display: none; }
   .sheet-body { display: block; flex: 1; min-height: 0; max-height: none; padding-top: 12px; }
-}
+
+  .inventory-actions {
+    order: -20;
+    margin-top: 0;
+    margin-bottom: 2px;
+  }
+
+  .beast-info,
+  .placed-terrain-cards {
+    order: -10;
+  }
+
+  .inventory-cards-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    align-items: start;
+    overflow: visible;
+    max-height: none;
+    padding-bottom: 0;
+    touch-action: auto;
+  }
+
+  .inventory-cards-strip .card.card-face {
+    width: 100%;
+    flex: initial;
+    touch-action: none;
+  }
+  }
 
 #endTurnBtn {
   width: 81px;
@@ -3796,6 +3823,35 @@ h2::after {
 }
 
 .inventory-action-row button:disabled { opacity: 0.5; }
+
+@media (min-width: 900px) {
+  .inventory-actions {
+    order: -20;
+    margin-top: 0;
+    margin-bottom: 2px;
+  }
+
+  .beast-info,
+  .placed-terrain-cards {
+    order: -10;
+  }
+
+  .inventory-cards-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    align-items: start;
+    overflow: visible;
+    max-height: none;
+    padding-bottom: 0;
+    touch-action: auto;
+  }
+
+  .inventory-cards-strip .card.card-face {
+    width: 100%;
+    flex: initial;
+    touch-action: none;
+  }
+}
 
 @media (max-width: 620px) {
   .placed-terrain-row {
