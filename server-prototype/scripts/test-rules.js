@@ -3446,6 +3446,49 @@ test('craft Марво трос — рецепт обруда работает',
   assert.deepEqual(g.turn.usedDice, [true, true]);
 });
 
+test('craft Щит Отмщение — Кузнец открывает по большому золотому самородку', () => {
+  const g = freshGame();
+  const smith = g.characters.find(c => c.owner === 'p1' && c.role === 'K');
+  smith.inventory.push('art_dark_forest_031', 'art_dark_forest_002');
+  g.turn.dice = [4, 5];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:craft', {
+    characterId: smith.id,
+    item: 'shield_revenge',
+  });
+
+  assert.equal(result.crafted.item, 'shield_revenge');
+  assert.ok(smith.inventory.includes('shield_revenge'));
+  assert.ok(smith.crafted.includes('shield_revenge'));
+  assert.ok(!smith.inventory.includes('art_dark_forest_031'));
+  assert.ok(!smith.inventory.includes('art_dark_forest_002'));
+  assert.deepEqual(g.turn.usedDice, [true, true]);
+});
+
+test('craft Щит Отмщение — Помощник открывает по двум рудам одним кубиком 5+', () => {
+  const g = freshGame();
+  const helper = g.characters.find(c => c.owner === 'p1' && c.role === 'P');
+  helper.inventory.push('art_dark_forest_031', 'art_forest_011', 'art_forest_011');
+  g.turn.dice = [2, 5];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:craft', {
+    characterId: helper.id,
+    item: 'shield_revenge',
+    dieIndex: 1,
+  });
+
+  assert.equal(result.crafted.item, 'shield_revenge');
+  assert.ok(helper.inventory.includes('shield_revenge'));
+  assert.ok(helper.crafted.includes('shield_revenge'));
+  assert.ok(!helper.inventory.includes('art_dark_forest_031'));
+  assert.equal(helper.inventory.filter(id => id === 'art_forest_011').length, 0);
+  assert.deepEqual(g.turn.usedDice, [false, true]);
+});
+
 test('Марво трос — Обряд трёх наносит кубик ×10 по двум врагам рядом', () => {
   const g = freshGame();
   const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');

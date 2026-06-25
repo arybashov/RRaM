@@ -1754,6 +1754,35 @@ function spendUsableCard(game, character, source) {
 // Крафт базового изделия по чертежу/рецепту (CRAFT_RECIPES, строго по PnP).
 // Чертёж/рецепт и материалы расходуются, с изделия снимается замок. Бесплатное
 // действие в свой ход (кубик не тратится). item по умолчанию — дубина (совместимость).
+function recipeOptions(recipe) {
+  if (Array.isArray(recipe.options) && recipe.options.length > 0) {
+    return recipe.options.map((option) => ({
+      role: option.role ?? recipe.role,
+      materials: option.materials ?? recipe.materials ?? [],
+      dice: option.dice ?? recipe.dice ?? null,
+    }));
+  }
+  return [{
+    role: recipe.role,
+    materials: recipe.materials ?? [],
+    dice: recipe.dice ?? null,
+  }];
+}
+
+function recipeRoleLabel(roles) {
+  return roles.map((role) => ROLE_NAMES[role] ?? role).join(' или ');
+}
+
+function findMaterialIndexes(character, materials) {
+  const consumedIdx = [];
+  for (const slot of materials) {
+    const idx = character.inventory.findIndex((id, i) => !consumedIdx.includes(i) && slot.includes(id));
+    if (idx === -1) return null;
+    consumedIdx.push(idx);
+  }
+  return consumedIdx;
+}
+
 function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
   assertActive(game, playerId);
   const character = ownCharacter(game, playerId, characterId);
@@ -1762,25 +1791,32 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
     throw new Error('Неизвестное изделие для крафта.');
   }
   // Изделие класса: открыть может только его класс (и эффект работает только у него)
-  if (character.role !== recipe.role) {
-    throw new Error(`Это изделие может открыть только ${ROLE_NAMES[recipe.role]}.`);
+  const options = recipeOptions(recipe);
+  const roleOptions = options.filter((option) => option.role === character.role);
+  if (!roleOptions.length) {
+    throw new Error(`Это изделие может открыть только ${recipeRoleLabel([...new Set(options.map((option) => option.role))])}.`);
   }
   if (!character.inventory.includes(recipe.via)) {
     throw new Error('Нужен чертёж или рецепт на это изделие.');
   }
   // По одной карте на каждый слот материалов (без повторного использования карты).
-  const consumedIdx = [];
-  for (const slot of recipe.materials) {
-    const idx = character.inventory.findIndex((id, i) => !consumedIdx.includes(i) && slot.includes(id));
-    if (idx === -1) {
-      throw new Error('Не хватает материалов для изделия.');
+  let matchedOption = null;
+  let consumedIdx = null;
+  for (const option of roleOptions) {
+    const indexes = findMaterialIndexes(character, option.materials);
+    if (indexes) {
+      matchedOption = option;
+      consumedIdx = indexes;
+      break;
     }
-    consumedIdx.push(idx);
   }
-  if (recipe.dice) {
+  if (!matchedOption) {
+    throw new Error('Не хватает материалов для изделия.');
+  }
+  if (matchedOption.dice) {
     assertRolled(game);
     let values;
-    if (recipe.dice.count === 1) {
+    if (matchedOption.dice.count === 1) {
       values = [dieValue(game, dieIndex)];
       lockMovement(game);
       spendDie(game, dieIndex);
@@ -1791,14 +1827,14 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
       values = [...game.turn.dice];
       spendAllDice(game);
     }
-    const success = values.every((value) => value >= recipe.dice.min);
+    const success = values.every((value) => value >= matchedOption.dice.min);
     if (!success) {
       return {
         craftAttempt: {
           characterId,
           item,
           values,
-          min: recipe.dice.min,
+          min: matchedOption.dice.min,
           success: false,
         },
       };

@@ -570,6 +570,14 @@ h2::after {
   color: #fff8eb;
 }
 
+.character-nav-btn.has-combat-hp:not(.hit) .character-nav-hp {
+  background: rgba(75, 53, 11, 0.92);
+  color: #ffe26a;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 7px rgba(255, 210, 64, 0.62);
+}
+
 .character-nav-btn.hit:disabled {
   opacity: 0.72;
 }
@@ -914,6 +922,25 @@ h2::after {
 
 .local-journal .log {
   max-height: min(320px, 34dvh);
+}
+
+.spectator-mode .guide-panel,
+.spectator-mode .guide-hint,
+.spectator-mode .guide-messages,
+.spectator-sheet #inventoryTitle,
+.spectator-sheet #inventory {
+  display: none !important;
+}
+
+.spectator-sheet .local-journal {
+  display: block;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.spectator-sheet .sheet-chat {
+  display: none;
 }
 
 /* ---------- Локальные подсказки и сообщения игры ---------- */
@@ -1579,6 +1606,12 @@ h2::after {
   stroke-linejoin: round;
   fill: #fff;
   font-weight: 900;
+}
+
+.token .token-hp.combat-hp {
+  stroke: #5f3e00;
+  fill: #ffe26a;
+  filter: drop-shadow(0 0 3px rgba(255, 210, 64, 0.75));
 }
 
 .beast-card-hp {
@@ -3328,10 +3361,11 @@ h2::after {
   font-size: 10px;
   font-weight: 600;
   overflow: hidden;
+  cursor: zoom-in;
   touch-action: none; /* перетаскивание не должно скроллить список */
 }
 .cardbox.can-transfer .cbx-card,
-.cardbox-overlay.can-transfer .cbx-card { cursor: grab; }
+.cardbox-overlay.can-transfer .cbx-card { cursor: zoom-in; }
 .cbx-card.selected-transfer {
   border-color: var(--gold);
   box-shadow: 0 0 0 2px rgba(244, 201, 93, 0.24);
@@ -3373,6 +3407,29 @@ h2::after {
   background: rgba(10, 13, 19, 0.82);
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.8);
   font-size: 12px;
+}
+.cbx-transfer-btn {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid rgba(244, 201, 93, 0.7);
+  border-radius: 50%;
+  background: rgba(10, 13, 19, 0.86);
+  color: var(--gold);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.68);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+.cbx-transfer-btn:active {
+  transform: scale(0.95);
 }
 .cbx-card.dragging { opacity: 0.35; }
 

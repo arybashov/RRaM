@@ -89,7 +89,14 @@ test('spectator can watch an active public room from the lobby', async ({ browse
   await expect(spectator.getByTestId('board')).toBeVisible();
   await expect(spectator.getByTestId('turn-action')).toBeDisabled();
   await expect(spectator.getByTestId(/^character-/)).toHaveCount(0);
-  await expect(spectator.locator('#inventory')).toContainText('Режим зрителя');
+  await expect(spectator.locator('#guidePanel')).toBeHidden();
+  await expect(spectator.locator('#fogLayer')).toHaveCount(0);
+  await expect(spectator.locator('.fog-hidden')).toHaveCount(0);
+  await expect(spectator.locator('#sheet.spectator-sheet.open')).toHaveCount(1);
+  await expect(spectator.locator('#inventory')).toBeHidden();
+  await expect(spectator.locator('#gameChatInput')).toBeHidden();
+  await expect(spectator.locator('#localJournal')).toBeVisible();
+  await expect(spectator.locator('#localJournal h2')).toHaveText('События');
 
   await expect.poll(() => spectator.evaluate(() => ({
     spectatorMode,
@@ -158,7 +165,7 @@ test('cardbox transfers a card between own characters through the UI', async ({ 
       index: smith.inventory.findIndex((card) => (card.id ?? card) === 'bark'),
     };
   });
-  await p1.locator(`[data-testid="cardbox-row-K"] [data-i="${bark.index}"]`).click();
+  await p1.locator(`[data-testid="cardbox-row-K"] [data-i="${bark.index}"] .cbx-transfer-btn`).click();
   await p1.getByTestId('cardbox-target-P').click();
 
   await expect.poll(() => p1.evaluate(() => {
@@ -201,12 +208,23 @@ test('second player can use terrain card controls from the UI', async ({ browser
   });
 
   await expect(p2.locator('.placed-terrain-cards')).toBeVisible();
-  await expect(p2.locator('.combat-stat-defense')).toContainText('5');
+  await expect(p2.getByTestId('character-V').locator('.character-nav-hp')).toHaveText('105 HP');
+  await expect(p2.locator('.token.own.role-V .token-hp.combat-hp')).toHaveText('105');
   await expect(p2.getByTestId('terrain-return')).toBeVisible();
+
+  await p2.getByTestId('terrain-flip').click();
+  await expect(p2.getByTestId('character-V').locator('.character-nav-hp')).toHaveText('100 HP');
+  await expect(p2.locator('.token.own.role-V .token-hp.combat-hp')).toHaveCount(0);
+
+  await p2.getByTestId('terrain-flip').click();
+  await expect(p2.getByTestId('character-V').locator('.character-nav-hp')).toHaveText('105 HP');
+  await expect(p2.locator('.token.own.role-V .token-hp.combat-hp')).toHaveText('105');
 
   await p2.getByTestId('terrain-return').click();
 
   await expect(p2.locator('.placed-terrain-cards')).toHaveCount(0);
+  await expect(p2.getByTestId('character-V').locator('.character-nav-hp')).toHaveText('100 HP');
+  await expect(p2.locator('.token.own.role-V .token-hp.combat-hp')).toHaveCount(0);
   await expect.poll(() => p2.evaluate(() => getSelChar()?.inventory?.some((card) => (card.id ?? card) === 'bark')))
     .toBe(true);
 

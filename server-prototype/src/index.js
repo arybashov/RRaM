@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import { randomUUID } from 'node:crypto';
+import { createReadStream, existsSync } from 'node:fs';
+import { dirname, extname, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createStore } from './game-state.js';
 import { ClientCommand, ServerEvent, GAME_COMMANDS } from './protocol.js';
 import { runBotTurn } from './bot.js';
@@ -12,6 +15,8 @@ import { BASE_CARD_CATALOG, BUILD_VERSION, CARD_CATALOG } from './constants.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '127.0.0.1';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const WEB_ROOT = resolve(process.env.WEB_ROOT ?? resolve(__dirname, '../../prototype-web'));
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 const DEBUG_COMMANDS_ENABLED = process.env.DEBUG_COMMANDS === '1'
   || (process.env.NODE_ENV !== 'production' && LOCAL_HOSTS.has(HOST));
@@ -36,6 +41,21 @@ app.get('/health', async () => ({
   ok: true,
   service: 'rram-server-prototype',
 }));
+
+app.get('/*', async (req, reply) => {
+  if (!existsSync(WEB_ROOT)) {
+    return reply.code(404).send('Not found');
+  }
+  const url = new URL(req.raw.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+  const cleanPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
+  const filePath = resolve(WEB_ROOT, `.${cleanPath}`);
+  if (!isPathInside(filePath, WEB_ROOT) || !existsSync(filePath)) {
+    return reply.code(404).send('Not found');
+  }
+  return reply
+    .type(mimeFor(filePath))
+    .send(createReadStream(filePath));
+});
 
 app.get('/ws', { websocket: true }, (socket, req) => {
   const connectionId = randomUUID();
@@ -425,4 +445,23 @@ function maybeTriggerBot(roomId) {
 
 function send(socket, type, payload) {
   socket.send(JSON.stringify({ type, payload }));
+}
+
+function isPathInside(filePath, rootPath) {
+  const rel = relative(rootPath, filePath);
+  return rel === '' || (!rel.startsWith('..') && !resolve(rel).startsWith('..'));
+}
+
+function mimeFor(filePath) {
+  return {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.json': 'application/json; charset=utf-8',
+  }[extname(filePath).toLowerCase()] ?? 'application/octet-stream';
 }

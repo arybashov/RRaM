@@ -263,6 +263,8 @@ const ADMIN_HTML = `<!doctype html>
   tr:last-child td { border-bottom:0; }
   .warn { color:#ffb454; } .bad { color:#ff6b6b; } .ok { color:#5fe3b0; } .muted { color:#6b7c99; }
   .pill { padding:1px 7px; border-radius:6px; background:#243a63; font-size:12px; }
+  .watch-link { display:inline-block; padding:2px 8px; border-radius:6px; background:#1f7a55; color:#eafff5; text-decoration:none; font-size:12px; font-weight:700; }
+  .watch-link:hover { background:#258a61; }
 </style></head>
 <body>
 <header>
@@ -294,7 +296,7 @@ const ADMIN_HTML = `<!doctype html>
     <th>id</th><th>IP</th><th>девайс</th><th>пинг</th><th>версия</th><th>где</th><th>комната</th><th>игрок</th><th>онлайн</th><th>idle</th>
   </tr></thead><tbody></tbody></table></section>
   <section><h2>Комнаты / партии</h2><table id="rooms"><thead><tr>
-    <th>код</th><th>тип</th><th>статус</th><th>игроки</th><th>партия</th>
+    <th>код</th><th>тип</th><th>статус</th><th>игроки</th><th>партия</th><th>действие</th>
   </tr></thead><tbody></tbody></table></section>
 </main>
 <script>
@@ -361,8 +363,11 @@ async function tick(){
       const alive = r.game.characters.filter(c=>!c.dead).length;
       game = r.game.over ? '<span class=ok>завершена</span>' : 'ход активен · живых фишек '+alive;
     }
-    return '<tr><td><b>'+r.code+'</b></td><td><span class=pill>'+r.type+'</span></td><td>'+r.status+'</td><td>'+players+'</td><td>'+game+'</td></tr>';
-  }).join('') || '<tr><td colspan=5 class=muted>нет комнат</td></tr>';
+    const watch = r.status === 'active' && r.type === 'public' && r.game
+      ? '<a class=watch-link target="_blank" rel="noopener" href="/?watch='+encodeURIComponent(r.code)+'">Смотреть</a>'
+      : '<span class=muted>—</span>';
+    return '<tr><td><b>'+r.code+'</b></td><td><span class=pill>'+r.type+'</span></td><td>'+r.status+'</td><td>'+players+'</td><td>'+game+'</td><td>'+watch+'</td></tr>';
+  }).join('') || '<tr><td colspan=6 class=muted>нет комнат</td></tr>';
 
   // Точка в историю графика: ваша задержка, макс. пинг клиентов, число клиентов.
   const rtts = d.clients.map(c=>c.rtt).filter(v=>typeof v==='number');

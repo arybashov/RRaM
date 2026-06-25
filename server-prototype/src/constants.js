@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260625-10';
+export const BUILD_VERSION = '20260625-17';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -149,6 +149,16 @@ export const CRAFT_RECIPES = Object.freeze({
     result: 'irikon',
     materials: [['task_irikon'], GOLD_FEATHER_CARDS],
     dice: { count: 2, min: 3 },
+  },
+  shield_revenge: {
+    via: 'art_dark_forest_031',
+    result: 'shield_revenge',
+    options: [
+      { role: 'K', materials: [['art_forest_011'], ['art_forest_011']], dice: { count: 2, min: 4 } },
+      { role: 'K', materials: [['art_dark_forest_002']], dice: { count: 2, min: 4 } },
+      { role: 'P', materials: [['art_forest_011'], ['art_forest_011']], dice: { count: 1, min: 5 } },
+      { role: 'P', materials: [['art_dark_forest_002']], dice: { count: 1, min: 5 } },
+    ],
   },
   // Шерсть барана → Клубок; отдельная карта рецепта не требуется.
   yarn: {
@@ -347,10 +357,10 @@ export const CARD_CATALOG = Object.freeze([
 
   // --- Рецепты (только шаман) ---
   { id: 'recipe_armor',  deck: 'recipes',     type: 'recipe',      copies: 2, name: 'Рецепт на жест' },
-  { id: 'armor_zhest',   deck: 'recipes',     type: 'armor',       copies: 2, name: 'Жест' },
-  { id: 'porcha',        deck: 'recipes',     type: 'provocation', copies: 2, name: 'Порча' },
+  { id: 'armor_zhest',   deck: 'recipes',     type: 'armor',       copies: 0, name: 'Жест' },
+  { id: 'porcha',        deck: 'recipes',     type: 'provocation', copies: 0, name: 'Порча' },
   { id: 'recipe_obrud',  deck: 'recipes',     type: 'recipe',      copies: 2, name: 'Рецепт на обруд' },
-  { id: 'marvo',         deck: 'recipes',     type: 'provocation', copies: 2, name: 'Марво трос' },
+  { id: 'marvo',         deck: 'recipes',     type: 'provocation', copies: 0, name: 'Марво трос' },
   { id: 'ritual_hide',   deck: 'recipes',     type: 'special',     copies: 1, name: 'Шкура ритуалов',
     desc: 'Шаман выкладывает лицом вверх. Кубик 4+ перезаряжает использованные Бусы телепортации, после попытки Шкура ритуалов переворачивается рубашкой вверх.' },
 
@@ -409,26 +419,26 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_dark_forest_041", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на шлем ТТМ" },
   { id: "art_dark_forest_043", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на защиту Ил" },
   { id: "art_recipes_003", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на каска-маска" },
-  { id: "art_recipes_004", deck: "recipes", type: "special", copies: 1, name: "Каска-маска" },
+  { id: "art_recipes_004", deck: "recipes", type: "special", copies: 0, name: "Каска-маска" },
   { id: "art_recipes_005", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на рубашку из кожи" },
   { id: "art_recipes_007", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на одежду разведчика" },
-  { id: "art_recipes_008", deck: "recipes", type: "special", copies: 1, name: "Разведка" },
+  { id: "art_recipes_008", deck: "recipes", type: "special", copies: 0, name: "Разведка" },
   { id: "art_recipes_009", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на маску трехликого" },
-  { id: "art_recipes_010", deck: "recipes", type: "special", copies: 1, name: "Маска трехликого" },
+  { id: "art_recipes_010", deck: "recipes", type: "special", copies: 0, name: "Маска трехликого" },
   { id: "art_recipes_011", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на бубун" },
-  { id: "art_recipes_012", deck: "recipes", type: "special", copies: 1, name: "Маска бубун" },
+  { id: "art_recipes_012", deck: "recipes", type: "special", copies: 0, name: "Маска бубун" },
   { id: "art_recipes_013", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на маску оху" },
-  { id: "art_recipes_014", deck: "recipes", type: "special", copies: 1, name: "Маска оху" },
+  { id: "art_recipes_014", deck: "recipes", type: "special", copies: 0, name: "Маска оху" },
   { id: "art_recipes_015", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на бутыль дип" },
-  { id: "art_recipes_016", deck: "recipes", type: "special", copies: 1, name: "Бутыль дип" },
+  { id: "art_recipes_016", deck: "recipes", type: "special", copies: 0, name: "Бутыль дип" },
   { id: "art_recipes_017", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на маску злая" },
-  { id: "art_recipes_018", deck: "recipes", type: "special", copies: 1, name: "Маска злая" },
+  { id: "art_recipes_018", deck: "recipes", type: "special", copies: 0, name: "Маска злая" },
   { id: "art_recipes_019", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на обычный посох" },
-  { id: "art_recipes_020", deck: "recipes", type: "special", copies: 1, name: "Обычный посох" },
-  { id: "art_recipes_021", deck: "recipes", type: "special", copies: 1, name: "Посох тэрниа" },
-  { id: "art_recipes_024", deck: "recipes", type: "special", copies: 1, name: "Обряд трех" },
+  { id: "art_recipes_020", deck: "recipes", type: "special", copies: 0, name: "Обычный посох" },
+  { id: "art_recipes_021", deck: "recipes", type: "special", copies: 0, name: "Посох тэрниа" },
+  { id: "art_recipes_024", deck: "recipes", type: "special", copies: 0, name: "Обряд трех" },
   { id: "art_recipes_025", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на заклятие хозяин" },
-  { id: "art_recipes_026", deck: "recipes", type: "special", copies: 1, name: "Заклятие хозяин" },
+  { id: "art_recipes_026", deck: "recipes", type: "special", copies: 0, name: "Заклятие хозяин" },
   { id: "art_fairy_glade_001", deck: "fairy_glade", type: "ingredient", copies: 1, name: "Редкий самоцвет" },
   { id: "art_fairy_glade_005", deck: "fairy_glade", type: "beast", copies: 1, name: "Жаба вирид" },
   // --- FULL_ART_REGISTRY_EXTRA_CARDS_END ---

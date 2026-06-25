@@ -47,9 +47,9 @@ test('card catalog totals are stable', () => {
   assert.equal(BASE_CARD_CATALOG.length, 11);
   assert.equal(copies(BASE_CARD_CATALOG), 11);
   assert.equal(CARD_CATALOG.length, 121);
-  assert.equal(copies(CARD_CATALOG), 134);
+  assert.equal(copies(CARD_CATALOG), 117);
   assert.equal(allCards.length, 132);
-  assert.equal(copies(allCards), 145);
+  assert.equal(copies(allCards), 128);
 });
 
 test('card ids are unique across base and draw catalogs', () => {
@@ -71,7 +71,7 @@ test('draw deck card counts are stable', () => {
       forest: { unique: 15, copies: 24 },
       lake: { unique: 7, copies: 7 },
       mixed: { unique: 4, copies: 16 },
-      recipes: { unique: 27, copies: 32 },
+      recipes: { unique: 27, copies: 15 },
       red: { unique: 10, copies: 10 },
       sheep: { unique: 4, copies: 7 },
       trophy: { unique: 3, copies: 0 },
@@ -119,6 +119,22 @@ test('sheep deck and ritual hide counts are stable', () => {
   assert.equal(ritualHide?.deck, 'recipes');
   assert.equal(ritualHide?.type, 'special');
   assert.equal(ritualHide?.copies, 1);
+});
+
+test('recipes deck draw contains no finished craft results', () => {
+  const drawableRecipes = byDeck('recipes').filter((card) => card.copies > 0);
+  assert.deepEqual(
+    drawableRecipes
+      .filter((card) => card.type !== 'recipe' && card.id !== 'ritual_hide')
+      .map((card) => card.id)
+      .sort(),
+    [],
+  );
+
+  for (const id of ['armor_zhest', 'porcha', 'marvo']) {
+    const card = byDeck('recipes').find((item) => item.id === id);
+    assert.equal(card?.copies, 0, `${id} must be crafted, not drawn from recipes deck`);
+  }
 });
 
 test('long catalog audit: every card is in the expected gameplay deck', () => {
@@ -190,30 +206,16 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       ore_medium: 8,
     },
     recipes: {
-      armor_zhest: 2,
       art_recipes_003: 1,
-      art_recipes_004: 1,
       art_recipes_005: 1,
       art_recipes_007: 1,
-      art_recipes_008: 1,
       art_recipes_009: 1,
-      art_recipes_010: 1,
       art_recipes_011: 1,
-      art_recipes_012: 1,
       art_recipes_013: 1,
-      art_recipes_014: 1,
       art_recipes_015: 1,
-      art_recipes_016: 1,
       art_recipes_017: 1,
-      art_recipes_018: 1,
       art_recipes_019: 1,
-      art_recipes_020: 1,
-      art_recipes_021: 1,
-      art_recipes_024: 1,
       art_recipes_025: 1,
-      art_recipes_026: 1,
-      marvo: 2,
-      porcha: 2,
       recipe_armor: 2,
       recipe_obrud: 2,
       ritual_hide: 1,
