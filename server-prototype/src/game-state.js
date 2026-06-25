@@ -572,6 +572,7 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
         // схватка со зверем публична — видна обоим игрокам
         beastFight: beastFightView(c.beastFight),
         frogSpell: frogSpellView(c.frogSpell),
+        oakAcornsReadyRoll: Number(c.oakAcornsReadyRoll ?? 0),
         cardCount: c.inventory.length,
         // Полный инвентарь — только владельцу. Отдельные открытые карты
         // видны сопернику без раскрытия остальной руки.

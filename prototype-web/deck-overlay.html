@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RRaM · раскладка карт</title>
+    <link rel="stylesheet" href="./deck-overlay.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Раскладка карт поверх листа</h1>
+        <p>Загрузите JPEG/PNG подложку и кладите карты поверх неё.</p>
+      </div>
+      <div class="toolbar">
+        <label class="file-btn">
+          Подложка
+          <input id="backgroundInput" type="file" accept="image/png,image/jpeg,image/jpg" />
+        </label>
+        <button id="prevPdfPageBtn" type="button">Предыдущая</button>
+        <button id="nextPdfPageBtn" type="button">Следующая</button>
+        <span id="pdfPageInfo" class="page-info">PDF: 1 / 110</span>
+        <label class="file-btn">
+          Загрузить раскладку
+          <input id="layoutInput" type="file" accept="application/json" />
+        </label>
+        <button id="saveProjectBtn" type="button">Сохранить проект</button>
+        <button id="exportBtn" type="button">Скачать JSON</button>
+        <button id="clearBtn" type="button">Очистить</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="sidebar">
+        <div class="filters">
+          <input id="searchInput" type="search" placeholder="Поиск карты" autocomplete="off" />
+          <select id="deckFilter"></select>
+        </div>
+        <div class="palette-split">
+          <section class="palette-pane">
+            <div class="palette-pane-title">Рубашки</div>
+            <div id="backList" class="back-list"></div>
+          </section>
+          <section class="palette-pane">
+            <div class="palette-pane-title">Карты</div>
+            <div id="cardList" class="card-list"></div>
+          </section>
+        </div>
+      </aside>
+
+      <section class="stage-wrap">
+        <div class="stage-tools">
+          <label>Масштаб <input id="zoomInput" type="range" min="25" max="160" value="80" /></label>
+          <label>Размер на листе <input id="cardSizeInput" type="range" min="45" max="180" value="92" /></label>
+          <button id="connectBtn" type="button">Связать</button>
+          <button id="unlinkBtn" type="button">Убрать связь</button>
+          <button id="textBoxBtn" type="button">Рамка текста</button>
+          <button id="recognizeTextBtn" type="button">Распознать</button>
+          <button id="attachTextBtn" type="button">Прицепить текст</button>
+          <button id="copyKitBtn" type="button">Копировать комплект</button>
+          <button id="deleteSelectedBtn" type="button">Удалить</button>
+          <span id="selectionInfo" class="muted">Карта не выбрана</span>
+        </div>
+        <div id="stageScroller" class="stage-scroller">
+          <div id="stage" class="stage">
+            <svg id="connectionLayer" class="connection-layer"></svg>
+            <div class="empty-state">Загрузите JPEG или PNG листа.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./assets/cards/card-art-registry.js"></script>
+    <script src="./deck-overlay.js"></script>
+  </body>
+</html>

@@ -11,7 +11,7 @@ import { registerAdmin } from './admin.js';
 import { registerAuth, getAuthUserFromRequest } from './auth.js';
 import { createAuthStore } from './auth-store.js';
 import { createRoomPersistence } from './room-persistence.js';
-import { BASE_CARD_CATALOG, BUILD_VERSION, CARD_CATALOG } from './constants.js';
+import { BASE_CARD_CATALOG, BUILD_VERSION, CARD_CATALOG, CRAFT_RECIPES } from './constants.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -83,6 +83,7 @@ app.get('/ws', { websocket: true }, (socket, req) => {
     localActionJournal: DEBUG_COMMANDS_ENABLED,
     authUser,
     cardCatalog: [...CARD_CATALOG, ...BASE_CARD_CATALOG],
+    craftRecipes: CRAFT_RECIPES,
   });
 
   socket.on('message', (rawMessage) => {

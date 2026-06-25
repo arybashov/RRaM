@@ -34,6 +34,17 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "copies": 1
   },
   {
+    "id": "griffin",
+    "name": "Гриффон",
+    "deck": "base",
+    "type": "companion",
+    "art": "base/hunter/griffin-v1",
+    "source": "Базовые карты охотника",
+    "inGame": true,
+    "gameId": "griffin",
+    "copies": 1
+  },
+  {
     "id": "yarn",
     "name": "Клубок сплетенной нити из шерсти барана",
     "deck": "base",
@@ -172,7 +183,9 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "type": "ingredient",
     "art": "generated-frame-highres-text/mixed/mixed-001-style-v1-card-highres-text",
     "source": "Смешанный грунт",
-    "inGame": false
+    "inGame": true,
+    "gameId": "art_mixed_001",
+    "copies": 5
   },
   {
     "id": "art_mixed_002",

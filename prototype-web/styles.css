@@ -3635,6 +3635,35 @@ h2::after {
 
 .event-overlay.hidden { display: none; }
 
+.oak-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: min(100%, 560px);
+  align-items: start;
+}
+
+.oak-choice-item {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.oak-choice-item .card {
+  width: 100%;
+  max-width: 220px;
+  margin: 0 auto;
+}
+
+.oak-choice-btn {
+  min-height: 40px;
+  border: 1px solid rgba(234, 202, 113, 0.8);
+  border-radius: 8px;
+  background: rgba(234, 202, 113, 0.16);
+  color: #f5d879;
+  font-weight: 900;
+}
+
 .event-card-reveal {
   display: flex;
   flex-direction: column;

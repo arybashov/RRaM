@@ -54,9 +54,9 @@ test('card catalog totals are stable', () => {
   assert.equal(BASE_CARD_CATALOG.length, 11);
   assert.equal(copies(BASE_CARD_CATALOG), 11);
   assert.equal(CARD_CATALOG.length, 121);
-  assert.equal(copies(CARD_CATALOG), 117);
+  assert.equal(copies(CARD_CATALOG), 121);
   assert.equal(allCards.length, 132);
-  assert.equal(copies(allCards), 128);
+  assert.equal(copies(allCards), 132);
 });
 
 test('card ids are unique across base and draw catalogs', () => {
@@ -77,7 +77,7 @@ test('draw deck card counts are stable', () => {
       fairy_glade: { unique: 6, copies: 4 },
       forest: { unique: 15, copies: 24 },
       lake: { unique: 7, copies: 7 },
-      mixed: { unique: 4, copies: 16 },
+      mixed: { unique: 4, copies: 20 },
       recipes: { unique: 27, copies: 15 },
       red: { unique: 10, copies: 10 },
       sheep: { unique: 4, copies: 7 },
@@ -259,7 +259,7 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       raw_ruby: 1,
     },
     mixed: {
-      art_mixed_001: 1,
+      art_mixed_001: 5,
       art_mixed_003: 1,
       ore_coarse: 6,
       ore_medium: 8,

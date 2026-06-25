@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260625-26';
+export const BUILD_VERSION = '20260626-1';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -178,9 +178,11 @@ export const CRAFT_RECIPES = Object.freeze({
     ],
   },
   art_dark_forest_004: {
-    role: 'K', via: 'art_dark_forest_003', result: 'art_dark_forest_004',
-    materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']],
-    dice: { count: 2, min: 3 },
+    via: 'art_dark_forest_003', result: 'art_dark_forest_004',
+    options: [
+      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']], dice: { count: 2, min: 3 } },
+      { role: 'K', materials: [['art_mixed_001']], dice: { count: 2, min: 3 } },
+    ],
   },
   chainmail_light_ext: {
     via: 'art_dark_forest_005', result: 'chainmail_light',
@@ -193,7 +195,7 @@ export const CRAFT_RECIPES = Object.freeze({
   },
   art_dark_forest_008: {
     role: 'K', via: 'art_dark_forest_007', result: 'art_dark_forest_008',
-    materials: [['art_forest_011']],
+    materials: [['art_forest_011'], ['art_forest_011']],
     dice: { count: 2, min: 3 },
   },
   shield_dr_ext: {
@@ -227,10 +229,8 @@ export const CRAFT_RECIPES = Object.freeze({
   art_dark_forest_020: {
     via: 'art_dark_forest_019', result: 'art_dark_forest_020',
     options: [
-      { role: 'K', materials: [['art_forest_005']], dice: { count: 2, min: 2 } },
-      { role: 'K', materials: [['art_forest_012'], ['raw_ruby']], dice: { count: 2, min: 2 } },
-      { role: 'K', materials: [['art_forest_005']], dice: { count: 1, min: 3 } },
-      { role: 'K', materials: [['art_forest_012'], ['raw_ruby']], dice: { count: 1, min: 3 } },
+      { role: 'K', materials: [['art_forest_005', 'art_forest_012'], ['raw_ruby']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['art_forest_005', 'art_forest_012'], ['raw_ruby']], dice: { count: 1, min: 3 } },
     ],
   },
   axe_sun_ext: {
@@ -296,7 +296,7 @@ export const CRAFT_RECIPES = Object.freeze({
   },
   art_recipes_004: {
     role: 'S', via: 'art_recipes_003', result: 'art_recipes_004',
-    materials: [['art_forest_005', 'bark']],
+    materials: [['art_forest_005', 'bark'], ['red_berries']],
     dice: { count: 2, min: 2 },
   },
   leather_shirt_ext: {
@@ -584,10 +584,17 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'gold_feather_enemy', deck: 'fairy_glade', type: 'special', copies: 0, name: 'Золотое перо: к кузнецу врага', public: true,
     desc: 'Маяк: носитель виден всем и не телепортируется. Доставьте на камень кузнеца врага или используйте для крафта Молота Иерихон.' },
   // --- FULL_ART_REGISTRY_EXTRA_CARDS_START ---
-  { id: "art_mixed_001", deck: "mixed", type: "ingredient", copies: 1, name: "Железная руда среднего качества" },
+  { id: "art_mixed_001", deck: "mixed", type: "ingredient", copies: 5, name: "Железная руда среднего качества" },
   { id: "art_mixed_003", deck: "mixed", type: "ingredient", copies: 1, name: "Сухой череп" },
   { id: "art_forest_003", deck: "forest", type: "ingredient", copies: 1, name: "Дубовые желуди" },
-  { id: "art_forest_005", deck: "forest", type: "ingredient", copies: 1, name: "Полена дерева" },
+  {
+    id: "art_forest_005",
+    deck: "forest",
+    type: "ingredient",
+    copies: 1,
+    name: "Полена дерева",
+    desc: "Если не применять как ингредиент: выложите в драке со зверем, чтобы получать на 5 HP меньше урона. В драке с противниками ваш урон умножается на 2.",
+  },
   { id: "art_forest_007", deck: "forest", type: "special", copies: 1, name: "Гнущаяся палка" },
   { id: "art_forest_011", deck: "forest", type: "ingredient", copies: 1, name: "Железная руда высшего качества" },
   { id: "art_forest_012", deck: "forest", type: "special", copies: 1, name: "Толстая ветка" },

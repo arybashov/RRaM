@@ -47,6 +47,11 @@ import {
 } from './map.js';
 
 const GOLD_FEATHER_SET = new Set(GOLD_FEATHER_CARDS);
+const FIREWOOD_CARD = 'art_forest_005';
+const FIREWOOD_BEAST_DAMAGE_REDUCTION = 5;
+const FIREWOOD_PLAYER_DAMAGE_MULTIPLIER = 2;
+const OAK_ACORNS_CARD = 'art_forest_003';
+const OAK_ACORNS_COOLDOWN_ROLLS = 4;
 // Дварфы выходят из ворот после 5-го полного круга основных игроков.
 const DWARF_ENTRY_TURN = 5;
 const DWARF_UNITS = Object.freeze([
@@ -189,6 +194,8 @@ export function apply(game, playerId, type, payload = {}) {
       return useGoldNugget(game, playerId, payload);
     case 'action:useDeadOre':
       return useDeadOre(game, playerId, payload);
+    case 'action:useOakAcorns':
+      return useOakAcorns(game, playerId, payload);
     case 'action:useLakeFrog':
       return useLakeFrog(game, playerId, payload);
     case 'action:useMarvo':
@@ -1218,13 +1225,13 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
   if (character.exhaustedCards?.includes(TELEPORT_CARD)) {
     throw new Error('Бусы телепортации уже использованы.');
   }
-  const ownStartCells = ROLES.map((role) => startCell(character.side, role));
+  const ownStart = startCell(character.side, character.role);
   const teleportCells = pointClassCells('teleport');
-  if (![...ownStartCells, ...teleportCells].includes(toCell)) {
+  if (![ownStart, ...teleportCells].includes(toCell)) {
     throw new Error('Телепортация доступна на свои стартовые клетки или фиолетовые точки.');
   }
   if (game.characters.some((item) => item.id !== character.id && item.position === toCell)) {
-    throw new Error('Стартовая клетка занята.');
+    throw new Error('Клетка телепорта занята.');
   }
   if (character.position === toCell) {
     throw new Error('Персонаж уже находится на этой клетке.');
@@ -1498,6 +1505,93 @@ function useDeadOre(game, playerId, { characterId, cardIndex, terrainCardId, dec
       card: cardId,
       name: card?.name,
       type: card?.type,
+    },
+  };
+}
+
+function currentPlayerRollNumber(game, playerId) {
+  const remaining = Number(game.turn.rollsLeft?.[playerId] ?? ROLLS_PER_GAME);
+  return ROLLS_PER_GAME - remaining;
+}
+
+function oakAcornsReadyRoll(character) {
+  return Number(character.oakAcornsReadyRoll ?? 0);
+}
+
+function useOakAcorns(game, playerId, { characterId, cardIndex, terrainCardId, choiceIndex } = {}) {
+  assertActive(game, playerId);
+  const character = ownCharacter(game, playerId, characterId);
+  if (combatOpponent(game, character)) {
+    throw new Error('Дубовые желуди нельзя применять в бою.');
+  }
+  if (character.beastFight) {
+    throw new Error('Дубовые желуди нельзя применять в схватке со зверем.');
+  }
+  if (!isDrawCell(character.position)) {
+    throw new Error('Дубовые желуди можно применить только на точке добычи карт.');
+  }
+  const currentRoll = currentPlayerRollNumber(game, playerId);
+  const readyRoll = oakAcornsReadyRoll(character);
+  if (currentRoll < readyRoll) {
+    throw new Error(`Дубовые желуди можно применить после ещё ${readyRoll - currentRoll} сброса кубиков.`);
+  }
+  const source = findUsableCard(game, playerId, character, OAK_ACORNS_CARD, { cardIndex, terrainCardId });
+  if (!source) {
+    throw new Error('У персонажа нет Дубовых желудей.');
+  }
+
+  const deck = drawDeckForCell(character.position);
+  const pile = drawPileForDeck(game, deck);
+  if (pile.length < 2) {
+    throw new Error('В колоде должно быть хотя бы две карты для выбора Дубовыми желудями.');
+  }
+  const previewIds = pile.slice(0, 2);
+  const cards = previewIds.map((cardId) => {
+    const card = CARD_BY_ID[cardId];
+    return { card: cardId, name: card?.name, type: card?.type, desc: card?.desc };
+  });
+
+  if (!Number.isInteger(choiceIndex)) {
+    return {
+      oakAcornsChoice: {
+        characterId,
+        source: source.source,
+        cardIndex: source.source === 'inventory' ? source.inventoryIndex : undefined,
+        terrainCardId: source.source === 'terrain' ? game.terrainCards[source.terrainIndex]?.id : undefined,
+        deck,
+        cards,
+      },
+    };
+  }
+  if (choiceIndex < 0 || choiceIndex >= previewIds.length) {
+    throw new Error('Выберите одну из двух карт Дубовых желудей.');
+  }
+  if (character.inventory.length + 1 > INVENTORY_LIMIT) {
+    throw new Error('Инвентарь персонажа полон.');
+  }
+
+  const drawnIds = pile.splice(0, 2);
+  const chosenId = drawnIds[choiceIndex];
+  const discardedId = drawnIds[choiceIndex === 0 ? 1 : 0];
+  character.inventory.push(chosenId);
+  game.discard.push(discardedId);
+  character.oakAcornsReadyRoll = currentRoll + OAK_ACORNS_COOLDOWN_ROLLS;
+
+  const chosen = CARD_BY_ID[chosenId];
+  const discarded = CARD_BY_ID[discardedId];
+  return {
+    oakAcornsUsed: {
+      characterId,
+      source: source.source,
+      deck,
+      card: chosenId,
+      name: chosen?.name,
+      type: chosen?.type,
+      desc: chosen?.desc,
+      discarded: discardedId,
+      discardedName: discarded?.name,
+      cards,
+      nextReadyRoll: character.oakAcornsReadyRoll,
     },
   };
 }
@@ -2116,11 +2210,13 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
       && !card.faceDown)
     : [];
   const clubDamage = CLUB_DAMAGE * activeClubs.length;
+  const firewoodCount = activeFirewoodCount(game, attacker);
+  const firewoodMultiplier = firewoodCount > 0 ? FIREWOOD_PLAYER_DAMAGE_MULTIPLIER : 1;
 
   // Урон делится на обычный (кубики + Гриффон + непробивающее оружие) и пробивающий
   // («без учёта защиты»). Активная броня цели поглощает только обычную часть.
-  const normalDamage = damage + griffinDamage + clubDamage + (weaponPiercing ? 0 : weaponDamage);
-  const piercingDamage = weaponPiercing ? weaponDamage : 0;
+  const normalDamage = (damage + griffinDamage + clubDamage + (weaponPiercing ? 0 : weaponDamage)) * firewoodMultiplier;
+  const piercingDamage = (weaponPiercing ? weaponDamage : 0) * firewoodMultiplier;
   const armorAbsorb = activeArmorAbsorb(game, target);
 
   const totalDamage = normalDamage + piercingDamage; // до брони — для журнала
@@ -2164,6 +2260,8 @@ function attack(game, playerId, { attackerId, targetId } = {}) {
       griffinTurnedFaceDown: griffinDamage > 0,
       clubDamage,
       clubCount: activeClubs.length,
+      firewoodMultiplier,
+      firewoodCount,
       weaponDamage,
       weaponName: weapon?.name ?? null,
       weaponPiercing,
@@ -2268,7 +2366,9 @@ function attackDwarf(game, playerId, attacker, unit, dieIndex) {
       && !card.faceDown)
     : [];
   const clubDamage = CLUB_DAMAGE * activeClubs.length;
-  const dealtDamage = damage + griffinDamage + clubDamage + weaponDamage;
+  const firewoodCount = activeFirewoodCount(game, attacker);
+  const firewoodMultiplier = firewoodCount > 0 ? FIREWOOD_PLAYER_DAMAGE_MULTIPLIER : 1;
+  const dealtDamage = (damage + griffinDamage + clubDamage + weaponDamage) * firewoodMultiplier;
 
   unit.hp = Math.max(0, unit.hp - dealtDamage);
   const defeated = unit.hp === 0;
@@ -2294,6 +2394,8 @@ function attackDwarf(game, playerId, attacker, unit, dieIndex) {
       griffinTurnedFaceDown: griffinDamage > 0,
       clubDamage,
       clubCount: activeClubs.length,
+      firewoodMultiplier,
+      firewoodCount,
       weaponDamage,
       weaponName: weapon?.name ?? null,
       weaponPiercing,
@@ -3120,7 +3222,10 @@ function applyTurnStartEffects(game, playerId) {
     const beast = character.beastFight ? BEASTS[character.beastFight.cardId] : null;
     if (beast) {
       const armorAbsorb = activeArmorAbsorb(game, character);
-      character.hp = Math.max(0, character.hp - Math.max(0, beast.damage - armorAbsorb));
+      const firewoodAbsorb = activeFirewoodCount(game, character) > 0
+        ? FIREWOOD_BEAST_DAMAGE_REDUCTION
+        : 0;
+      character.hp = Math.max(0, character.hp - Math.max(0, beast.damage - armorAbsorb - firewoodAbsorb));
       if (character.hp === 0) {
         releaseLakeFrogSpell(game, character);
         character.position = null;
@@ -3186,6 +3291,15 @@ function activeArmorAbsorb(game, character) {
       && !card.faceDown
       && ARMOR_CARDS[card.cardId])
     .reduce((sum, card) => sum + ARMOR_CARDS[card.cardId].absorb, 0);
+}
+
+function activeFirewoodCount(game, character) {
+  return (game.terrainCards ?? [])
+    .filter((card) => card.ownerId === character.owner
+      && card.characterId === character.id
+      && card.cardId === FIREWOOD_CARD
+      && !card.faceDown)
+    .length;
 }
 
 function combatOpponent(game, character) {

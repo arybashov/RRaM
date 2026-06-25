@@ -148,6 +148,28 @@ test('active player rolls and ends turn from the UI while opponent dice stay hid
   await p2.context().close();
 });
 
+test('draw button is disabled when selected character is not on a draw cell', async ({ browser }) => {
+  const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
+  const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
+
+  await createAndJoinRoom(p1, p2);
+  await rollTurn(p1);
+  await selectRole(p1, 'K');
+
+  await expect(p1.getByTestId('mode-draw')).toBeDisabled();
+  await expect.poll(() => p1.evaluate(() => {
+    const selected = getSelChar();
+    return {
+      role: selected?.role,
+      onDrawCell: isResourceCell(characterPosition(selected)),
+      canDraw: canDrawNowWithCharacter(selected),
+    };
+  })).toEqual({ role: 'K', onDrawCell: false, canDraw: false });
+
+  await p1.context().close();
+  await p2.context().close();
+});
+
 test('cardbox transfers a card between own characters through the UI', async ({ browser }) => {
   const p1 = await newGamePage(browser, { webPort, gamePort, playerName: 'Alice' });
   const p2 = await newGamePage(browser, { webPort, gamePort, playerName: 'Bob' });
@@ -242,6 +264,7 @@ test('server catalog card preview does not show disconnected placeholder text', 
 
   await createAndJoinRoom(p1, p2);
   await grantCard(p1, 'K', 'art_dark_forest_013');
+  await grantCard(p1, 'K', 'art_mixed_003');
   await rollTurn(p1);
   await selectRole(p1, 'K');
 
@@ -266,6 +289,26 @@ test('server catalog card preview does not show disconnected placeholder text', 
   await expect(p1.locator('#eventOverlay')).toBeVisible();
   await expect(p1.locator('#eventCardDisplay')).not.toContainText('не подключена');
   await expect(p1.locator('#eventCardDisplay .inventory-card-art')).toHaveAttribute('src', /blueprint-topormol-v1\.png/);
+  await p1.locator('#eventOkBtn').click();
+
+  const drySkull = await p1.evaluate(() => {
+    const smith = getMyChars().find((char) => char.role === 'K');
+    return {
+      index: smith.inventory.findIndex((card) => (card.id ?? card) === 'art_mixed_003'),
+    };
+  });
+  const drySkullCard = p1.locator(`[data-testid="cardbox-row-K"] [data-i="${drySkull.index}"]`);
+  const drySkullBox = await drySkullCard.boundingBox();
+  expect(drySkullBox).not.toBeNull();
+  await p1.mouse.move(drySkullBox.x + drySkullBox.width / 2, drySkullBox.y + drySkullBox.height / 2);
+  await p1.mouse.down();
+  await p1.mouse.move(drySkullBox.x + drySkullBox.width / 2 + 8, drySkullBox.y + drySkullBox.height / 2 + 6);
+  await p1.mouse.up();
+
+  await expect(p1.locator('#eventOverlay')).toBeVisible();
+  await expect(p1.locator('#eventCardDisplay')).not.toContainText('не подключена');
+  await expect(p1.locator('#eventCardDisplay')).toContainText('Ингредиент');
+  await expect(p1.locator('#eventCardDisplay')).toContainText('Заклятия «Хозяин»');
   await p1.locator('#eventOkBtn').click();
 
   await p1.evaluate(() => {
