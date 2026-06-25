@@ -375,6 +375,10 @@ function markCharacterDrawnThisTurn(game, characterId) {
   game.turn.drawnThisTurn = ids.length > 0;
 }
 
+function isDrawEncounterBeast(cardId) {
+  return CARD_BY_ID[cardId]?.type === 'beast' && cardId !== 'sheep_ram';
+}
+
 function drawCardsFromCurrentCell(game, playerId, character) {
   if (!isDrawCell(character.position)) {
     throw new Error('Взять карту можно только на точке ресурса.');
@@ -401,28 +405,47 @@ function drawCardsFromCurrentCell(game, playerId, character) {
   if (drawPile.length < drawCount) {
     throw new Error('Колода пуста.');
   }
-  if (character.inventory.length + drawCount > INVENTORY_LIMIT) {
-    throw new Error(drawCount === 1
+  const preview = drawPile.slice(0, drawCount);
+  const firstBeastIndex = preview.findIndex(isDrawEncounterBeast);
+  const revealedPreview = firstBeastIndex >= 0 ? preview.slice(0, firstBeastIndex + 1) : preview;
+  const inventoryDrawCount = revealedPreview.filter((cardId) => !isDrawEncounterBeast(cardId)).length;
+  if (character.inventory.length + inventoryDrawCount > INVENTORY_LIMIT) {
+    throw new Error(inventoryDrawCount === 1
       ? 'Инвентарь персонажа полон.'
-      : `Для действия нужно ${drawCount} свободных места в инвентаре.`);
+      : `Для действия нужно ${inventoryDrawCount} свободных места в инвентаре.`);
   }
 
-  const cardIds = drawPile.splice(0, drawCount);
-  character.inventory.push(...cardIds);
+  const cardIds = drawPile.splice(0, revealedPreview.length);
+  let beastCardId = null;
+  const inventoryCardIds = [];
+  for (const cardId of cardIds) {
+    if (isDrawEncounterBeast(cardId)) {
+      beastCardId = cardId;
+      character.beastFight = { cardId, successes: 0, cellId: character.position };
+      break;
+    }
+    inventoryCardIds.push(cardId);
+  }
+  character.inventory.push(...inventoryCardIds);
   for (const card of placedTools) card.faceDown = true;
 
   const cards = cardIds.map((cardId) => {
     const card = CARD_BY_ID[cardId];
     return { card: cardId, name: card?.name, type: card?.type, desc: card?.desc };
   });
+  const primaryCard = beastCardId
+    ? cards.find((item) => item.card === beastCardId)
+    : cards[0];
   return {
     characterId: character.id,
-    ...cards[0],
+    ...primaryCard,
     cards,
     count: cards.length,
     bonusTool: bonusToolCount > 0 ? bonusTool : null,
     bonusToolCount,
     deck: drawDeckName,
+    beast: Boolean(beastCardId),
+    beastCard: beastCardId,
     hammerUsed: bonusToolCount > 0 && character.role === 'K',
     terrainCardsTurnedFaceDown: placedTools.map((card) => card.cardId),
   };
