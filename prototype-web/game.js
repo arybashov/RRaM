@@ -847,16 +847,7 @@ function speakGoblinSelection() {
     if (activeGoblinClip === audio) activeGoblinClip = null;
   });
 
-  // ~40% chance to play a random grunt/cough before the voice line
-  if (Math.random() < 0.4) {
-    const sfxFile = GOBLIN_SFX_FILES[Math.floor(Math.random() * GOBLIN_SFX_FILES.length)];
-    const sfx = new Audio(`./assets/audio/goblin/${sfxFile}?v=${APP_VERSION}`);
-    sfx.volume = 0.55;
-    sfx.play().catch(() => {});
-    sfx.addEventListener('ended', () => audio.play().catch(() => {}));
-  } else {
-    audio.play().catch(() => {});
-  }
+  audio.play().catch(() => {});
 }
 
 function playToastSound(type) {
