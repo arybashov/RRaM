@@ -29,8 +29,12 @@ function isLocalDebugClient() {
 const SESSION_KEY = 'rram_session';
 const FOG_ENABLED_KEY = 'rram_fog_enabled';
 const TUTORIAL_ENABLED_KEY = 'rram_tutorial_enabled';
+const SOUND_ENABLED_KEY = 'rram_sound_enabled';
+const MUSIC_ENABLED_KEY = 'rram_music_enabled';
 let fogEnabled = localStorage.getItem(FOG_ENABLED_KEY) !== 'false';
 let tutorialEnabled = localStorage.getItem(TUTORIAL_ENABLED_KEY) !== 'false';
+let soundEnabled = localStorage.getItem(SOUND_ENABLED_KEY) !== 'false';
+let musicEnabled = localStorage.getItem(MUSIC_ENABLED_KEY) !== 'false';
 let serverDebugCommandsEnabled = false;
 let serverLocalActionJournalEnabled = false;
 let authUser = null;
@@ -695,12 +699,193 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260626-1'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260626-5'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLLS_PER_GAME = 10;
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
 
+// ── Звук ─────────────────────────────────────────────────────────
+const SOUND_FILES = Object.freeze({
+  uiClick: 'ui-click.wav',
+  uiError: 'ui-error.wav',
+  uiNotify: 'ui-notify.wav',
+  diceRoll: 'dice-roll.wav',
+  turnStart: 'turn-start.wav',
+  turnEnd: 'turn-end.wav',
+  cardDraw: 'card-draw.wav',
+  cardTransfer: 'card-transfer.wav',
+  cardPlace: 'card-place-terrain.wav',
+  cardFlip: 'card-flip-terrain.wav',
+  cardInventory: 'card-to-inventory.wav',
+  attackHit: 'attack-hit.wav',
+  attackBlocked: 'attack-blocked.wav',
+  characterDefeat: 'character-defeat.wav',
+  beastAppear: 'beast-appear.wav',
+  beastHit: 'beast-fight-hit.wav',
+  beastDefeat: 'beast-defeat.wav',
+  teleport: 'teleport-cast.wav',
+  craftSuccess: 'craft-success.wav',
+  craftFail: 'craft-fail.wav',
+  victory: 'victory.wav',
+  defeat: 'defeat.wav',
+});
+const BACKGROUND_MUSIC_FILE = 'March_of_the_Stone_Lords.mp3';
+const BACKGROUND_MUSIC_VOLUME = 0.14;
+const soundCache = new Map();
+let backgroundMusic = null;
+let soundUnlocked = false;
+let matchResultSoundKey = null;
+let goblinVoiceBag = [];
+let lastGoblinClip = null;
+let activeGoblinClip = null;
+
+function soundUrl(name) {
+  const file = SOUND_FILES[name];
+  return file ? `./assets/audio/${file}?v=${APP_VERSION}` : null;
+}
+
+function primeSound(name) {
+  const src = soundUrl(name);
+  if (!src) return null;
+  let audio = soundCache.get(name);
+  if (!audio) {
+    audio = new Audio(src);
+    audio.preload = 'auto';
+    soundCache.set(name, audio);
+  }
+  return audio;
+}
+
+function playSound(name, volume = 1) {
+  if (!soundEnabled) return;
+  if (!soundUnlocked) return;
+  const base = primeSound(name);
+  if (!base) return;
+  const audio = base.cloneNode(true);
+  audio.volume = Math.max(0, Math.min(1, 0.55 * volume));
+  audio.play().catch(() => {});
+}
+
+function backgroundMusicUrl() {
+  return `./assets/audio/${BACKGROUND_MUSIC_FILE}?v=${APP_VERSION}`;
+}
+
+function getBackgroundMusic() {
+  if (!backgroundMusic) {
+    backgroundMusic = new Audio(backgroundMusicUrl());
+    backgroundMusic.loop = true;
+    backgroundMusic.preload = 'auto';
+  }
+  backgroundMusic.volume = BACKGROUND_MUSIC_VOLUME;
+  return backgroundMusic;
+}
+
+function applyAudioSettings() {
+  const music = getBackgroundMusic();
+  if (!musicEnabled || !soundUnlocked) {
+    music.pause();
+  } else {
+    music.play().catch(() => {});
+  }
+  if (!soundEnabled && activeGoblinClip) {
+    activeGoblinClip.pause();
+    activeGoblinClip = null;
+  }
+}
+
+const GOBLIN_SELECT_FILES = Object.freeze([
+  'goblin_ack_01.mp3',
+  'goblin_ack_02.mp3',
+  'goblin_ack_03.mp3',
+  'goblin_ack_04.mp3',
+  'goblin_ack_05.mp3',
+  'goblin_ack_06.mp3',
+  'goblin_ack_07.mp3',
+  'goblin_ack_08.mp3',
+  'goblin_ack_09.mp3',
+  'goblin_ack_10.mp3',
+  'goblin_ack_11.mp3',
+  'goblin_ack_12.mp3',
+  'goblin_ack_13.mp3',
+  'goblin_ack_14.mp3',
+  'goblin_ack_15.mp3',
+]);
+
+function goblinClipUrl(file) {
+  return `./assets/audio/goblin/${file}?v=${APP_VERSION}`;
+}
+
+function nextGoblinClip() {
+  if (goblinVoiceBag.length === 0) {
+    goblinVoiceBag = [...GOBLIN_SELECT_FILES].sort(() => Math.random() - 0.5);
+  }
+  let clip = goblinVoiceBag.pop();
+  if (clip === lastGoblinClip && goblinVoiceBag.length > 0) {
+    const swap = goblinVoiceBag.pop();
+    goblinVoiceBag.push(clip);
+    clip = swap;
+  }
+  lastGoblinClip = clip;
+  return clip;
+}
+
+const GOBLIN_SFX_FILES = Object.freeze([
+  'grunt_01.mp3', 'grunt_02.mp3', 'grunt_03.mp3',
+  'cough_01.mp3', 'cough_02.mp3',
+  'snort_01.mp3', 'wheeze_01.mp3',
+  'hmm_01.mp3',
+]);
+
+function speakGoblinSelection() {
+  if (!soundEnabled || !soundUnlocked) return;
+  if (activeGoblinClip) activeGoblinClip.pause();
+  const audio = new Audio(goblinClipUrl(nextGoblinClip()));
+  audio.volume = 0.72;
+  audio.playbackRate = 0.96 + Math.random() * 0.08;
+  activeGoblinClip = audio;
+  audio.addEventListener('ended', () => {
+    if (activeGoblinClip === audio) activeGoblinClip = null;
+  });
+
+  // ~40% chance to play a random grunt/cough before the voice line
+  if (Math.random() < 0.4) {
+    const sfxFile = GOBLIN_SFX_FILES[Math.floor(Math.random() * GOBLIN_SFX_FILES.length)];
+    const sfx = new Audio(`./assets/audio/goblin/${sfxFile}?v=${APP_VERSION}`);
+    sfx.volume = 0.55;
+    sfx.play().catch(() => {});
+    sfx.addEventListener('ended', () => audio.play().catch(() => {}));
+  } else {
+    audio.play().catch(() => {});
+  }
+}
+
+function playToastSound(type) {
+  if (type === 'error' || type === 'danger') {
+    playSound('uiError', 0.85);
+  } else if (type === 'success') {
+    playSound('uiNotify', 0.5);
+  }
+}
+
+function installSoundUnlock() {
+  const unlock = () => {
+    soundUnlocked = true;
+    Object.keys(SOUND_FILES).forEach(primeSound);
+    applyAudioSettings();
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock, { passive: true });
+  window.addEventListener('keydown', unlock);
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('button, .mode, .character-card, .inventory-card, .cardbox-card, .dice-btn')) {
+      playSound('uiClick', 0.28);
+    }
+  });
+}
+
 // ── Старт ─────────────────────────────────────────────────────────
+installSoundUnlock();
 showAppVersion();
 inventoryEl?.addEventListener('click', onInventoryClick);
 // Игровой чат — поле в шторке журнала
@@ -996,6 +1181,9 @@ function handleMsg({ type, payload }) {
 
       // Сброс локального трекинга кубиков при смене состояния
       const newDice = serverRoom?.game?.turn?.dice;
+      if (prevRoom?.game && !turnHasAnyDice(prevRoom.game.turn) && turnHasAnyDice(serverRoom?.game?.turn)) {
+        playSound('diceRoll', 0.75);
+      }
       if (!turnHasAnyDice(serverRoom?.game?.turn) || prevDice?.[0] !== newDice?.[0] || prevDice?.[1] !== newDice?.[1]) {
         localUsedDice = [false, false];
       }
@@ -1023,6 +1211,13 @@ function handleMsg({ type, payload }) {
 
       // Авто-setMode: отправляем один раз после броска кубиков
       const g = getGame();
+      if (prevRoom?.game && g && prevActive !== g.turn.activePlayerId) {
+        if (g.turn.activePlayerId === myPlayerId || isSpectator()) {
+          playSound('turnStart', 0.65);
+        } else if (prevActive === myPlayerId) {
+          playSound('turnEnd', 0.55);
+        }
+      }
       if (g && !isSpectator() && !getSelChar()) {
         const nextSelectable = getMyChars().find(c => c.hp > 0 && characterPosition(c));
         selectedCharId = nextSelectable?.id ?? null;
@@ -1053,6 +1248,7 @@ function handleMsg({ type, payload }) {
       } else {
         pendingOver = false;
         matchResultLogged = false;
+        matchResultSoundKey = null;
         hideMatchResult();
       }
       break;
@@ -1195,6 +1391,7 @@ function syncTerrainCards() {
 function selectCharacter(charId) {
   const char = getGame()?.characters.find(c => c.id === charId);
   if (!char || char.owner !== myPlayerId) return;
+  speakGoblinSelection();
   // Режим следует за выбранным персонажем: split не «прилипает» с прошлого.
   // По умолчанию у нового персонажа — ход суммой; split только если он реально
   // в split (свой override / уже начатая раздельная нога). teleport не трогаем.
@@ -1722,6 +1919,11 @@ function showMatchResult() {
   const game = getGame();
   if (!matchResultEl || !game?.over) return;
   const won = game.winnerId === myPlayerId;
+  const soundKey = `${serverRoom?.id ?? 'room'}:${game.winnerId ?? 'none'}`;
+  if (matchResultSoundKey !== soundKey) {
+    matchResultSoundKey = soundKey;
+    playSound(won ? 'victory' : 'defeat', 0.9);
+  }
   const winner = serverRoom?.players.find(player => player.id === game.winnerId)?.name;
   matchResultEl.querySelector('#matchResultTitle').textContent = won ? 'Победа' : 'Поражение';
   matchResultEl.querySelector('#matchResultText').textContent = winner
@@ -2547,6 +2749,20 @@ function buildSettingsOverlay() {
           <small>Показывает постоянные подсказки слева сверху. Игровые сообщения остаются включены.</small>
         </span>
       </label>
+      <label class="settings-toggle">
+        <input id="setSoundEnabled" type="checkbox" />
+        <span>
+          <strong>Звуки</strong>
+          <small>Клики, кубики, карты, бой, крафт и игровые сигналы.</small>
+        </span>
+      </label>
+      <label class="settings-toggle">
+        <input id="setMusicEnabled" type="checkbox" />
+        <span>
+          <strong>Музыка и фон</strong>
+          <small>Фоновый амбиент карты и боя.</small>
+        </span>
+      </label>
       <div class="lobby-btns">
         <button id="setSaveBtn">Сохранить</button>
         <button id="setBackBtn" class="ghost">← Назад</button>
@@ -2560,12 +2776,17 @@ function buildSettingsOverlay() {
     const s = settingsEl.querySelector('#setServer').value.trim();
     fogEnabled = canConfigureFog() ? settingsEl.querySelector('#setFogEnabled').checked : true;
     tutorialEnabled = settingsEl.querySelector('#setTutorialEnabled').checked;
+    soundEnabled = settingsEl.querySelector('#setSoundEnabled').checked;
+    musicEnabled = settingsEl.querySelector('#setMusicEnabled').checked;
     if (n) { localStorage.setItem(NAME_KEY, n); if (nameInput) nameInput.value = n; }
     if (s) localStorage.setItem('rram_server', s);
     else   localStorage.removeItem('rram_server');
     localStorage.setItem(FOG_ENABLED_KEY, String(fogEnabled));
     localStorage.setItem(TUTORIAL_ENABLED_KEY, String(tutorialEnabled));
+    localStorage.setItem(SOUND_ENABLED_KEY, String(soundEnabled));
+    localStorage.setItem(MUSIC_ENABLED_KEY, String(musicEnabled));
     wsSend('client:setFog', { enabled: canConfigureFog() ? fogEnabled : true });
+    applyAudioSettings();
     syncLocalDebugUi();
     renderBoard();
     closeSettings('Настройки сохранены.');
@@ -2581,6 +2802,8 @@ function openSettings(from) {
   settingsEl.querySelector('#setServer').value = localStorage.getItem('rram_server') || '';
   settingsEl.querySelector('#setFogEnabled').checked = fogEnabled;
   settingsEl.querySelector('#setTutorialEnabled').checked = tutorialEnabled;
+  settingsEl.querySelector('#setSoundEnabled').checked = soundEnabled;
+  settingsEl.querySelector('#setMusicEnabled').checked = musicEnabled;
   syncLocalDebugUi();
   settingsEl.classList.remove('hidden');
 }
@@ -6568,6 +6791,7 @@ function initToasts() {
 }
 
 function showToast(text, type = 'info') {
+  playToastSound(type);
   if (pushGameMessage(text, type)) return;
   initToasts();
   const el = document.createElement('div');
@@ -7000,7 +7224,64 @@ function logRemoteActionResult(result) {
 }
 
 // Обработка прямого результата действия (нужна для мгновенной обратной связи)
+function playActionResultSounds(result) {
+  if (!result || typeof result !== 'object') return;
+
+  if (result.redEvent?.beast || result.drawn?.beast) {
+    playSound('beastAppear', 0.85);
+    return;
+  }
+  if (result.beastFought) {
+    playSound(result.beastFought.killed ? 'beastDefeat' : 'beastHit', 0.85);
+    return;
+  }
+  if (result.attacked) {
+    const a = result.attacked;
+    const dealt = a.dealtDamage ?? a.damage ?? 0;
+    playSound(dealt > 0 ? 'attackHit' : 'attackBlocked', 0.85);
+    if (a.defeated || a.attackerDefeated) playSound('characterDefeat', 0.65);
+    return;
+  }
+  if (result.dwarves?.attacks?.length) {
+    const hit = result.dwarves.attacks.some(attack => (attack.dealtDamage ?? attack.damage ?? 0) > 0);
+    playSound(hit ? 'attackHit' : 'attackBlocked', 0.75);
+    return;
+  }
+  if (result.teleported || result.teleportRecharged) {
+    playSound('teleport', 0.75);
+    return;
+  }
+  if (result.crafted) {
+    playSound('craftSuccess', 0.8);
+    return;
+  }
+  if (result.craftAttempt && !result.craftAttempt.success) {
+    playSound('craftFail', 0.75);
+    return;
+  }
+  if (result.terrainPlaced) {
+    playSound('cardPlace', 0.65);
+    return;
+  }
+  if (result.terrainRemoved) {
+    playSound('cardInventory', 0.65);
+    return;
+  }
+  if (result.terrainFlipped) {
+    playSound('cardFlip', 0.65);
+    return;
+  }
+  if (result.transferred || result.discardedCard) {
+    playSound('cardTransfer', 0.6);
+    return;
+  }
+  if (result.drawn || result.redEvent?.acquired || result.debugGranted || result.oakAcornsUsed || result.deadOreUsed) {
+    playSound('cardDraw', 0.7);
+  }
+}
+
 function handleActionResult(result) {
+  playActionResultSounds(result);
   if (result.roll?.lakeFrogReleased?.length) {
     for (const released of result.roll.lakeFrogReleased) {
       const spellName = released.name ?? getCardName(released.cardId) ?? 'Заклинание жабы';
