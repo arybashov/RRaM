@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --prefix server-prototype run smoke:bot)",
+      "Bash(npm --prefix server-prototype run test)",
+      "Bash(npm --prefix server-prototype run smoke)",
+      "Bash(git --no-pager diff -- Doc/RRaM_browser_2d_TZ.md)",
+      "Bash(git --no-pager ls-files -- Doc/RRaM_browser_2d_TZ.md)"
+    ]
+  }
+}

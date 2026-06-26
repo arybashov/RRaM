@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RRaM — A/B сравнение SFX</title>
+  <style>
+    body { background:#11161c; color:#e7eef5; font:15px/1.4 system-ui,sans-serif; margin:0; padding:24px; }
+    h1 { font-size:18px; margin:0 0 16px; }
+    table { border-collapse:collapse; width:100%; max-width:780px; }
+    th,td { text-align:left; padding:10px 12px; border-bottom:1px solid #233; vertical-align:middle; }
+    th { color:#8fa0b1; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+    .id { font-weight:700; color:#66e4c4; }
+    .trig { color:#8fa0b1; font-size:12px; }
+    .ag { color:#e0773a; } .sao { color:#66c4e4; }
+    audio { height:34px; width:240px; }
+  </style>
+</head>
+<body>
+  <h1>A/B сравнение: AudioGen (16 кГц моно) vs Stable Audio Open (44.1 кГц стерео)</h1>
+  <table>
+    <thead><tr><th>Звук</th><th class="ag">AudioGen</th><th class="sao">Stable Audio Open</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <script>
+    const SFX = [
+      ['dice-roll','бросок кубиков'],
+      ['attack-hit','удар в бою'],
+      ['victory','победа'],
+      ['ui-click','клик по кнопке'],
+    ];
+    const v = Date.now();
+    const tb = document.getElementById('rows');
+    for (const [id, trig] of SFX) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td><div class="id">${id}</div><div class="trig">${trig}</div></td>` +
+        `<td><audio controls preload="none" src="./assets/audio/${id}.wav?v=${v}"></audio></td>` +
+        `<td><audio controls preload="none" src="./assets/audio/_sao/${id}.wav?v=${v}"></audio></td>`;
+      tb.appendChild(tr);
+    }
+  </script>
+</body>
+</html>

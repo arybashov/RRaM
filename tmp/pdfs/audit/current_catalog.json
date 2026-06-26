@@ -1,0 +1,915 @@
+[
+  {
+    "id": "teleport_beads",
+    "name": "Бусы телепортации",
+    "type": "special",
+    "copies": 1
+  },
+  {
+    "id": "bp_hammer_base",
+    "name": "Чертёж на молоток",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "hammer",
+    "name": "Молоток",
+    "type": "tool",
+    "copies": 1
+  },
+  {
+    "id": "sack",
+    "name": "Мешок",
+    "type": "tool",
+    "copies": 1
+  },
+  {
+    "id": "recipe_sack",
+    "name": "Рецепт на мешок",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "bp_club_base",
+    "name": "Чертёж на дубину",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "club",
+    "name": "Дубина",
+    "type": "weapon",
+    "copies": 1
+  },
+  {
+    "id": "griffin",
+    "name": "Гриффон",
+    "type": "companion",
+    "copies": 1
+  },
+  {
+    "id": "recipe_shaman_carpet",
+    "name": "Рецепт на Ковёр шамана",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "shaman_carpet",
+    "name": "Ковёр шамана",
+    "type": "tool",
+    "copies": 1
+  },
+  {
+    "id": "yarn",
+    "name": "Клубок сплетённой шерсти",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "ore_medium",
+    "name": "Смешанная железная руда",
+    "deck": "mixed",
+    "type": "ingredient",
+    "copies": 8
+  },
+  {
+    "id": "ore_coarse",
+    "name": "Грубая смешанная железная руда",
+    "deck": "mixed",
+    "type": "provocation",
+    "copies": 6
+  },
+  {
+    "id": "boar_forest",
+    "name": "Дикий кабан",
+    "deck": "forest",
+    "type": "beast",
+    "copies": 2
+  },
+  {
+    "id": "beast_hide",
+    "name": "Очищенная шкура зверя",
+    "deck": "forest",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "raw_hide",
+    "name": "Шкура убитого зверя",
+    "deck": "forest",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "boar_hide",
+    "name": "Шкура кабана",
+    "deck": "trophy",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "wolf_hide",
+    "name": "Шкура волка",
+    "deck": "trophy",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "bear_hide",
+    "name": "Шкура медведя",
+    "deck": "trophy",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "bark",
+    "name": "Кора дерева",
+    "deck": "forest",
+    "type": "armor",
+    "copies": 3
+  },
+  {
+    "id": "gold_nugget",
+    "name": "Малый золотой самородок",
+    "deck": "forest",
+    "type": "special",
+    "copies": 2
+  },
+  {
+    "id": "amanita_color",
+    "name": "Мухомор цвет",
+    "deck": "forest",
+    "type": "ingredient",
+    "copies": 3
+  },
+  {
+    "id": "amanita",
+    "name": "Гриб мухомор",
+    "deck": "forest",
+    "type": "provocation",
+    "copies": 3
+  },
+  {
+    "id": "owl_common",
+    "name": "Обычная сова",
+    "deck": "forest",
+    "type": "provocation",
+    "copies": 2
+  },
+  {
+    "id": "amanita_glade",
+    "name": "Полянка мухоморов",
+    "deck": "forest",
+    "type": "provocation",
+    "copies": 2
+  },
+  {
+    "id": "owl_night",
+    "name": "Ночной филин",
+    "deck": "forest",
+    "type": "provocation",
+    "copies": 2
+  },
+  {
+    "id": "dead_ore",
+    "name": "Неживая руда высокого качества",
+    "deck": "dark_forest",
+    "type": "ingredient",
+    "copies": 6
+  },
+  {
+    "id": "return_ring",
+    "name": "Кольцо возврата",
+    "deck": "dark_forest",
+    "type": "provocation",
+    "copies": 2
+  },
+  {
+    "id": "black_berries",
+    "name": "Чёрные ягоды",
+    "deck": "dark_forest",
+    "type": "provocation",
+    "copies": 2
+  },
+  {
+    "id": "red_berries",
+    "name": "Дикие красные ягоды",
+    "deck": "dark_forest",
+    "type": "provocation",
+    "copies": 2
+  },
+  {
+    "id": "topormol",
+    "name": "Топормол",
+    "deck": "dark_forest",
+    "type": "weapon",
+    "copies": 0
+  },
+  {
+    "id": "sword_sech",
+    "name": "Меч Сеч",
+    "deck": "dark_forest",
+    "type": "weapon",
+    "copies": 0
+  },
+  {
+    "id": "sword_lorp",
+    "name": "Меч Лорп",
+    "deck": "dark_forest",
+    "type": "weapon",
+    "copies": 0
+  },
+  {
+    "id": "chainmail_light",
+    "name": "Лёгкая кольчуга",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "shield_lom",
+    "name": "Ломщит",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "shield_kalan",
+    "name": "Щит Калан",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "shield_dr",
+    "name": "Щит Др",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "shield_revenge",
+    "name": "Щит Отмщение",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "helm_shem",
+    "name": "Шлем Шем",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "helm_ttm",
+    "name": "Шлем ТТМ",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "armor_il",
+    "name": "Защита Ил",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "leather_shirt",
+    "name": "Кожаная рубашка",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "sheep_ram",
+    "name": "Баран",
+    "deck": "sheep",
+    "type": "beast",
+    "copies": 2
+  },
+  {
+    "id": "sheep_wool",
+    "name": "Шерсть барана",
+    "deck": "sheep",
+    "type": "ingredient",
+    "copies": 5
+  },
+  {
+    "id": "sheep_hide_r",
+    "name": "Шкура барана",
+    "deck": "sheep",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "sheep_hide_c",
+    "name": "Кожа барана",
+    "deck": "sheep",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "boar_red",
+    "name": "Дикий кабан",
+    "deck": "red",
+    "type": "beast",
+    "copies": 2
+  },
+  {
+    "id": "wolf",
+    "name": "Серый волк",
+    "deck": "red",
+    "type": "beast",
+    "copies": 2
+  },
+  {
+    "id": "beast_bear",
+    "name": "Мистический зверь-медведь",
+    "deck": "red",
+    "type": "beast",
+    "copies": 2
+  },
+  {
+    "id": "hide_red",
+    "name": "Очищенная шкура зверя",
+    "deck": "red",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "raw_hide_red",
+    "name": "Шкура убитого зверя",
+    "deck": "red",
+    "type": "ingredient",
+    "copies": 0
+  },
+  {
+    "id": "axe_sun",
+    "name": "Секира Красное солнце",
+    "deck": "red",
+    "type": "weapon",
+    "copies": 1
+  },
+  {
+    "id": "task_irikon",
+    "name": "Задание на молот Ирикон",
+    "deck": "red",
+    "type": "special",
+    "copies": 1
+  },
+  {
+    "id": "irikon",
+    "name": "Ирикон",
+    "deck": "red",
+    "type": "weapon",
+    "copies": 0
+  },
+  {
+    "id": "lake_frog",
+    "name": "Озёрная лягушка",
+    "deck": "lake",
+    "type": "special",
+    "copies": 1
+  },
+  {
+    "id": "raw_ruby",
+    "name": "Необработанный рубин",
+    "deck": "lake",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "recipe_armor",
+    "name": "Рецепт на жест",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 2
+  },
+  {
+    "id": "armor_zhest",
+    "name": "Жест",
+    "deck": "recipes",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "porcha",
+    "name": "Порча",
+    "deck": "recipes",
+    "type": "provocation",
+    "copies": 0
+  },
+  {
+    "id": "recipe_obrud",
+    "name": "Рецепт на обруд",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 2
+  },
+  {
+    "id": "marvo",
+    "name": "Марво трос",
+    "deck": "recipes",
+    "type": "provocation",
+    "copies": 0
+  },
+  {
+    "id": "ritual_hide",
+    "name": "Шкура ритуалов",
+    "deck": "recipes",
+    "type": "special",
+    "copies": 1
+  },
+  {
+    "id": "blueprint_irikon",
+    "name": "Чертёж Ирикон",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "phoenix_1",
+    "name": "Феникс (перо к своему кузнецу)",
+    "deck": "fairy_glade",
+    "type": "beast",
+    "copies": 1
+  },
+  {
+    "id": "phoenix_2",
+    "name": "Феникс (перо к кузнецу врага)",
+    "deck": "fairy_glade",
+    "type": "beast",
+    "copies": 1
+  },
+  {
+    "id": "gold_feather_own",
+    "name": "Золотое перо: к своему кузнецу",
+    "deck": "fairy_glade",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "gold_feather_enemy",
+    "name": "Золотое перо: к кузнецу врага",
+    "deck": "fairy_glade",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_mixed_001",
+    "name": "Железная руда среднего качества",
+    "deck": "mixed",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_mixed_003",
+    "name": "Сухой череп",
+    "deck": "mixed",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_forest_003",
+    "name": "Дубовые желуди",
+    "deck": "forest",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_forest_005",
+    "name": "Полена дерева",
+    "deck": "forest",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_forest_007",
+    "name": "Гнущаяся палка",
+    "deck": "forest",
+    "type": "special",
+    "copies": 1
+  },
+  {
+    "id": "art_forest_011",
+    "name": "Железная руда высшего качества",
+    "deck": "forest",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_forest_012",
+    "name": "Толстая ветка",
+    "deck": "forest",
+    "type": "special",
+    "copies": 1
+  },
+  {
+    "id": "art_lake_001",
+    "name": "Мраморный самоцвет",
+    "deck": "lake",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_lake_002",
+    "name": "Мутный изумруд",
+    "deck": "lake",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_lake_003",
+    "name": "Драгоценный камень",
+    "deck": "lake",
+    "type": "special",
+    "copies": 1
+  },
+  {
+    "id": "art_lake_004",
+    "name": "Крапленый аметист",
+    "deck": "lake",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_lake_007",
+    "name": "Проросший корень",
+    "deck": "lake",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_trophy_001",
+    "name": "Бурый медведь",
+    "deck": "red",
+    "type": "beast",
+    "copies": 1
+  },
+  {
+    "id": "art_trophy_002",
+    "name": "Агрессивный бурый медведь",
+    "deck": "red",
+    "type": "beast",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_001",
+    "name": "Средний золотой самородок",
+    "deck": "dark_forest",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_002",
+    "name": "Большой золотой самородок",
+    "deck": "dark_forest",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_003",
+    "name": "Чертеж на небрежную кольчугу",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_004",
+    "name": "Небрежная кольчуга",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "art_dark_forest_005",
+    "name": "Чертеж на легкую кольчугу",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_007",
+    "name": "Чертеж на щит защита духа",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_008",
+    "name": "Щит защита духа",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "art_dark_forest_009",
+    "name": "Чертеж на щит др.",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_011",
+    "name": "Чертеж на ломщит",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_013",
+    "name": "Чертеж на топормол",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_015",
+    "name": "Чертеж на щит калан",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_017",
+    "name": "Чертеж на меч сеч",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_019",
+    "name": "Чертеж на деревянный молоток",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_020",
+    "name": "Деревянный молоток",
+    "deck": "dark_forest",
+    "type": "weapon",
+    "copies": 0
+  },
+  {
+    "id": "art_dark_forest_021",
+    "name": "Чертеж на красное солнце",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_026",
+    "name": "Чертеж на меч лорп",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_029",
+    "name": "Чертеж на ошейник",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_030",
+    "name": "Ошейник приручения",
+    "deck": "dark_forest",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_dark_forest_031",
+    "name": "Чертеж на щит отмщение",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_033",
+    "name": "Чертеж на щит луна",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_034",
+    "name": "Щит луна",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "art_dark_forest_035",
+    "name": "Чертеж шема",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_037",
+    "name": "Чертеж на рецепт близнецы",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_038",
+    "name": "Топоры близнецы",
+    "deck": "dark_forest",
+    "type": "weapon",
+    "copies": 0
+  },
+  {
+    "id": "art_dark_forest_039",
+    "name": "Чертеж на панцирь",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_040",
+    "name": "Панцирь",
+    "deck": "dark_forest",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "art_dark_forest_041",
+    "name": "Чертеж на шлем ТТМ",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_dark_forest_043",
+    "name": "Чертеж на защиту Ил",
+    "deck": "blueprints",
+    "type": "blueprint",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_003",
+    "name": "Рецепт на каска-маска",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_004",
+    "name": "Каска-маска",
+    "deck": "recipes",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_005",
+    "name": "Рецепт на рубашку из кожи",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_007",
+    "name": "Рецепт на одежду разведчика",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_008",
+    "name": "Разведка",
+    "deck": "recipes",
+    "type": "armor",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_009",
+    "name": "Рецепт на маску трехликого",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_010",
+    "name": "Маска трехликого",
+    "deck": "recipes",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_011",
+    "name": "Рецепт на бубун",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_012",
+    "name": "Маска бубун",
+    "deck": "recipes",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_013",
+    "name": "Рецепт на маску оху",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_014",
+    "name": "Маска оху",
+    "deck": "recipes",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_015",
+    "name": "Рецепт на бутыль дип",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_016",
+    "name": "Бутыль дип",
+    "deck": "recipes",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_017",
+    "name": "Рецепт на маску злая",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_018",
+    "name": "Маска злая",
+    "deck": "recipes",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_019",
+    "name": "Рецепт на обычный посох",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_020",
+    "name": "Обычный посох",
+    "deck": "recipes",
+    "type": "weapon",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_021",
+    "name": "Посох тэрниа",
+    "deck": "recipes",
+    "type": "weapon",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_024",
+    "name": "Обряд трех",
+    "deck": "recipes",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_recipes_025",
+    "name": "Рецепт на заклятие хозяин",
+    "deck": "recipes",
+    "type": "recipe",
+    "copies": 1
+  },
+  {
+    "id": "art_recipes_026",
+    "name": "Заклятие хозяин",
+    "deck": "recipes",
+    "type": "special",
+    "copies": 0
+  },
+  {
+    "id": "art_fairy_glade_001",
+    "name": "Редкий самоцвет",
+    "deck": "fairy_glade",
+    "type": "ingredient",
+    "copies": 1
+  },
+  {
+    "id": "art_fairy_glade_005",
+    "name": "Жаба вирид",
+    "deck": "fairy_glade",
+    "type": "beast",
+    "copies": 1
+  }
+]

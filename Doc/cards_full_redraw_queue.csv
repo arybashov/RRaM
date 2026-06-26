@@ -1,0 +1,127 @@
+priority,section,source_name,kind,status,target_path,source_note
+1,Базовые карты,Базовый чертеж на дубину,blueprint_recipe,generated,prototype-web/assets/cards/redraw/base/base-001-style-v1.png,`base/warrior/club-blueprint-v1.png`
+1,Базовые карты,Дубина,item_spell,generated,prototype-web/assets/cards/redraw/base/base-002-style-v1.png,`base/warrior/club-v1.png`
+1,Базовые карты,Бусы телепортации,item_spell,generated,prototype-web/assets/cards/redraw/base/base-003-style-v1.png,`base/common/teleport-beads-v1.png`
+1,Базовые карты,Клубок сплетенной нити из шерсти барана,resource,generated,prototype-web/assets/cards/redraw/base/base-004-style-v1.png,`base/common/yarn-v1.png`
+1,Базовые карты,Ковер шамана,item_spell,generated,prototype-web/assets/cards/redraw/base/base-005-style-v1.png,`base/shaman/shaman-carpet-v1.png`
+1,Базовые карты,Базовый рецепт на ковер шамана,blueprint_recipe,generated,prototype-web/assets/cards/redraw/base/base-006-style-v1.png,`base/shaman/shaman-carpet-recipe-v1.png`
+1,Базовые карты,Очищенная шкура барана,resource,generated,prototype-web/assets/cards/redraw/base/base-007-style-v1.png,`base/common/clean-ram-hide-v1.png`
+1,Базовые карты,Шерсть барана,resource,generated,prototype-web/assets/cards/redraw/base/base-008-style-v1.png,`base/common/ram-wool-v1.png`
+1,Базовые карты,Шкура барана,resource,generated,prototype-web/assets/cards/redraw/base/base-009-style-v1.png,`base/common/ram-hide-v1.png`
+1,Базовые карты,Баран,beast,generated,prototype-web/assets/cards/redraw/base/base-010-style-v1.png,`base/common/ram-v1.png`
+1,Базовые карты,Рецепт на мешок,blueprint_recipe,generated,prototype-web/assets/cards/redraw/base/base-011-style-v1.png,`base/assistant/sack-recipe-v1.png`
+1,Базовые карты,Мешок,item_spell,generated,prototype-web/assets/cards/redraw/base/base-012-style-v1.png,`base/assistant/sack-v1.png`
+1,Базовые карты,Базовый чертеж на молоток,blueprint_recipe,generated,prototype-web/assets/cards/redraw/base/base-013-style-v1.png,`base/blacksmith/hammer-blueprint-v1.png`
+1,Базовые карты,Молоток,item_spell,generated,prototype-web/assets/cards/redraw/base/base-014-style-v1.png,`base/blacksmith/hammer-v1.png`
+1,Базовые карты,Грязная смешанная железная руда,resource,generated,prototype-web/assets/cards/redraw/base/base-015-style-v1.png,`base/blacksmith/mixed-iron-ore-v1.png`
+1,Смешанный грунт,Железная руда среднего качества,resource,generated,prototype-web/assets/cards/redraw/mixed/mixed-001-style-v1.png,`mixed/medium-quality-iron-ore-v1.png`
+1,Смешанный грунт,Грязная смешанная железная руда,resource,generated,prototype-web/assets/cards/redraw/mixed/mixed-002-style-v1.png,`mixed/dirty-mixed-iron-ore-v1.png`
+1,Смешанный грунт,Сухой череп,resource,generated,prototype-web/assets/cards/redraw/mixed/mixed-003-style-v1.png,`mixed/dry-skull-v1.png`
+1,Смешанный грунт,Очищенная шкура зверя,resource,generated,prototype-web/assets/cards/redraw/mixed/mixed-004-style-v1.png,`materials/beast-hides/clean-beast-hide-v1.png`
+1,Смешанный грунт,Шкура убитого зверя,resource,generated,prototype-web/assets/cards/redraw/mixed/mixed-005-style-v1.png,`materials/beast-hides/raw-beast-hide-v1.png`
+1,Смешанный грунт,Дикий кабан,beast,generated,prototype-web/assets/cards/redraw/mixed/mixed-006-style-v1.png,`beasts/red/wild-boar-v*.png`
+1,Смешанный грунт,Малый золотой самородок,resource,generated,prototype-web/assets/cards/redraw/mixed/mixed-007-style-v1.png,`forest/gold-nugget-v1.png`
+1,Лесная тропа / лесные карты,Гриб мухомор,resource,generated,prototype-web/assets/cards/redraw/forest/forest-001-style-v1.png,`forest/amanita-v1.png`
+1,Лесная тропа / лесные карты,Кора дерева,resource,generated,prototype-web/assets/cards/redraw/forest/forest-002-style-v1.png,`forest/bark-v1.png`
+1,Лесная тропа / лесные карты,Дубовые желуди,resource,generated,prototype-web/assets/cards/redraw/forest/forest-003-style-v1.png,`forest/oak-acorns-v1.png`
+1,Лесная тропа / лесные карты,Полянка мухоморов,item_spell,generated,prototype-web/assets/cards/redraw/forest/forest-004-style-v1.png,`forest/amanita-glade-v1.png`
+1,Лесная тропа / лесные карты,Полена дерева,resource,generated,prototype-web/assets/cards/redraw/forest/forest-005-style-v1.png,`forest/firewood-logs-v1.png`
+1,Лесная тропа / лесные карты,Дикие красные ягоды,resource,generated,prototype-web/assets/cards/redraw/forest/forest-006-style-v1.png,`dark-forest/red-berries-v1.png`
+1,Лесная тропа / лесные карты,Гнущаяся палка,item_spell,generated,prototype-web/assets/cards/redraw/forest/forest-007-style-v1.png,`forest/bending-stick-v1.png`
+1,Лесная тропа / лесные карты,Ночной филин,beast,generated,prototype-web/assets/cards/redraw/forest/forest-008-style-v1.png,`forest/night-owl-v1.png`
+1,Лесная тропа / лесные карты,Обычная сова,beast,generated,prototype-web/assets/cards/redraw/forest/forest-009-style-v1.png,`forest/common-owl-v1.png`
+1,Лесная тропа / лесные карты,Черные ягоды,resource,generated,prototype-web/assets/cards/redraw/forest/forest-010-style-v1.png,`dark-forest/black-berries-v1.png`
+1,Лесная тропа / лесные карты,Железная руда высшего качества,resource,generated,prototype-web/assets/cards/redraw/forest/forest-011-style-v1.png,`forest/high-quality-iron-ore-v1.png`
+1,Лесная тропа / лесные карты,Толстая ветка,item_spell,generated,prototype-web/assets/cards/redraw/forest/forest-012-style-v1.png,`forest/thick-branch-v1.png`
+1,Озеро,Мраморный самоцвет,resource,generated,prototype-web/assets/cards/redraw/lake/lake-001-style-v1.png,`lake/marble-gem-v1.png`
+1,Озеро,Мутный изумруд,resource,generated,prototype-web/assets/cards/redraw/lake/lake-002-style-v1.png,`lake/cloudy-emerald-v1.png`
+1,Озеро,Драгоценный камень,item_spell,generated,prototype-web/assets/cards/redraw/lake/lake-003-style-v1.png,`lake/precious-gem-v1.png`
+1,Озеро,Крапленый аметист,resource,generated,prototype-web/assets/cards/redraw/lake/lake-004-style-v1.png,`lake/speckled-amethyst-v1.png`
+1,Озеро,Необработанный рубин,resource,generated,prototype-web/assets/cards/redraw/lake/lake-005-style-v1.png,`lake/raw-ruby-v1.png`
+1,Озеро,Озерная лягушка,beast,generated,prototype-web/assets/cards/redraw/lake/lake-006-style-v1.png,`lake/lake-frog-v1.png`
+1,Озеро,Проросший корень,resource,generated,prototype-web/assets/cards/redraw/lake/lake-007-style-v1.png,`lake/sprouted-root-v1.png`
+1,Звери и шкуры,Бурый медведь,beast,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-001-style-v1.png,`beasts/red/brown-bear-v1.png`
+1,Звери и шкуры,Агрессивный бурый медведь,beast,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-002-style-v1.png,`beasts/red/aggressive-brown-bear-v1.png`
+1,Звери и шкуры,Серый волк,beast,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-003-style-v1.png,`beasts/red/gray-wolf-v1.png`
+1,Звери и шкуры,Дикий кабан,beast,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-004-style-v1.png,`beasts/red/wild-boar-v*.png`
+1,Звери и шкуры,Шкура медведя,resource,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-005-style-v1.png,`materials/beast-hides/bear-hide-v1.png`
+1,Звери и шкуры,Шкура кабана,resource,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-006-style-v1.png,`materials/beast-hides/boar-hide-v1.png`
+1,Звери и шкуры,Шкура волка,resource,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-007-style-v1.png,`materials/beast-hides/wolf-hide-v1.png`
+1,Звери и шкуры,Шкура убитого зверя,resource,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-008-style-v1.png,`materials/beast-hides/raw-beast-hide-v1.png`
+1,Звери и шкуры,Очищенная шкура зверя,resource,generated,prototype-web/assets/cards/redraw/beasts-hides/beasts-hides-009-style-v1.png,`materials/beast-hides/clean-beast-hide-v1.png`
+1,Темный лес / чертежи / изделия,Средний золотой самородок,resource,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-001-style-v1.png,`dark-forest/medium-gold-nugget-v1.png`
+1,Темный лес / чертежи / изделия,Большой золотой самородок,resource,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-002-style-v1.png,`dark-forest/large-gold-nugget-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на небрежную кольчугу,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-003-style-v1.png,`dark-forest/blueprint-rough-chainmail-v1.png`
+1,Темный лес / чертежи / изделия,Небрежная кольчуга,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-004-style-v1.png,`dark-forest/rough-chainmail-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на легкую кольчугу,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-005-style-v1.png,`dark-forest/blueprint-light-chainmail-v1.png`
+1,Темный лес / чертежи / изделия,Легкая кольчуга,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-006-style-v1.png,`dark-forest/light-chainmail-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на щит защита духа,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-007-style-v1.png,`dark-forest/blueprint-spirit-shield-v1.png`
+1,Темный лес / чертежи / изделия,Щит защита духа,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-008-style-v1.png,`dark-forest/spirit-shield-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на щит др.,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-009-style-v1.png,`dark-forest/blueprint-shield-dr-v1.png`
+1,Темный лес / чертежи / изделия,Щит др.,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-010-style-v1.png,`dark-forest/shield-dr-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на ломщит,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-011-style-v1.png,`dark-forest/blueprint-shield-lom-v1.png`
+1,Темный лес / чертежи / изделия,Ломщит,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-012-style-v1.png,`dark-forest/shield-lom-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на топормол,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-013-style-v1.png,`dark-forest/blueprint-topormol-v1.png`
+1,Темный лес / чертежи / изделия,Топормол,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-014-style-v1.png,`dark-forest/topormol-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на щит калан,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-015-style-v1.png,`dark-forest/blueprint-shield-kalan-v1.png`
+1,Темный лес / чертежи / изделия,Щит калан,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-016-style-v1.png,`dark-forest/shield-kalan-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на меч сеч,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-017-style-v1.png,`dark-forest/blueprint-sword-sech-v1.png`
+1,Темный лес / чертежи / изделия,Меч сеч,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-018-style-v1.png,`dark-forest/sword-sech-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на деревянный молоток,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-019-style-v1.png,`dark-forest/blueprint-wooden-hammer-v1.png`
+1,Темный лес / чертежи / изделия,Деревянный молоток,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-020-style-v1.png,`dark-forest/wooden-hammer-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на красное солнце,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-021-style-v1.png,`dark-forest/blueprint-axe-sun-v1.png`
+1,Темный лес / чертежи / изделия,Секира красное солнце,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-022-style-v1.png,`red/axe-sun-v1.png`
+1,Темный лес / чертежи / изделия,Задание на молот Иерихон,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-023-style-v1.png,`red/task-irikon-v1.png`
+1,Темный лес / чертежи / изделия,Иерихон,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-024-style-v1.png,`red/irikon-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж Иерихон,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-025-style-v1.png,`blueprints/blueprint-irikon-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на меч лорп,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-026-style-v1.png,`dark-forest/blueprint-sword-lorp-v1.png`
+1,Темный лес / чертежи / изделия,Меч Лорп,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-027-style-v1.png,`dark-forest/sword-lorp-v1.png`
+1,Темный лес / чертежи / изделия,Кольцо возврата,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-028-style-v1.png,`dark-forest/return-ring-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на ошейник,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-029-style-v1.png,`dark-forest/blueprint-taming-collar-v1.png`
+1,Темный лес / чертежи / изделия,Ошейник приручения,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-030-style-v1.png,`dark-forest/taming-collar-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на щит отмщение,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-031-style-v1.png,`dark-forest/blueprint-shield-revenge-v1.png`
+1,Темный лес / чертежи / изделия,Щит отмщение,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-032-style-v1.png,`dark-forest/shield-revenge-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на щит луна,blueprint_recipe,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-033-style-v1.png,`dark-forest/blueprint-moon-shield-v1.png`
+1,Темный лес / чертежи / изделия,Щит луна,item_spell,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-034-style-v1.png,`dark-forest/moon-shield-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж шема,blueprint_recipe,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-035-style-v1.png,`dark-forest/blueprint-helm-shem-v1.png`
+1,Темный лес / чертежи / изделия,Шлем шем,item_spell,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-036-style-v1.png,`dark-forest/helm-shem-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на рецепт близнецы,blueprint_recipe,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-037-style-v1.png,`dark-forest/blueprint-twin-axes-v1.png`
+1,Темный лес / чертежи / изделия,Топоры близнецы,item_spell,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-038-style-v1.png,`dark-forest/twin-axes-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на панцирь,blueprint_recipe,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-039-style-v1.png,`dark-forest/blueprint-carapace-v1.png`
+1,Темный лес / чертежи / изделия,Панцирь,item_spell,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-040-style-v1.png,`dark-forest/carapace-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на шлем ТТМ,blueprint_recipe,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-041-style-v1.png,`dark-forest/blueprint-helm-ttm-v1.png`
+1,Темный лес / чертежи / изделия,Шлем ТТМ,item_spell,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-042-style-v1.png,`dark-forest/helm-ttm-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на защиту Ил,blueprint_recipe,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-043-style-v1.png,`dark-forest/blueprint-armor-il-v1.png`
+1,Темный лес / чертежи / изделия,Защита Ил,item_spell,missing,prototype-web/assets/cards/redraw/dark-forest/dark-forest-044-style-v1.png,`dark-forest/armor-il-v1.png`
+1,Рецепты,Рецепт на жест,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-001-style-v1.png,`recipes/recipe-armor-v1.png`
+1,Рецепты,Жест,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-002-style-v1.png,`recipes/armor-zhest-v1.png`
+1,Рецепты,Рецепт на каска-маска,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-003-style-v1.png,`recipes/recipe-helmet-mask-v1.png`
+1,Рецепты,Каска-маска,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-004-style-v1.png,`recipes/helmet-mask-v1.png`
+1,Рецепты,Рецепт на рубашку из кожи,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-005-style-v1.png,`recipes/recipe-leather-shirt-v1.png`
+1,Рецепты,Кожаная рубашка,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-006-style-v1.png,`dark-forest/leather-shirt-v1.png`
+1,Рецепты,Рецепт на одежду разведчика,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-007-style-v1.png,`recipes/recipe-scout-clothes-v1.png`
+1,Рецепты,Разведка,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-008-style-v1.png,`recipes/scout-clothes-v1.png`
+1,Рецепты,Рецепт на маску трехликого,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-009-style-v1.png,`recipes/recipe-three-faced-mask-v1.png`
+1,Рецепты,Маска трехликого,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-010-style-v1.png,`recipes/three-faced-mask-v1.png`
+1,Рецепты,Рецепт на бубун,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-011-style-v1.png,`recipes/recipe-bubun-mask-v1.png`
+1,Рецепты,Маска бубун,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-012-style-v1.png,`recipes/bubun-mask-v1.png`
+1,Рецепты,Рецепт на маску оху,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-013-style-v1.png,`recipes/recipe-okhu-mask-v1.png`
+1,Рецепты,Маска оху,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-014-style-v1.png,`recipes/okhu-mask-v1.png`
+1,Рецепты,Рецепт на бутыль дип,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-015-style-v1.png,`recipes/recipe-dip-bottle-v1.png`
+1,Рецепты,Бутыль дип,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-016-style-v1.png,`recipes/dip-bottle-v1.png`
+1,Рецепты,Рецепт на маску злая,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-017-style-v1.png,`recipes/recipe-evil-mask-v1.png`
+1,Рецепты,Маска злая,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-018-style-v1.png,`recipes/evil-mask-v1.png`
+1,Рецепты,Рецепт на обычный посох,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-019-style-v1.png,`recipes/recipe-common-staff-v1.png`
+1,Рецепты,Обычный посох,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-020-style-v1.png,`recipes/common-staff-v1.png`
+1,Рецепты,Посох тэрниа,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-021-style-v1.png,`recipes/ternia-staff-v1.png`
+1,Рецепты,Порча,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-022-style-v1.png,`recipes/porcha-v1.png`
+1,Рецепты,Рецепт на обряд,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-023-style-v1.png,`recipes/recipe-rite-v1.png`
+1,Рецепты,Обряд трех,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-024-style-v1.png,`recipes/rite-of-three-v1.png`
+1,Рецепты,Рецепт на заклятие хозяин,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-025-style-v1.png,`recipes/recipe-master-curse-v1.png`
+1,Рецепты,Заклятие хозяин,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-026-style-v1.png,`recipes/master-curse-v1.png`
+1,Рецепты,Шкура ритуалов,resource,missing,prototype-web/assets/cards/redraw/recipes/recipes-027-style-v1.png,`recipes/ritual-hide-v1.png`
+1,Таинственная опушка,Редкий самоцвет,resource,missing,prototype-web/assets/cards/redraw/fairy-glade/fairy-glade-001-style-v1.png,`fairy-glade/rare-gem-v1.png`
+1,Таинственная опушка,Феникс,beast,missing,prototype-web/assets/cards/redraw/fairy-glade/fairy-glade-002-style-v1.png,"`fairy-glade/phoenix-own-v1.png`, `fairy-glade/phoenix-enemy-v1.png`"
+1,Таинственная опушка,Золотое перо к кузнецу противника,item_spell,missing,prototype-web/assets/cards/redraw/fairy-glade/fairy-glade-003-style-v1.png,`fairy-glade/gold-feather-enemy-smith-v1.png`
+1,Таинственная опушка,Золотое перо к своему кузнецу,item_spell,missing,prototype-web/assets/cards/redraw/fairy-glade/fairy-glade-004-style-v1.png,`fairy-glade/gold-feather-own-smith-v1.png`
+1,Таинственная опушка,Жаба вирид,beast,missing,prototype-web/assets/cards/redraw/fairy-glade/fairy-glade-005-style-v1.png,`fairy-glade/virid-toad-v1.png`

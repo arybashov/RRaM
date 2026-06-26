@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RRaM — превью SFX</title>
+  <style>
+    body { background:#11161c; color:#e7eef5; font:15px/1.4 system-ui,sans-serif; margin:0; padding:24px; }
+    h1 { font-size:18px; margin:0 0 4px; }
+    .sub { color:#8fa0b1; margin:0 0 18px; font-size:13px; }
+    h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#66e4c4; margin:22px 0 6px; }
+    .row { display:flex; align-items:center; gap:14px; padding:8px 12px; border-bottom:1px solid #233; }
+    .row:hover { background:#161d25; }
+    .meta { min-width:210px; }
+    .id { font-weight:700; }
+    .trig { color:#8fa0b1; font-size:12px; }
+    audio { height:34px; }
+  </style>
+</head>
+<body>
+  <h1>RRaM — превью звуковых эффектов (Stable Audio Open, 44.1 кГц стерео)</h1>
+  <p class="sub">Файлы: assets/audio/&lt;id&gt;.wav</p>
+  <div id="list"></div>
+  <script>
+    const GROUPS = [
+      ['Кубики и ход', [
+        ['dice-roll','бросок кубиков'],['turn-start','начало хода'],['turn-end','конец хода'],
+      ]],
+      ['Движение', [
+        ['step-move','движение фишки'],['teleport-cast','телепорт'],['teleport-recharge','перезарядка бус'],
+      ]],
+      ['Карты', [
+        ['card-draw','добор карты'],['card-flip-reveal','переворот в ревиле'],['card-to-inventory','уход в инвентарь'],
+        ['card-place-terrain','выкладка на террейн'],['card-flip-terrain','переворот на террейне'],
+        ['card-transfer','передача'],['card-discard','сброс'],
+      ]],
+      ['Бой', [
+        ['attack-hit','удар'],['attack-weapon','удар оружием'],['attack-blocked','блок бронёй'],
+        ['attack-crit-hammer','крит Молота'],['trap-trigger','ловушка'],['character-defeat','гибель персонажа'],
+      ]],
+      ['Зверь', [
+        ['beast-appear','появление'],['beast-bite','укус'],['beast-fight-hit','удар по зверю'],['beast-defeat','смерть зверя'],
+      ]],
+      ['Крафт и эффекты', [
+        ['craft-success','крафт ок'],['craft-fail','крафт провал'],['hide-process','обработка шкуры'],
+        ['heal-nugget','лечение'],['marvo-cast','Обряд трёх'],['frog-spell','лягушка'],['dot-tick','яд/ожог'],
+      ]],
+      ['Дварфы / костры', [
+        ['dwarf-enter','выход дварфов'],['bonfire-light','зажечь костёр'],['bonfire-extinguish','потушить костёр'],
+      ]],
+      ['Финал / феникс', [
+        ['victory','победа'],['defeat','поражение'],['feather-pickup','перо поднято'],
+        ['feather-victory','победа пером'],['phoenix-appear','феникс'],
+      ]],
+      ['Интерфейс', [
+        ['ui-click','клик'],['ui-error','ошибка'],['ui-notify','уведомление'],['lobby-join','вход в игру'],
+      ]],
+      ['Эмбиент', [
+        ['amb-forest','лес (луп)'],['amb-battle','бой (луп)'],
+      ]],
+    ];
+    const v = Date.now();
+    const list = document.getElementById('list');
+    for (const [group, items] of GROUPS) {
+      const h = document.createElement('h2'); h.textContent = group; list.appendChild(h);
+      for (const [id, trig] of items) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML =
+          `<div class="meta"><div class="id">${id}</div><div class="trig">${trig}</div></div>` +
+          `<audio controls preload="none" src="./assets/audio/${id}.wav?v=${v}"></audio>`;
+        list.appendChild(row);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+priority,group,source_name,status,target_path,notes
+1,lake,Мраморный самоцвет,generated,prototype-web/assets/cards/lake/marble-gem-v1.png,Озерная карта-самоцвет
+1,lake,Мутный изумруд,generated,prototype-web/assets/cards/lake/cloudy-emerald-v1.png,Озерная карта-самоцвет
+1,lake,Драгоценный камень,generated,prototype-web/assets/cards/lake/precious-gem-v1.png,Озерная карта-самоцвет
+1,lake,Крапленый аметист,generated,prototype-web/assets/cards/lake/speckled-amethyst-v1.png,Озерная карта-самоцвет
+1,lake,Проросший корень,generated,prototype-web/assets/cards/lake/sprouted-root-v1.png,Озерная карта-ингредиент/заклинание
+1,fairy-glade,Редкий самоцвет,generated,prototype-web/assets/cards/fairy-glade/rare-gem-v1.png,Таинственная опушка
+1,fairy-glade,Жаба вирид,generated,prototype-web/assets/cards/fairy-glade/virid-toad-v1.png,Таинственная опушка
+2,forest,Дубовые желуди,generated,prototype-web/assets/cards/forest/oak-acorns-v1.png,Лесной ингредиент
+2,forest,Полена дерева,generated,prototype-web/assets/cards/forest/firewood-logs-v1.png,Лесной ингредиент
+2,forest,Гнущаяся палка,generated,prototype-web/assets/cards/forest/bending-stick-v1.png,Лесной предмет
+2,forest,Толстая ветка,generated,prototype-web/assets/cards/forest/thick-branch-v1.png,Лесной предмет
+3,dark-forest,Чертеж на небрежную кольчугу,generated,prototype-web/assets/cards/dark-forest/blueprint-rough-chainmail-v1.png,Чертеж
+3,dark-forest,Небрежная кольчуга,generated,prototype-web/assets/cards/dark-forest/rough-chainmail-v1.png,Изделие
+3,dark-forest,Чертеж на легкую кольчугу,generated,prototype-web/assets/cards/dark-forest/blueprint-light-chainmail-v1.png,Чертеж
+3,dark-forest,Чертеж на щит защита духа,generated,prototype-web/assets/cards/dark-forest/blueprint-spirit-shield-v1.png,Чертеж
+3,dark-forest,Щит защита духа,generated,prototype-web/assets/cards/dark-forest/spirit-shield-v1.png,Изделие
+3,dark-forest,Чертеж на щит др.,generated,prototype-web/assets/cards/dark-forest/blueprint-shield-dr-v1.png,Чертеж
+3,dark-forest,Чертеж на ломщит,generated,prototype-web/assets/cards/dark-forest/blueprint-shield-lom-v1.png,Чертеж
+3,dark-forest,Чертеж на топормол,generated,prototype-web/assets/cards/dark-forest/blueprint-topormol-v1.png,Чертеж
+3,dark-forest,Чертеж на щит калан,generated,prototype-web/assets/cards/dark-forest/blueprint-shield-kalan-v1.png,Чертеж
+3,dark-forest,Чертеж на меч сеч,generated,prototype-web/assets/cards/dark-forest/blueprint-sword-sech-v1.png,Чертеж
+3,dark-forest,Чертеж на деревянный молоток,generated,prototype-web/assets/cards/dark-forest/blueprint-wooden-hammer-v1.png,Чертеж
+3,dark-forest,Деревянный молоток,generated,prototype-web/assets/cards/dark-forest/wooden-hammer-v1.png,Изделие
+3,dark-forest,Чертеж на красное солнце,generated,prototype-web/assets/cards/dark-forest/blueprint-axe-sun-v1.png,Чертеж
+3,dark-forest,Чертеж на меч лорп,generated,prototype-web/assets/cards/dark-forest/blueprint-sword-lorp-v1.png,Чертеж
+3,dark-forest,Чертеж на ошейник,generated,prototype-web/assets/cards/dark-forest/blueprint-taming-collar-v1.png,Чертеж
+3,dark-forest,Ошейник приручения,generated,prototype-web/assets/cards/dark-forest/taming-collar-v1.png,Изделие
+3,dark-forest,Чертеж на щит отмщение,generated,prototype-web/assets/cards/dark-forest/blueprint-shield-revenge-v1.png,Чертеж
+3,dark-forest,Чертеж на щит луна,generated,prototype-web/assets/cards/dark-forest/blueprint-moon-shield-v1.png,Чертеж
+3,dark-forest,Щит луна,generated,prototype-web/assets/cards/dark-forest/moon-shield-v1.png,Изделие
+3,dark-forest,Чертеж шема,generated,prototype-web/assets/cards/dark-forest/blueprint-helm-shem-v1.png,Чертеж
+3,dark-forest,Чертеж на рецепт близнецы,generated,prototype-web/assets/cards/dark-forest/blueprint-twin-axes-v1.png,Чертеж
+3,dark-forest,Топоры близнецы,generated,prototype-web/assets/cards/dark-forest/twin-axes-v1.png,Изделие
+3,dark-forest,Чертеж на панцирь,generated,prototype-web/assets/cards/dark-forest/blueprint-carapace-v1.png,Чертеж
+3,dark-forest,Панцирь,generated,prototype-web/assets/cards/dark-forest/carapace-v1.png,Изделие
+3,dark-forest,Чертеж на шлем ТТМ,generated,prototype-web/assets/cards/dark-forest/blueprint-helm-ttm-v1.png,Чертеж
+3,dark-forest,Чертеж на защиту Ил,generated,prototype-web/assets/cards/dark-forest/blueprint-armor-il-v1.png,Чертеж
+4,recipes,Рецепт на каска-маска,generated,prototype-web/assets/cards/recipes/recipe-helmet-mask-v1.png,Рецепт
+4,recipes,Каска-маска,generated,prototype-web/assets/cards/recipes/helmet-mask-v1.png,Изделие/маска
+4,recipes,Рецепт на рубашку из кожи,generated,prototype-web/assets/cards/recipes/recipe-leather-shirt-v1.png,Рецепт
+4,recipes,Рецепт на одежду разведчика,generated,prototype-web/assets/cards/recipes/recipe-scout-clothes-v1.png,Рецепт
+4,recipes,Разведка,generated,prototype-web/assets/cards/recipes/scout-clothes-v1.png,Изделие
+4,recipes,Рецепт на маску трехликого,generated,prototype-web/assets/cards/recipes/recipe-three-faced-mask-v1.png,Рецепт
+4,recipes,Маска трехликого,generated,prototype-web/assets/cards/recipes/three-faced-mask-v1.png,Маска
+4,recipes,Рецепт на бубун,generated,prototype-web/assets/cards/recipes/recipe-bubun-mask-v1.png,Рецепт
+4,recipes,Маска бубун,generated,prototype-web/assets/cards/recipes/bubun-mask-v1.png,Маска
+4,recipes,Рецепт на маску оху,generated,prototype-web/assets/cards/recipes/recipe-okhu-mask-v1.png,Рецепт
+4,recipes,Маска оху,generated,prototype-web/assets/cards/recipes/okhu-mask-v1.png,Маска
+4,recipes,Рецепт на бутыль дип,generated,prototype-web/assets/cards/recipes/recipe-dip-bottle-v1.png,Рецепт
+4,recipes,Бутыль дип,generated,prototype-web/assets/cards/recipes/dip-bottle-v1.png,Изделие
+4,recipes,Рецепт на маску злая,generated,prototype-web/assets/cards/recipes/recipe-evil-mask-v1.png,Рецепт
+4,recipes,Маска злая,generated,prototype-web/assets/cards/recipes/evil-mask-v1.png,Маска
+4,recipes,Рецепт на обычный посох,generated,prototype-web/assets/cards/recipes/recipe-common-staff-v1.png,Рецепт
+4,recipes,Обычный посох,generated,prototype-web/assets/cards/recipes/common-staff-v1.png,Посох
+4,recipes,Посох тэрниа,generated,prototype-web/assets/cards/recipes/ternia-staff-v1.png,Посох
+4,recipes,Обряд трех,generated,prototype-web/assets/cards/recipes/rite-of-three-v1.png,Обряд
+4,recipes,Рецепт на заклятие хозяин,generated,prototype-web/assets/cards/recipes/recipe-master-curse-v1.png,Рецепт
+4,recipes,Заклятие хозяин,generated,prototype-web/assets/cards/recipes/master-curse-v1.png,Заклятие
+5,mixed,Сухой череп,generated,prototype-web/assets/cards/mixed/dry-skull-v1.png,Второй проход: отдельный арт вместо отсутствующего
+5,forest,Железная руда высшего качества,generated,prototype-web/assets/cards/forest/high-quality-iron-ore-v1.png,Второй проход: отдельный арт вместо частичного совпадения
+5,beasts,Бурый медведь,generated,prototype-web/assets/cards/beasts/red/brown-bear-v1.png,Второй проход: отдельный арт вместо общего медведя
+5,beasts,Агрессивный бурый медведь,generated,prototype-web/assets/cards/beasts/red/aggressive-brown-bear-v1.png,Второй проход: отдельный арт вместо общего медведя
+5,dark-forest,Средний золотой самородок,generated,prototype-web/assets/cards/dark-forest/medium-gold-nugget-v1.png,Второй проход: отдельный размер самородка
+5,dark-forest,Большой золотой самородок,generated,prototype-web/assets/cards/dark-forest/large-gold-nugget-v1.png,Второй проход: отдельный размер самородка
+5,recipes,Рецепт на обряд,generated,prototype-web/assets/cards/recipes/recipe-rite-v1.png,Второй проход: отдельный рецепт вместо частичного recipe-obrud
+6,mixed,Железная руда среднего качества,generated,prototype-web/assets/cards/mixed/medium-quality-iron-ore-v1.png,Третий проход: отдельный арт вместо общего mixed-iron-ore
+6,mixed,Грязная смешанная железная руда,generated,prototype-web/assets/cards/mixed/dirty-mixed-iron-ore-v1.png,Третий проход: отдельный арт для карты из смешанного грунта
+6,materials,Шкура убитого зверя,generated,prototype-web/assets/cards/materials/beast-hides/raw-beast-hide-v1.png,Третий проход: отдельный общий арт шкуры убитого зверя
+6,fairy-glade,Золотое перо к кузнецу противника,generated,prototype-web/assets/cards/fairy-glade/gold-feather-enemy-smith-v1.png,Третий проход: отдельный арт вместо общего gold-feather
+6,fairy-glade,Золотое перо к своему кузнецу,generated,prototype-web/assets/cards/fairy-glade/gold-feather-own-smith-v1.png,Третий проход: отдельный арт вместо общего gold-feather

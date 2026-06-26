@@ -1,0 +1,17 @@
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /?server=ws://127.0.0.1:8787/ws&_v=20260618-18 HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/ui/action-icons/movement-v1.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/ui/action-icons/transfer-v2.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /styles.css?v=20260618-18 HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/ui/action-icons/draw-v1.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/ui/action-icons/teleport-v1.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /game.js?v=20260618-18 HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/ui/action-icons/end-turn-v1.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/board-map.json HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/fantasy-map-background.jpg HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/cards/backs/markers/blueprints.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/cards/backs/markers/forest.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/cards/backs/markers/mixed.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/cards/backs/markers/lake.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/cards/backs/markers/dark_forest.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/cards/backs/markers/fairy_glade.png HTTP/1.1" 200 -
+127.0.0.1 - - [18/Jun/2026 18:50:39] "GET /assets/cards/backs/markers/recipes.png HTTP/1.1" 200 -

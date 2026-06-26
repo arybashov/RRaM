@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rram-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8080", "--bind", "127.0.0.1", "-d", "prototype-web"],
+      "port": 8080
+    },
+    {
+      "name": "rram-web-8081",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8081", "--bind", "127.0.0.1", "-d", "prototype-web"],
+      "port": 8081
+    }
+  ]
+}
