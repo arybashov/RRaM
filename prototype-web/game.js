@@ -704,7 +704,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260627-20'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260627-21'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLLS_PER_GAME = 10;
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
@@ -739,6 +739,7 @@ const BACKGROUND_MUSIC_FILE = 'March_of_the_Stone_Lords.mp3';
 const BACKGROUND_MUSIC_VOLUME = 0.14;
 const soundCache = new Map();
 let backgroundMusic = null;
+let backgroundMusicBlocked = false;
 let soundUnlocked = false;
 let matchResultSoundKey = null;
 let goblinVoiceBag = [];
@@ -786,12 +787,26 @@ function getBackgroundMusic() {
   return backgroundMusic;
 }
 
+function playBackgroundMusic() {
+  const music = getBackgroundMusic();
+  if (!musicEnabled || !soundUnlocked || document.hidden || isDwarfEntryVideoVisible()) {
+    music.pause();
+    return;
+  }
+  const playPromise = music.play();
+  if (playPromise?.then) {
+    playPromise
+      .then(() => { backgroundMusicBlocked = false; })
+      .catch(() => { backgroundMusicBlocked = true; });
+  }
+}
+
 function applyAudioSettings() {
   const music = getBackgroundMusic();
-  if (!musicEnabled || !soundUnlocked || document.hidden) {
+  if (!musicEnabled || !soundUnlocked || document.hidden || isDwarfEntryVideoVisible()) {
     music.pause();
   } else {
-    music.play().catch(() => {});
+    playBackgroundMusic();
   }
   if (!soundEnabled && activeGoblinClip) {
     activeGoblinClip.pause();
@@ -804,7 +819,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     music.pause();
   } else if (musicEnabled && soundUnlocked) {
-    music.play().catch(() => {});
+    playBackgroundMusic();
   }
 });
 
@@ -875,15 +890,20 @@ function playToastSound(type) {
 
 function installSoundUnlock() {
   const unlock = () => {
-    soundUnlocked = true;
-    Object.keys(SOUND_FILES).forEach(primeSound);
+    if (!soundUnlocked) {
+      soundUnlocked = true;
+      Object.keys(SOUND_FILES).forEach(primeSound);
+    }
     applyAudioSettings();
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
   };
   window.addEventListener('pointerdown', unlock, { passive: true });
+  window.addEventListener('touchstart', unlock, { passive: true });
+  window.addEventListener('click', unlock, { passive: true });
   window.addEventListener('keydown', unlock);
   document.addEventListener('click', (event) => {
+    if (backgroundMusicBlocked || (musicEnabled && soundUnlocked && backgroundMusic?.paused && !document.hidden)) {
+      playBackgroundMusic();
+    }
     if (event.target.closest('button, .mode, .character-card, .inventory-card, .cardbox-card, .dice-btn')) {
       playSound('uiClick', 0.28);
     }
@@ -6941,6 +6961,10 @@ function buildDwarfEntryOverlay() {
     if (video.paused) playDwarfEntryVideo(video);
   });
   video.load();
+}
+
+function isDwarfEntryVideoVisible() {
+  return Boolean(dwarfEntryOverlayEl && !dwarfEntryOverlayEl.classList.contains('hidden'));
 }
 
 function pauseAmbientForDwarfEntry() {
