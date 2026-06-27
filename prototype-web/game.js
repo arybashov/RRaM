@@ -704,7 +704,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260627-21'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260627-22'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLLS_PER_GAME = 10;
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
@@ -740,6 +740,7 @@ const BACKGROUND_MUSIC_VOLUME = 0.14;
 const soundCache = new Map();
 let backgroundMusic = null;
 let backgroundMusicBlocked = false;
+let backgroundMusicResumeTimer = null;
 let soundUnlocked = false;
 let matchResultSoundKey = null;
 let goblinVoiceBag = [];
@@ -770,7 +771,17 @@ function playSound(name, volume = 1) {
   if (!base) return;
   const audio = base.cloneNode(true);
   audio.volume = Math.max(0, Math.min(1, 0.55 * volume));
-  audio.play().catch(() => {});
+  const resumeMusic = () => scheduleBackgroundMusicResume(80);
+  audio.addEventListener('ended', resumeMusic, { once: true });
+  audio.addEventListener('error', resumeMusic, { once: true });
+  audio.play()
+    .then(() => {
+      const durationMs = Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration * 1000 + 120
+        : 1400;
+      window.setTimeout(resumeMusic, Math.min(5000, Math.max(500, durationMs)));
+    })
+    .catch(resumeMusic);
 }
 
 function backgroundMusicUrl() {
@@ -799,6 +810,15 @@ function playBackgroundMusic() {
       .then(() => { backgroundMusicBlocked = false; })
       .catch(() => { backgroundMusicBlocked = true; });
   }
+}
+
+function scheduleBackgroundMusicResume(delayMs = 250) {
+  window.clearTimeout(backgroundMusicResumeTimer);
+  backgroundMusicResumeTimer = window.setTimeout(() => {
+    if (musicEnabled && soundUnlocked && !document.hidden && !isDwarfEntryVideoVisible()) {
+      playBackgroundMusic();
+    }
+  }, delayMs);
 }
 
 function applyAudioSettings() {
@@ -873,11 +893,21 @@ function speakGoblinSelection() {
   audio.volume = 0.72;
   audio.playbackRate = 0.96 + Math.random() * 0.08;
   activeGoblinClip = audio;
-  audio.addEventListener('ended', () => {
+  const finish = () => {
     if (activeGoblinClip === audio) activeGoblinClip = null;
-  });
+    scheduleBackgroundMusicResume(120);
+  };
+  audio.addEventListener('ended', finish, { once: true });
+  audio.addEventListener('error', finish, { once: true });
 
-  audio.play().catch(() => {});
+  audio.play()
+    .then(() => {
+      const durationMs = Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration * 1000 + 160
+        : 1800;
+      window.setTimeout(finish, Math.min(6000, Math.max(800, durationMs)));
+    })
+    .catch(finish);
 }
 
 function playToastSound(type) {
