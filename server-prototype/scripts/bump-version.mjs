@@ -39,6 +39,10 @@ const edits = [
     path: resolve(repo, 'prototype-web/index.html'),
     re: /(card-art-registry\.js\?v=)[^"']+/,
   },
+  {
+    path: resolve(repo, 'prototype-web/index.html'),
+    re: /(dwarfs-entry\.mp4\?v=)[^"']+/,
+  },
 ];
 
 for (const { path, re } of edits) {

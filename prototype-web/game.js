@@ -633,7 +633,9 @@ let scale = 1;
 let boardSvg = null;
 let boardVp  = null;                  // <g> вьюпорт: пан/зум применяются к нему
 let eventOverlayEl = null;            // окно просмотра полученной/выложенной карты
+let confirmOverlayEl = null;
 let eventOverlayCardEl = null;
+let dwarfEntryOverlayEl = null;
 let toastContainer = null;
 let view = { s: 1, tx: 0, ty: 0 };    // зум и сдвиг в координатах viewBox
 let viewAnimFrame = null;
@@ -684,6 +686,9 @@ const terrainFaceState = new Map(); // uid → faceDown: для анимации
 const terrainFlipAnimUntil = new Map(); // uid → время, до которого крутим анимацию переворота
 const beastCardRects = new Map(); // characterId → положение карты зверя на поле
 let invDrag = null;          // перетаскивание из инвентаря: { cardIndex, ghost, srcEl }
+let terrainDrag = null;
+let lastDwarfEntryVideoKey = null;
+let dwarfEntryPausedMusic = false;
 let invSuppressClickUntil = 0;
 let approachTarget = null;      // { mineId, enemyId, until } — подход к врагу
 let attackFxTargetId = null;
@@ -699,10 +704,11 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260626-8'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260627-20'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLLS_PER_GAME = 10;
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
+const DWARF_ENTRY_VIDEO_SRC = `./assets/video/dwarfs-entry.mp4?v=${APP_VERSION}`;
 
 // ── Звук ─────────────────────────────────────────────────────────
 const SOUND_FILES = Object.freeze({
@@ -913,6 +919,7 @@ inventoryEl?.addEventListener('click', onInventoryClick);
 }
 buildCardBox();
 buildEventOverlay();
+buildDwarfEntryOverlay();
 buildLobbyOverlay();
 connect();
 document.getElementById('blueprintsDeckBtn')?.addEventListener('click', () => drawProfession('blueprints'));
@@ -1235,6 +1242,9 @@ function handleMsg({ type, payload }) {
       }
 
       render();
+      if (shouldShowDwarfEntryVideo(prevRoom, serverRoom)) {
+        showDwarfEntryVideo();
+      }
       // If we queued a teleport while waiting for server to switch to split,
       // send it now when snapshot confirms split mode.
       if (pendingTeleport && getServMode(pendingTeleport.characterId) === 'split') {
@@ -1282,6 +1292,23 @@ function handleMsg({ type, payload }) {
 const getGame     = () => serverRoom?.game ?? null;
 const isSpectator = () => spectatorMode || serverRoom?.spectator === true;
 const isMyTurn    = () => !isSpectator() && getGame()?.turn.activePlayerId === myPlayerId;
+
+function dwarfUnitsOnBoard(dwarfState) {
+  return (dwarfState?.units ?? []).some((unit) => unit.alive !== false && Boolean(unit.position));
+}
+
+function shouldShowDwarfEntryVideo(prevRoom, nextRoom) {
+  if (!prevRoom?.game || !nextRoom?.game) return false;
+  const prevDwarves = prevRoom.game.dwarves;
+  const nextDwarves = nextRoom.game.dwarves;
+  if (!nextDwarves?.active) return false;
+  if (prevDwarves?.active) return false;
+  const key = `${nextRoom.id ?? 'room'}:${nextDwarves.mainTurnsCompleted ?? 'entry'}`;
+  if (lastDwarfEntryVideoKey === key) return false;
+  lastDwarfEntryVideoKey = key;
+  return true;
+}
+
 function setSheetHandleLabel(label) {
   if (!sheetHandleEl) return;
   let arrow = sheetHandleEl.querySelector('.sheet-handle-arrow');
@@ -4312,23 +4339,6 @@ function renderCombatStatsSummary(char, activeTerrainCards) {
     + '</div></div>';
 }
 
-function renderPlacedTerrainCardsControls(placedTerrainCards) {
-  if (!placedTerrainCards.length) return '';
-  return '<div class="placed-terrain-cards">'
-    + '<div class="placed-terrain-title">Карты на персонаже</div>'
-    + placedTerrainCards.map((card) => {
-      const name = card.name ?? getCardName(card.id) ?? card.id;
-      const state = card.faceDown ? 'рубашкой вверх' : 'лицом вверх';
-      const nextState = card.faceDown ? 'Лицом вверх' : 'Рубашкой вверх';
-      return `<div class="placed-terrain-row">`
-        + `<span>${escapeHtml(name)} <small>${state}</small></span>`
-        + `<button class="terrain-flip-btn" data-terrain-card-id="${escapeHtml(card.terrainCardId)}" data-testid="terrain-flip">${nextState}</button>`
-        + `<button class="terrain-return-btn" data-terrain-card-id="${escapeHtml(card.terrainCardId)}" data-testid="terrain-return">В инвентарь</button>`
-        + `</div>`;
-    }).join('')
-    + '</div>';
-}
-
 function renderInventory() {
   if (isSpectator()) {
     if (inventoryTitleEl) inventoryTitleEl.textContent = 'События';
@@ -4377,7 +4387,6 @@ function renderInventory() {
       faceDown: Boolean(card.faceDown),
     }));
   const activeTerrainCards = placedTerrainCards.filter((card) => !card.faceDown);
-  const placedTerrainInfo = renderPlacedTerrainCardsControls(placedTerrainCards);
   if (char.frogSpell) {
     const spellName = char.frogSpell.name ?? 'Заклинание жабы';
     actionRows.push(
@@ -4555,7 +4564,7 @@ function renderInventory() {
     ? `<div class="inventory-actions"><div class="inventory-actions-title">Доступные действия</div>${actionRows.join('')}</div>`
     : '';
   // Контекстные блоки (зверь / бой / террейн) — над картами; стек действий — под картами.
-  const aboveCards = beastInfo + placedTerrainInfo;
+  const aboveCards = beastInfo;
   const topInfo = aboveCards + actionsInfo;
 
   const visibleCards = inv
@@ -4611,17 +4620,6 @@ function renderInventory() {
   inventoryEl.querySelectorAll('.use-oak-acorns-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation();
     wsSend('action:useOakAcorns', cardActionPayload(e.currentTarget));
-  }));
-  inventoryEl.querySelectorAll('.terrain-return-btn').forEach((button) => button.addEventListener('click', (e) => {
-    e.stopPropagation();
-    wsSend('action:terrainRemove', { id: e.currentTarget.dataset.terrainCardId });
-  }));
-  inventoryEl.querySelectorAll('.terrain-flip-btn').forEach((button) => button.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const terrainCardId = e.currentTarget.dataset.terrainCardId;
-    const card = terrainCards.get(terrainCardId);
-    if (!card) return;
-    wsSend('action:terrainFlip', { id: terrainCardId, faceDown: !card.faceDown });
   }));
   inventoryEl.querySelectorAll('.use-lake-frog-btn').forEach((button) => button.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -5094,7 +5092,7 @@ function appendGeneratedCardArt(parent, card, size = 'terrain') {
   parent.appendChild(holder.firstElementChild);
 }
 
-function renderCard(c, i = 0, forceOpen = false) {
+function renderCard(c, i = 0, forceOpen = false, ownerCharacterId = null) {
   // c = { id, name, type, locked, desc }; легаси-строку (если придёт) тоже покажем
   if (typeof c === 'string') return `<div class="card">${escapeHtml(c)}</div>`;
   const art = cardFaceArt(c);
@@ -5106,15 +5104,10 @@ function renderCard(c, i = 0, forceOpen = false) {
   const hasDesc = Boolean(cardDesc);
   const open = forceOpen || expandedCards.has(i);
   const selected = getSelChar();
-  const manuallyFaceDown = selected && faceDownCards.has(`${selected.id}:${i}`);
+  const faceOwnerId = ownerCharacterId ?? selected?.id ?? null;
+  const manuallyFaceDown = faceOwnerId && Number.isInteger(i) && faceDownCards.has(`${faceOwnerId}:${i}`);
   const showBack = c.exhausted || c.hidden || manuallyFaceDown;
   const faceArt = showBack ? cardBackArt(c.id) : cardFaceArtUrl(art);
-  const flipControl = !c.exhausted && !c.hidden && !c.locked
-    ? `<button class="card-flip-btn" type="button" aria-label="${manuallyFaceDown ? 'Перевернуть лицом вверх' : 'Перевернуть рубашкой вверх'}" title="${manuallyFaceDown ? 'Перевернуть лицом вверх' : 'Перевернуть рубашкой вверх'}">↻</button>`
-    : '';
-  const discardControl = !c.hidden
-    ? `<button class="card-discard-btn" type="button" aria-label="Удалить карту" title="Удалить карту">×</button>`
-    : '';
   const desc = hasDesc && open ? `<div class="card-desc">${escapeHtml(cardDesc)}</div>` : '';
   const face = faceArt
     ? `<img class="inventory-card-art" src="${faceArt}" alt="${escapeHtml(visualMeta.name)}" draggable="false" />`
@@ -5123,8 +5116,6 @@ function renderCard(c, i = 0, forceOpen = false) {
   return `<div class="card card-face card-${c.type ?? visualMeta.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}${c.exhausted ? ' card-exhausted' : ''}${manuallyFaceDown ? ' card-face-down' : ''}${open ? ' expanded' : ''}" data-i="${i}" title="${escapeHtml(visualMeta.name)}${c.exhausted ? ' — использована' : manuallyFaceDown ? ' — рубашкой вверх' : ''}"${!c.exhausted && !c.hidden ? ' role="button" tabindex="0"' : ''}>`
     + face
     + locked
-    + flipControl
-    + discardControl
     + (c.exhausted ? '<span class="card-used-mark">использована</span>'
       : manuallyFaceDown ? '<span class="card-used-mark">скрыта</span>' : '')
     + (showBack ? '' : desc)
@@ -5145,28 +5136,15 @@ function onInventoryClick(e) {
   const i = Number(card.dataset.i);
   const char = getSelChar();
   const item = char?.inventory?.[i];
-  if (e.target.closest('.card-discard-btn') && char && item) {
-    e.stopPropagation();
-    discardInventoryCard(char, i, item);
-    return;
-  }
-  if (e.target.closest('.card-flip-btn') && char && item && !item.exhausted && !item.locked) {
-    e.stopPropagation();
-    const key = `${char.id}:${i}`;
-    if (faceDownCards.has(key)) faceDownCards.delete(key); else faceDownCards.add(key);
-    renderInventory();
-    return;
-  }
   if (item) {
     pushCardTutorial(item);
     showInventoryCard(item, i);
   }
 }
 
-function discardInventoryCard(char, cardIndex, card) {
+async function discardInventoryCard(char, cardIndex, card) {
   if (!char || cardIndex == null || !card) return;
-  const cardName = card.name ?? getCardName(card.id ?? card);
-  if (!window.confirm(`Точно удалить карту «${cardName}»?`)) return;
+  if (!(await confirmDiscardCard(card))) return;
   wsSend('action:discardCard', {
     characterId: char.id,
     cardIndex,
@@ -5176,10 +5154,16 @@ function discardInventoryCard(char, cardIndex, card) {
 
 // ── Перетаскивание карт из инвентаря на террейн ──
 // Используем pointer-события на inventoryEl, совместимые с click-to-expand.
+async function discardTerrainCard(terrainCardId, card) {
+  if (!terrainCardId || !card) return;
+  if (!(await confirmDiscardCard(card))) return;
+  wsSend('action:terrainDiscard', { id: terrainCardId });
+  hideEventOverlay();
+}
+
 const INV_DRAG_THRESHOLD = 8;
 
 inventoryEl.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('.card-flip-btn, .card-discard-btn')) return;
   const cardEl = e.target.closest('.card.card-face[data-i]');
   if (!cardEl) return;
   const char = getSelChar();
@@ -5247,6 +5231,9 @@ document.addEventListener('pointerup', (e) => {
   invDrag = null;
 
   if (!started || !drag.started) return; // без драга — click сработает как обычно
+  e.preventDefault();
+  e.stopPropagation();
+  invSuppressClickUntil = Date.now() + 900;
 
   // Сброс на террейн: конвертируем клиентские координаты в viewBox
   if (!boardSvg) return;
@@ -5263,10 +5250,7 @@ document.addEventListener('pointerup', (e) => {
   const vbY = (clientY - rect.top) / k;
   const rawWorldX = (vbX - view.tx) / view.s;
   const rawWorldY = (vbY - view.ty) / view.s;
-  const terrainCardW = HEX_R * 3.5;
-  const terrainCardH = terrainCardW * (512 / 341);
-  const worldX = Math.max(terrainCardW / 2, Math.min(VBW - terrainCardW / 2, rawWorldX));
-  const worldY = Math.max(terrainCardH / 2, Math.min(VBH - terrainCardH / 2, rawWorldY));
+  const { x: worldX, y: worldY } = clampTerrainCardAnchor(rawWorldX, rawWorldY);
 
   const char = getSelChar();
   if (!char) return;
@@ -5297,6 +5281,78 @@ function moveInvGhost(e) {
   if (!invDrag?.ghost) return;
   invDrag.ghost.style.left = `${e.clientX}px`;
   invDrag.ghost.style.top = `${e.clientY}px`;
+}
+
+function beginTerrainCardDrag(event, uid, tc, cardEl) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  if (!myPlayerId || isSpectator()) return;
+  const startWorld = worldPointFromBoardEvent(event);
+  if (!startWorld) return;
+  event.preventDefault();
+  event.stopPropagation();
+  cancelViewAnimation();
+  ptrs.delete(event.pointerId);
+  panStart = null;
+  pinchStart = null;
+  terrainDrag = {
+    uid,
+    pointerId: event.pointerId,
+    cardEl,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startWorld,
+    startX: Number(tc.x) || 0,
+    startY: Number(tc.y) || 0,
+    currentX: Number(tc.x) || 0,
+    currentY: Number(tc.y) || 0,
+    moved: false,
+  };
+  cardEl.classList.add('terrain-card-dragging');
+  cardEl.setPointerCapture?.(event.pointerId);
+}
+
+function moveTerrainCardDrag(event) {
+  if (!terrainDrag || terrainDrag.pointerId !== event.pointerId) return;
+  const point = worldPointFromBoardEvent(event);
+  if (!point) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const clientDx = event.clientX - terrainDrag.startClientX;
+  const clientDy = event.clientY - terrainDrag.startClientY;
+  if (!terrainDrag.moved && Math.hypot(clientDx, clientDy) <= 8) return;
+  terrainDrag.moved = true;
+  gestureMoved = true;
+  invSuppressClickUntil = Date.now() + 700;
+  const next = clampTerrainCardAnchor(
+    terrainDrag.startX + point.x - terrainDrag.startWorld.x,
+    terrainDrag.startY + point.y - terrainDrag.startWorld.y,
+  );
+  terrainDrag.currentX = next.x;
+  terrainDrag.currentY = next.y;
+  terrainDrag.cardEl?.setAttribute(
+    'transform',
+    `translate(${(next.x - terrainDrag.startX).toFixed(2)} ${(next.y - terrainDrag.startY).toFixed(2)})`,
+  );
+}
+
+function endTerrainCardDrag(event) {
+  if (!terrainDrag || terrainDrag.pointerId !== event.pointerId) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const drag = terrainDrag;
+  if (drag.cardEl?.hasPointerCapture?.(drag.pointerId)) {
+    drag.cardEl.releasePointerCapture(drag.pointerId);
+  }
+  drag.cardEl?.classList.remove('terrain-card-dragging');
+  drag.cardEl?.removeAttribute('transform');
+  terrainDrag = null;
+  if (!drag.moved) return;
+  invSuppressClickUntil = Date.now() + 700;
+  wsSend('action:terrainMove', {
+    id: drag.uid,
+    x: drag.currentX,
+    y: drag.currentY,
+  });
 }
 
 function triggerAttackEffect(targetId) {
@@ -5443,9 +5499,9 @@ function renderCardBox() {
   } else if (cbxTransferPick) {
     hint = `Выбрана карта «${cbxTransferPick.cardName}». Нажмите строку персонажа-получателя.`;
   } else if (left > 0) {
-    hint = `Передача открыта: можно переместить ещё ${left} карт${cardWordTail(left)}. Нажмите ↔ на карте или перетащите её.`;
+    hint = `Передача открыта: можно переместить ещё ${left} карт${cardWordTail(left)}. Перетащите карту к получателю.`;
   } else {
-    hint = 'Нажмите карту для крупного просмотра. Для передачи нажмите ↔ на карте или перетащите карту.';
+    hint = 'Нажмите карту для крупного просмотра. Для передачи перетащите карту к получателю.';
   }
   cardBoxEl.querySelector('#cardBoxHint').textContent = hint;
 }
@@ -5466,13 +5522,6 @@ function onCardBoxClick(e) {
     attemptCardTransfer(fromId, targetButton.dataset.targetId, cardIndex);
     return;
   }
-  const transferButton = e.target.closest('.cbx-transfer-btn');
-  if (transferButton) {
-    e.stopPropagation();
-    const card = transferButton.closest('.cbx-card');
-    if (card && canTransferNow()) selectCbxTransferCard(card);
-    return;
-  }
   const row = e.target.closest('.cbx-row');
   const card = e.target.closest('.cbx-card');
   if (!row || !cardBoxEl.contains(row)) return;
@@ -5485,7 +5534,14 @@ function onCardBoxClick(e) {
   }
   if (card) {
     const preview = cardBoxCardFromElement(card);
-    if (preview) showInventoryCard(preview, null);
+    if (preview) {
+      showInventoryCard(preview, Number(card.dataset.i), {
+        characterId: card.dataset.charId,
+        transferFromId: card.dataset.charId,
+        transferCardIndex: Number(card.dataset.i),
+        transferCardName: card.dataset.cardName || card.title || preview.name,
+      });
+    }
   } else if (cbxTransferPick) {
     clearCbxTransferPick();
     renderCardBox();
@@ -5502,11 +5558,11 @@ function isValidCbxTransferPick() {
   return Boolean(from?.inventory?.[cbxTransferPick.cardIndex]);
 }
 
-function selectCbxTransferCard(cardEl) {
+function setCbxTransferPick(fromId, cardIndex, cardName = 'карта') {
   cbxTransferPick = {
-    fromId: cardEl.dataset.charId,
-    cardIndex: Number(cardEl.dataset.i),
-    cardName: cardEl.dataset.cardName || cardEl.title || 'карта',
+    fromId,
+    cardIndex: Number(cardIndex),
+    cardName,
   };
   renderCardBox();
 }
@@ -5563,55 +5619,49 @@ function renderCbxCard(c, charId, i) {
   if (typeof c === 'string') c = { name: c, type: 'unknown', locked: false };
   const visualMeta = cardVisualMeta(c);
   const art = cardFaceArt(c);
-  const imageSrc = c.exhausted ? cardBackArt(c.id) : cardFaceArtUrl(art);
+  const faceDown = faceDownCards.has(`${charId}:${i}`);
+  const imageSrc = (c.exhausted || faceDown) ? cardBackArt(c.id) : cardFaceArtUrl(art);
   const face = imageSrc
     ? `<img class="cbx-card-art" src="${imageSrc}" alt="" draggable="false" />`
     : renderGeneratedCardArt(c, 'cbx');
   const lock = c.locked ? '<span class="cbx-lock" aria-label="Карта закрыта">🔒</span>' : '';
   const selected = cbxTransferPick?.fromId === charId && cbxTransferPick.cardIndex === i;
-  const transfer = canTransferNow()
-    ? '<button class="cbx-transfer-btn" type="button" aria-label="Выбрать для передачи" title="Передать карту">↔</button>'
-    : '';
-  return `<div class="cbx-card card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}${c.exhausted ? ' card-exhausted' : ''}${selected ? ' selected-transfer' : ''}"`
+  return `<div class="cbx-card card-${c.type ?? 'unknown'}${c.locked ? ' card-locked' : ''}${c.exhausted ? ' card-exhausted' : ''}${faceDown ? ' card-face-down' : ''}${selected ? ' selected-transfer' : ''}"`
     + ` data-char-id="${charId}" data-i="${i}" data-card-name="${escapeHtml(visualMeta.name)}" data-testid="cardbox-card" title="${escapeHtml(visualMeta.name)}">`
     + face
     + lock
-    + transfer
     + `</div>`;
 }
 
 // ── Перетаскивание (pointer-based, работает на тач и мыши) ──
 function onCbxPointerDown(e) {
-  if (e.target.closest('.cbx-transfer-btn')) return;
-  const cardEl = e.target.closest('.cbx-card');
-  if (!cardEl || !canTransferNow()) return; // не свой ход / нет кубика → просто просмотр
-  if (cbxTransferPick && cardEl.dataset.charId !== cbxTransferPick.fromId) return;
-  clearCbxTransferPick();
-  e.preventDefault();
-  const ghost = cardEl.cloneNode(true);
-  ghost.classList.add('cbx-ghost');
-  document.body.appendChild(ghost);
-  cardEl.classList.add('dragging');
+  if (e.button != null && e.button !== 0) return;
+  if (!canTransferNow() || isSpectator()) return;
+  const card = e.target.closest('.cbx-card');
+  if (!card || !cardBoxEl?.contains(card)) return;
+  const cardIndex = Number(card.dataset.i);
+  if (!card.dataset.charId || !Number.isInteger(cardIndex)) return;
   cbxDrag = {
-    fromId: cardEl.dataset.charId,
-    cardIndex: Number(cardEl.dataset.i),
-    cardName: cardEl.dataset.cardName || cardEl.title || 'карта',
-    ghost,
-    srcEl: cardEl,
+    fromId: card.dataset.charId,
+    cardIndex,
+    srcEl: card,
     startX: e.clientX,
     startY: e.clientY,
-    moved: false,
+    pointerId: e.pointerId,
+    ghost: null,
+    started: false,
   };
-  moveGhost(e);
-  e.currentTarget.setPointerCapture?.(e.pointerId);
 }
 
 function onCbxPointerMove(e) {
   if (!cbxDrag) return;
-  e.preventDefault();
   const dx = e.clientX - cbxDrag.startX;
   const dy = e.clientY - cbxDrag.startY;
-  if ((dx * dx + dy * dy) > 36) cbxDrag.moved = true;
+  if (!cbxDrag.started) {
+    if ((dx * dx + dy * dy) < 64) return;
+    startCbxDrag(e);
+  }
+  e.preventDefault();
   moveGhost(e);
   const row = rowUnder(e);
   cardBoxEl.querySelectorAll('.cbx-row').forEach(r =>
@@ -5620,21 +5670,37 @@ function onCbxPointerMove(e) {
 
 function onCbxPointerUp(e) {
   if (!cbxDrag) return;
+  if (!cbxDrag.started) {
+    cbxDrag = null;
+    return;
+  }
+  e.preventDefault();
   const toId = rowUnder(e)?.dataset.charId;
   const { fromId, cardIndex } = cbxDrag;
-  const card = cbxDrag.srcEl ? cardBoxCardFromElement(cbxDrag.srcEl) : null;
   cancelCbxDrag();
   if (!toId || toId === fromId) {
     cbxSuppressClick = true;
-    if (card) showInventoryCard(card, null);
     return;
   }
   // Передача без ограничения расстояния — любому своему персонажу
   if (toId && toId !== fromId) attemptCardTransfer(fromId, toId, cardIndex);
 }
 
+function startCbxDrag(e) {
+  if (!cbxDrag || cbxDrag.started) return;
+  const ghost = cbxDrag.srcEl.cloneNode(true);
+  ghost.classList.add('cbx-ghost');
+  document.body.appendChild(ghost);
+  cbxDrag.ghost = ghost;
+  cbxDrag.started = true;
+  cbxSuppressClick = true;
+  cbxDrag.srcEl.classList.add('dragging');
+  try { cbxDrag.srcEl.setPointerCapture?.(cbxDrag.pointerId); } catch {}
+  moveGhost(e);
+}
+
 function moveGhost(e) {
-  if (!cbxDrag) return;
+  if (!cbxDrag?.ghost) return;
   cbxDrag.ghost.style.left = `${e.clientX}px`;
   cbxDrag.ghost.style.top = `${e.clientY}px`;
 }
@@ -5892,8 +5958,7 @@ function renderCombatBoardElements(fogCircles) {
       continue;
     }
     const cardId = tc.cardId;
-    const w = HEX_R * 3.5;
-    const h = w * (512 / 341);
+    const { w, h } = terrainCardWorldSize();
     const rect = placeTerrainCard({ x: tc.x, y: tc.y }, w, h, terrainAvoidCenters, placedTerrainRects);
     const { x, y } = rect;
     placedTerrainRects.push(rect);
@@ -5971,6 +6036,9 @@ function renderCombatBoardElements(fogCircles) {
         event.stopPropagation();
         wsSend('action:terrainFlip', { id: uid, faceDown: !tc.faceDown });
       };
+      flip.addEventListener('pointerdown', (event) => event.stopPropagation());
+      flip.addEventListener('pointermove', (event) => event.stopPropagation());
+      flip.addEventListener('pointerup', (event) => event.stopPropagation());
       flip.addEventListener('click', flipTerrainCard);
       flip.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -5982,9 +6050,20 @@ function renderCombatBoardElements(fogCircles) {
 
     const openTerrainCard = (e) => {
       e.stopPropagation();
+      if (Date.now() < invSuppressClickUntil) {
+        e.preventDefault();
+        return;
+      }
       if (tryRouteOverlayClickToCell(e)) return;
       showTerrainCard(uid, tc);
     };
+    gEl.addEventListener('pointerdown', (event) => {
+      if (event.target.closest?.('.terrain-card-flip')) return;
+      beginTerrainCardDrag(event, uid, tc, gEl);
+    });
+    gEl.addEventListener('pointermove', moveTerrainCardDrag);
+    gEl.addEventListener('pointerup', endTerrainCardDrag);
+    gEl.addEventListener('pointercancel', endTerrainCardDrag);
     gEl.addEventListener('click', openTerrainCard);
     gEl.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -6222,6 +6301,19 @@ function worldPointFromBoardEvent(event) {
   return {
     x: (vbX - view.tx) / view.s,
     y: (vbY - view.ty) / view.s,
+  };
+}
+
+function terrainCardWorldSize() {
+  const w = HEX_R * 3.5;
+  return { w, h: w * (512 / 341) };
+}
+
+function clampTerrainCardAnchor(x, y) {
+  const { w, h } = terrainCardWorldSize();
+  return {
+    x: Math.max(w / 2, Math.min(VBW - w / 2, x)),
+    y: Math.max(h / 2, Math.min(VBH - h / 2, y)),
   };
 }
 
@@ -6827,6 +6919,79 @@ function showToast(text, type = 'info') {
 // Оверлей просмотра карты после добора или на террейне
 // ═════════════════════════════════════════════════════════════════
 
+function buildDwarfEntryOverlay() {
+  if (dwarfEntryOverlayEl) return;
+  dwarfEntryOverlayEl = document.createElement('div');
+  dwarfEntryOverlayEl.id = 'dwarfEntryOverlay';
+  dwarfEntryOverlayEl.className = 'dwarf-entry-overlay hidden';
+  dwarfEntryOverlayEl.innerHTML = `
+    <div class="dwarf-entry-box" role="dialog" aria-label="Dwarf entry">
+      <video id="dwarfEntryVideo" src="${DWARF_ENTRY_VIDEO_SRC}" preload="auto" playsinline></video>
+    </div>`;
+  document.body.appendChild(dwarfEntryOverlayEl);
+
+  const video = dwarfEntryOverlayEl.querySelector('#dwarfEntryVideo');
+  video.controls = false;
+  video.addEventListener('ended', hideDwarfEntryVideo);
+  video.addEventListener('error', hideDwarfEntryVideo);
+  dwarfEntryOverlayEl.addEventListener('pointerdown', (event) => event.stopPropagation());
+  dwarfEntryOverlayEl.addEventListener('pointerup', (event) => event.stopPropagation());
+  dwarfEntryOverlayEl.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (video.paused) playDwarfEntryVideo(video);
+  });
+  video.load();
+}
+
+function pauseAmbientForDwarfEntry() {
+  const music = getBackgroundMusic();
+  dwarfEntryPausedMusic = !music.paused;
+  if (dwarfEntryPausedMusic) music.pause();
+}
+
+function resumeAmbientAfterDwarfEntry() {
+  const shouldResume = dwarfEntryPausedMusic;
+  dwarfEntryPausedMusic = false;
+  if (shouldResume) applyAudioSettings();
+}
+
+function playDwarfEntryVideo(video) {
+  if (!video) return;
+  video.controls = false;
+  video.muted = false;
+  video.volume = 0.9;
+  dwarfEntryOverlayEl?.classList.remove('needs-gesture');
+  const playPromise = video.play();
+  if (playPromise?.catch) {
+    playPromise.catch(() => {
+      dwarfEntryOverlayEl?.classList.add('needs-gesture');
+    });
+  }
+}
+
+function showDwarfEntryVideo() {
+  if (!dwarfEntryOverlayEl) buildDwarfEntryOverlay();
+  const video = dwarfEntryOverlayEl.querySelector('#dwarfEntryVideo');
+  if (!video) return;
+  pauseAmbientForDwarfEntry();
+  dwarfEntryOverlayEl.classList.remove('hidden', 'needs-gesture');
+  video.pause();
+  video.currentTime = 0;
+  playDwarfEntryVideo(video);
+}
+
+function hideDwarfEntryVideo() {
+  if (!dwarfEntryOverlayEl) return;
+  const video = dwarfEntryOverlayEl.querySelector('#dwarfEntryVideo');
+  if (video) {
+    video.pause();
+    video.currentTime = 0;
+  }
+  dwarfEntryOverlayEl.classList.add('hidden');
+  dwarfEntryOverlayEl.classList.remove('needs-gesture');
+  resumeAmbientAfterDwarfEntry();
+}
+
 function buildEventOverlay() {
   if (eventOverlayEl) return;
   eventOverlayEl = document.createElement('div');
@@ -6835,18 +7000,267 @@ function buildEventOverlay() {
   eventOverlayEl.innerHTML = `
     <div class="event-card-reveal">
       <div class="event-title" id="eventTitle">Взята карта</div>
-      <div class="event-card-display" id="eventCardDisplay"></div>
-      <button class="event-return-btn hidden" id="eventReturnBtn">Вернуть в инвентарь</button>
-      <button class="event-delete-btn hidden" id="eventDeleteBtn">Удалить карту</button>
-      <button class="event-ok-btn" id="eventOkBtn">Принять</button>
+      <div class="event-card-layout">
+        <div class="event-card-display" id="eventCardDisplay"></div>
+        <div class="event-card-actions" id="eventCardActions">
+          <button class="event-icon-btn event-flip-btn" id="eventFlipBtn" aria-label="Рубашкой вверх" title="Рубашкой вверх" disabled>
+            <img src="./assets/ui/card-actions/card-flip-v5.png?v=${APP_VERSION}" alt="" draggable="false" />
+          </button>
+          <button class="event-icon-btn event-transfer-btn" id="eventTransferBtn" aria-label="Карты команды" title="Карты команды" disabled>
+            <img src="./assets/ui/card-actions/card-team-v5.png?v=${APP_VERSION}" alt="" draggable="false" />
+          </button>
+          <button class="event-icon-btn event-return-btn" id="eventReturnBtn" aria-label="Вернуть в инвентарь" title="Вернуть в инвентарь" disabled>
+            <img src="./assets/ui/card-actions/card-return-v5.png?v=${APP_VERSION}" alt="" draggable="false" />
+          </button>
+          <button class="event-icon-btn event-delete-btn" id="eventDeleteBtn" aria-label="Удалить карту" title="Удалить карту" disabled>
+            <img src="./assets/ui/card-actions/card-discard-v5.png?v=${APP_VERSION}" alt="" draggable="false" />
+          </button>
+          <button class="event-icon-btn event-ok-btn" id="eventOkBtn" aria-label="Закрыть" title="Закрыть">
+            <img src="./assets/ui/card-actions/card-close-v5.png?v=${APP_VERSION}" alt="" draggable="false" />
+          </button>
+        </div>
+      </div>
     </div>`;
   document.body.appendChild(eventOverlayEl);
   eventOverlayEl.querySelector('#eventOkBtn').addEventListener('click', hideEventOverlay);
-  eventOverlayEl.addEventListener('click', (e) => { if (e.target === eventOverlayEl) hideEventOverlay(); });
+  eventOverlayEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+  eventOverlayEl.addEventListener('pointerup', (e) => e.stopPropagation());
+  eventOverlayEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (e.target === eventOverlayEl) hideEventOverlay();
+  });
 }
 
 // Фан-добор из проф-колоды: карта выезжает в центр рубашкой вверх → клик
 // переворачивает её лицом → ещё клик отправляет в инвентарь (карта уже там на сервере).
+function buildConfirmOverlay() {
+  if (confirmOverlayEl) return;
+  confirmOverlayEl = document.createElement('div');
+  confirmOverlayEl.id = 'confirmOverlay';
+  confirmOverlayEl.className = 'game-confirm-overlay hidden';
+  confirmOverlayEl.innerHTML = `
+    <div class="game-confirm-box">
+      <div class="game-confirm-title" id="confirmTitle">Подтвердите действие</div>
+      <div class="game-confirm-text" id="confirmText"></div>
+      <div class="game-confirm-actions">
+        <button class="game-confirm-btn game-confirm-cancel" id="confirmCancel">Отмена</button>
+        <button class="game-confirm-btn game-confirm-ok" id="confirmOk">Удалить</button>
+      </div>
+    </div>`;
+  document.body.appendChild(confirmOverlayEl);
+  confirmOverlayEl.addEventListener('pointerdown', (event) => event.stopPropagation());
+  confirmOverlayEl.addEventListener('pointerup', (event) => event.stopPropagation());
+}
+
+function showGameConfirm({ title = 'Подтвердите действие', text = '', okText = 'Да', cancelText = 'Отмена' } = {}) {
+  buildConfirmOverlay();
+  const titleEl = confirmOverlayEl.querySelector('#confirmTitle');
+  const textEl = confirmOverlayEl.querySelector('#confirmText');
+  const okBtn = confirmOverlayEl.querySelector('#confirmOk');
+  const cancelBtn = confirmOverlayEl.querySelector('#confirmCancel');
+  titleEl.textContent = title;
+  textEl.textContent = text;
+  okBtn.textContent = okText;
+  cancelBtn.textContent = cancelText;
+  confirmOverlayEl.classList.remove('hidden');
+
+  return new Promise((resolve) => {
+    const cleanup = (value) => {
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      confirmOverlayEl.onclick = null;
+      confirmOverlayEl.classList.add('hidden');
+      resolve(value);
+    };
+    okBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      cleanup(true);
+    };
+    cancelBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      cleanup(false);
+    };
+    confirmOverlayEl.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.target === confirmOverlayEl) cleanup(false);
+    };
+  });
+}
+
+function setCardActionButton(button, enabled, onClick = null, label = null) {
+  if (!button) return;
+  button.classList.remove('hidden');
+  button.disabled = !enabled;
+  button.onclick = enabled && onClick
+    ? (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick(event);
+      }
+    : null;
+  if (label) {
+    button.setAttribute('aria-label', label);
+    button.title = label;
+  }
+}
+
+function confirmDiscardCard(card) {
+  const cardName = card?.name ?? getCardName(card?.id ?? card) ?? 'карта';
+  return showGameConfirm({
+    title: 'Удалить карту?',
+    text: `Точно удалить карту «${cardName}»?`,
+    okText: 'Удалить',
+    cancelText: 'Отмена',
+  });
+}
+
+function setOpenCardActions(actions = {}) {
+  const flipBtn = eventOverlayEl.querySelector('#eventFlipBtn');
+  const transferBtn = eventOverlayEl.querySelector('#eventTransferBtn');
+  const returnBtn = eventOverlayEl.querySelector('#eventReturnBtn');
+  const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
+  const okBtn = eventOverlayEl.querySelector('#eventOkBtn');
+
+  setCardActionButton(flipBtn, Boolean(actions.flip), actions.flip, actions.flipLabel ?? 'Рубашкой вверх');
+  setCardActionButton(transferBtn, Boolean(actions.transfer), actions.transfer, 'Карты команды');
+  setCardActionButton(returnBtn, Boolean(actions.returnToInventory), actions.returnToInventory, 'Вернуть в инвентарь');
+  setCardActionButton(deleteBtn, Boolean(actions.discard), actions.discard, 'Удалить карту');
+  setCardActionButton(okBtn, true, actions.close ?? null, actions.closeLabel ?? 'Закрыть');
+}
+
+class GameCard {
+  constructor({
+    card,
+    location = 'preview',
+    characterId = null,
+    cardIndex = null,
+    terrainId = null,
+    ownerId = null,
+    faceDown = false,
+    hidden = false,
+  } = {}) {
+    this.card = card;
+    this.location = location;
+    this.characterId = characterId;
+    this.cardIndex = cardIndex;
+    this.terrainId = terrainId;
+    this.ownerId = ownerId;
+    this.faceDown = faceDown;
+    this.hidden = hidden;
+  }
+
+  static preview(card) {
+    return new GameCard({ card });
+  }
+
+  static inventory(card, characterId, cardIndex) {
+    return new GameCard({ card, location: 'inventory', characterId, cardIndex, ownerId: myPlayerId });
+  }
+
+  static terrain(terrainId, terrainCard) {
+    return new GameCard({
+      card: terrainCard.cardData,
+      location: 'terrain',
+      characterId: terrainCard.characterId,
+      terrainId,
+      ownerId: terrainCard.ownerId,
+      faceDown: Boolean(terrainCard.faceDown),
+      hidden: Boolean(terrainCard.faceDown),
+    });
+  }
+
+  get isOwn() {
+    return this.ownerId === myPlayerId;
+  }
+
+  get faceKey() {
+    return this.characterId && Number.isInteger(this.cardIndex)
+      ? `${this.characterId}:${this.cardIndex}`
+      : null;
+  }
+
+  get renderCard() {
+    return this.hidden ? { ...this.card, hidden: true } : this.card;
+  }
+
+  get renderIndex() {
+    return Number.isInteger(this.cardIndex) ? this.cardIndex : 999;
+  }
+
+  get ownerCharacter() {
+    return this.characterId ? getMyChars().find((char) => char.id === this.characterId) : null;
+  }
+
+  get canDiscard() {
+    return this.card?.id !== TELEPORT_ID;
+  }
+
+  actions(refresh) {
+    const canUseHandActions = this.isOwn && this.location === 'inventory' && this.ownerCharacter;
+    const canUseTerrainActions = this.isOwn && this.location === 'terrain';
+    const faceKey = this.faceKey;
+    const handFaceDown = faceKey ? faceDownCards.has(faceKey) : false;
+
+    return {
+      flip: canUseTerrainActions
+        ? () => {
+            wsSend('action:terrainFlip', { id: this.terrainId, faceDown: !this.faceDown });
+            hideEventOverlay();
+          }
+        : (canUseHandActions && faceKey && !this.card?.exhausted && !this.card?.locked && !this.card?.hidden)
+          ? () => {
+              if (faceDownCards.has(faceKey)) faceDownCards.delete(faceKey);
+              else faceDownCards.add(faceKey);
+              renderInventory();
+              renderCardBox();
+              refresh?.();
+            }
+          : null,
+      flipLabel: (canUseTerrainActions ? this.faceDown : handFaceDown) ? 'Лицом вверх' : 'Рубашкой вверх',
+      transfer: (this.isOwn && this.location !== 'preview' && !isSpectator())
+        ? () => {
+            hideEventOverlay();
+            openCardBox();
+          }
+        : null,
+      returnToInventory: canUseTerrainActions
+        ? () => {
+            wsSend('action:terrainRemove', { id: this.terrainId });
+            hideEventOverlay();
+          }
+        : null,
+      discard: this.canDiscard && canUseTerrainActions
+        ? () => discardTerrainCard(this.terrainId, this.card)
+        : this.canDiscard && canUseHandActions && Number.isInteger(this.cardIndex) && !this.card?.hidden
+          ? () => discardInventoryCard(this.ownerCharacter, this.cardIndex, this.card)
+          : null,
+    };
+  }
+}
+
+function showGameCard(gameCard, { closeLabel = 'Закрыть', dim = false } = {}) {
+  if (!eventOverlayEl) buildEventOverlay();
+  const title = eventOverlayEl.querySelector('#eventTitle');
+  const display = eventOverlayEl.querySelector('#eventCardDisplay');
+
+  title.textContent = '';
+  title.classList.add('hidden');
+  const render = () => {
+    display.innerHTML = renderCard(gameCard.renderCard, gameCard.renderIndex, true, gameCard.characterId);
+    const cardEl = display.querySelector('.card');
+    if (cardEl && dim) cardEl.style.opacity = '0.7';
+    setOpenCardActions({
+      ...gameCard.actions(render),
+      closeLabel,
+    });
+  };
+  render();
+  eventOverlayEl.classList.remove('hidden');
+}
+
 let professionDrawEl = null;
 // Универсальный показ-переворот карты: используется при любом доборе/находке —
 // карта выезжает рубашкой вверх, клик переворачивает лицом, ещё клик закрывает.
@@ -6905,19 +7319,18 @@ function showFoundCard(card, isDiscarded = false, overrideTitle = null) {
   if (!eventOverlayEl) buildEventOverlay();
   const title = eventOverlayEl.querySelector('#eventTitle');
   const display = eventOverlayEl.querySelector('#eventCardDisplay');
+  const flipBtn = eventOverlayEl.querySelector('#eventFlipBtn');
+  const transferBtn = eventOverlayEl.querySelector('#eventTransferBtn');
   const returnBtn = eventOverlayEl.querySelector('#eventReturnBtn');
   const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
+  const okBtn = eventOverlayEl.querySelector('#eventOkBtn');
   
   title.textContent = overrideTitle || (isDiscarded ? 'Инвентарь полон!' : 'Взята карта');
   title.classList.remove('hidden');
   title.style.color = overrideTitle ? 'var(--danger)' : (isDiscarded ? 'var(--danger)' : 'var(--gold)');
   
   display.innerHTML = renderCard(card, 999, true); // true = forceOpen
-  returnBtn.classList.add('hidden');
-  returnBtn.onclick = null;
-  deleteBtn.classList.add('hidden');
-  deleteBtn.onclick = null;
-  eventOverlayEl.querySelector('#eventOkBtn').textContent = 'Принять';
+  setOpenCardActions({ closeLabel: 'Принять' });
   const cardEl = display.querySelector('.card');
   if (cardEl) {
     if (isDiscarded) cardEl.style.opacity = '0.7';
@@ -6930,6 +7343,8 @@ function showOakAcornsChoice(choice) {
   if (!eventOverlayEl) buildEventOverlay();
   const title = eventOverlayEl.querySelector('#eventTitle');
   const display = eventOverlayEl.querySelector('#eventCardDisplay');
+  const flipBtn = eventOverlayEl.querySelector('#eventFlipBtn');
+  const transferBtn = eventOverlayEl.querySelector('#eventTransferBtn');
   const returnBtn = eventOverlayEl.querySelector('#eventReturnBtn');
   const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
   const okBtn = eventOverlayEl.querySelector('#eventOkBtn');
@@ -6937,11 +7352,11 @@ function showOakAcornsChoice(choice) {
   title.textContent = 'Дубовые желуди: выберите карту';
   title.classList.remove('hidden');
   title.style.color = 'var(--gold)';
-  returnBtn.classList.add('hidden');
-  returnBtn.onclick = null;
-  deleteBtn.classList.add('hidden');
-  deleteBtn.onclick = null;
-  okBtn.textContent = 'Закрыть';
+  setCardActionButton(flipBtn, false, null, 'Рубашкой вверх');
+  setCardActionButton(transferBtn, false, null, 'Карты команды');
+  setCardActionButton(returnBtn, false, null, 'Вернуть в инвентарь');
+  setCardActionButton(deleteBtn, false, null, 'Удалить карту');
+  setCardActionButton(okBtn, true, null, 'Закрыть');
 
   const cards = Array.isArray(choice.cards) ? choice.cards : [];
   display.innerHTML = `<div class="oak-choice-grid">${cards.map((item, index) => {
@@ -6962,52 +7377,21 @@ function showOakAcornsChoice(choice) {
   eventOverlayEl.classList.remove('hidden');
 }
 
-function showInventoryCard(card, cardIndex = null) {
-  if (!eventOverlayEl) buildEventOverlay();
-  const title = eventOverlayEl.querySelector('#eventTitle');
-  const display = eventOverlayEl.querySelector('#eventCardDisplay');
-  const returnBtn = eventOverlayEl.querySelector('#eventReturnBtn');
-  const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
-  const char = getSelChar();
-
-  // Заголовок не показываем — имя карты уже есть на самом PNG.
-  title.textContent = '';
-  title.classList.add('hidden');
-  display.innerHTML = renderCard(card, 999, true);
-  returnBtn.classList.add('hidden');
-  returnBtn.onclick = null;
-  if (char && Number.isInteger(cardIndex) && !card?.hidden) {
-    deleteBtn.classList.remove('hidden');
-    deleteBtn.onclick = () => discardInventoryCard(char, cardIndex, card);
-  } else {
-    deleteBtn.classList.add('hidden');
-    deleteBtn.onclick = null;
-  }
-  eventOverlayEl.querySelector('#eventOkBtn').textContent = 'Закрыть';
-  eventOverlayEl.classList.remove('hidden');
+function showInventoryCard(card, cardIndex = null, options = {}) {
+  const sourceChar = options.characterId
+    ? getMyChars().find((item) => item.id === options.characterId)
+    : getSelChar();
+  const sourceIndex = Number.isInteger(options.transferCardIndex)
+    ? options.transferCardIndex
+    : cardIndex;
+  const gameCard = sourceChar && Number.isInteger(sourceIndex)
+    ? GameCard.inventory(card, sourceChar.id, sourceIndex)
+    : GameCard.preview(card);
+  showGameCard(gameCard);
 }
-
 function showTerrainCard(uid, terrainCard) {
-  if (!eventOverlayEl) buildEventOverlay();
-  const card = terrainCard.cardData;
-  const own = terrainCard.ownerId === myPlayerId;
-  const title = eventOverlayEl.querySelector('#eventTitle');
-  title.textContent = '';
-  title.classList.add('hidden');
-  eventOverlayEl.querySelector('#eventCardDisplay').innerHTML = renderCard(card, 999, true);
-  const returnBtn = eventOverlayEl.querySelector('#eventReturnBtn');
-  const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
-  returnBtn.classList.toggle('hidden', !own);
-  returnBtn.onclick = own ? () => {
-    wsSend('action:terrainRemove', { id: uid });
-    hideEventOverlay();
-  } : null;
-  deleteBtn.classList.add('hidden');
-  deleteBtn.onclick = null;
-  eventOverlayEl.querySelector('#eventOkBtn').textContent = 'Закрыть';
-  eventOverlayEl.classList.remove('hidden');
+  showGameCard(GameCard.terrain(uid, terrainCard));
 }
-
 function hideEventOverlay() {
   eventOverlayEl?.classList.add('hidden');
 }

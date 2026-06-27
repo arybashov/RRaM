@@ -47,6 +47,7 @@ import {
 } from './map.js';
 
 const GOLD_FEATHER_SET = new Set(GOLD_FEATHER_CARDS);
+const NON_DISCARDABLE_CARDS = new Set([TELEPORT_CARD]);
 const FIREWOOD_CARD = 'art_forest_005';
 const FIREWOOD_BEAST_DAMAGE_REDUCTION = 5;
 const FIREWOOD_PLAYER_DAMAGE_MULTIPLIER = 2;
@@ -210,8 +211,12 @@ export function apply(game, playerId, type, payload = {}) {
       return terrainPlace(game, playerId, payload);
     case 'action:terrainRemove':
       return terrainRemove(game, playerId, payload);
+    case 'action:terrainDiscard':
+      return terrainDiscard(game, playerId, payload);
     case 'action:terrainFlip':
       return terrainFlip(game, playerId, payload);
+    case 'action:terrainMove':
+      return terrainMove(game, playerId, payload);
     case 'debug:grantCard':
       return debugGrantCard(game, playerId, payload);
     default:
@@ -596,6 +601,9 @@ function discardCard(game, playerId, { characterId, cardIndex } = {}) {
   const character = ownCharacter(game, playerId, characterId);
   if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= character.inventory.length) {
     throw new Error('Карта для удаления не найдена.');
+  }
+  if (NON_DISCARDABLE_CARDS.has(character.inventory[cardIndex])) {
+    throw new Error('Эту базовую карту нельзя удалить.');
   }
   const [cardId] = character.inventory.splice(cardIndex, 1);
   game.discard.push(cardId);
@@ -1336,6 +1344,27 @@ function terrainRemove(game, playerId, { id } = {}) {
   };
 }
 
+function terrainDiscard(game, playerId, { id } = {}) {
+  assertActive(game, playerId);
+  const index = game.terrainCards.findIndex((card) => card.id === id);
+  if (index === -1) throw new Error('Карта на террейне не найдена.');
+  if (game.terrainCards[index].ownerId !== playerId) {
+    throw new Error('Удалить карту может только владелец.');
+  }
+  if (NON_DISCARDABLE_CARDS.has(game.terrainCards[index].cardId)) {
+    throw new Error('Эту базовую карту нельзя удалить.');
+  }
+  const [terrainCard] = game.terrainCards.splice(index, 1);
+  game.discard.push(terrainCard.cardId);
+  return {
+    discardedCard: {
+      characterId: terrainCard.characterId,
+      cardId: terrainCard.cardId,
+      name: CARD_BY_ID[terrainCard.cardId]?.name ?? terrainCard.cardId,
+    },
+  };
+}
+
 function terrainFlip(game, playerId, { id, faceDown } = {}) {
   assertActive(game, playerId);
   const terrainCard = game.terrainCards.find((card) => card.id === id);
@@ -1350,6 +1379,25 @@ function terrainFlip(game, playerId, { id, faceDown } = {}) {
     terrainFlipped: {
       id,
       faceDown: terrainCard.faceDown,
+      cardId: terrainCard.cardId,
+      name: CARD_BY_ID[terrainCard.cardId]?.name ?? terrainCard.cardId,
+    },
+  };
+}
+
+function terrainMove(game, playerId, { id, x, y } = {}) {
+  const terrainCard = game.terrainCards.find((card) => card.id === id);
+  if (!terrainCard) throw new Error('Карта на террейне не найдена.');
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error('Некорректное положение карты.');
+  }
+  terrainCard.x = x;
+  terrainCard.y = y;
+  return {
+    terrainMoved: {
+      id,
+      x,
+      y,
       cardId: terrainCard.cardId,
       name: CARD_BY_ID[terrainCard.cardId]?.name ?? terrainCard.cardId,
     },

@@ -36,7 +36,9 @@ export const ClientCommand = Object.freeze({
   ACTION_CRAFT: 'action:craft',
   ACTION_TERRAIN_PLACE: 'action:terrainPlace',
   ACTION_TERRAIN_REMOVE: 'action:terrainRemove',
+  ACTION_TERRAIN_DISCARD: 'action:terrainDiscard',
   ACTION_TERRAIN_FLIP: 'action:terrainFlip',
+  ACTION_TERRAIN_MOVE: 'action:terrainMove',
   DEBUG_GRANT_CARD: 'debug:grantCard',
 });
 
@@ -65,7 +67,9 @@ export const GAME_COMMANDS = Object.freeze(
     ClientCommand.ACTION_CRAFT,
     ClientCommand.ACTION_TERRAIN_PLACE,
     ClientCommand.ACTION_TERRAIN_REMOVE,
+    ClientCommand.ACTION_TERRAIN_DISCARD,
     ClientCommand.ACTION_TERRAIN_FLIP,
+    ClientCommand.ACTION_TERRAIN_MOVE,
     ClientCommand.DEBUG_GRANT_CARD,
   ]),
 );

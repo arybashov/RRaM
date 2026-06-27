@@ -2062,6 +2062,52 @@ for (const playerId of ['p1', 'p2']) {
   });
 }
 
+test('terrain discard - removes a terrain card to discard pile', () => {
+  const g = freshGame();
+  const warrior = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  warrior.inventory = ['bark', 'teleport_beads'];
+  g.turn.activePlayerId = 'p1';
+
+  apply(g, 'p1', 'action:terrainPlace', {
+    id: 'terrain-discard-test',
+    characterId: warrior.id,
+    cardIndex: 0,
+    x: 100,
+    y: 200,
+  });
+
+  const result = apply(g, 'p1', 'action:terrainDiscard', { id: 'terrain-discard-test' });
+  assert.equal(result.discardedCard.cardId, 'bark');
+  assert.deepEqual(warrior.inventory, ['teleport_beads']);
+  assert.equal(g.terrainCards.length, 0);
+  assert.equal(g.discard.at(-1), 'bark');
+});
+
+test('terrain move - any player can reposition a visible terrain card', () => {
+  const g = freshGame();
+  const warrior = g.characters.find(c => c.owner === 'p2' && c.role === 'V');
+  g.terrainCards.push({
+    id: 'terrain-move-test',
+    ownerId: 'p2',
+    characterId: warrior.id,
+    cardIndex: 0,
+    cardId: 'bark',
+    faceDown: false,
+    x: 100,
+    y: 200,
+  });
+
+  const result = apply(g, 'p1', 'action:terrainMove', {
+    id: 'terrain-move-test',
+    x: 321,
+    y: 432,
+  });
+
+  assert.equal(result.terrainMoved.id, 'terrain-move-test');
+  assert.equal(g.terrainCards[0].x, 321);
+  assert.equal(g.terrainCards[0].y, 432);
+});
+
 test('terrain — Полена дерева можно выложить как боевую карту', () => {
   const g = freshGame();
   const blacksmith = g.characters.find(c => c.owner === 'p1' && c.role === 'K');
