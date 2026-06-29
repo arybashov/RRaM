@@ -105,6 +105,29 @@ test('store persistence keeps disconnected waiting rooms reopenable', () => {
   assert.equal(resumed.player.connected, true);
 });
 
+test('store does not expose completed games for watching', () => {
+  const store = createStore({ roomPersistence: memoryPersistence() });
+  const { room } = store.createRoom({
+    playerName: 'Alice',
+    connectionId: 'conn-a',
+    isPublic: true,
+  });
+  store.joinRoom({
+    code: room.code,
+    playerName: 'Bob',
+    connectionId: 'conn-b',
+  });
+
+  assert.equal(store.listPublicRooms()[0]?.canWatch, true);
+  room.game.over = true;
+
+  assert.equal(store.listPublicRooms().length, 0);
+  assert.throws(
+    () => store.watchRoom({ roomId: room.id }),
+    /Просмотр закрыт/,
+  );
+});
+
 test('store persistence records PvP game events for training', () => {
   const persistence = memoryPersistence();
   const store = createStore({ roomPersistence: persistence });

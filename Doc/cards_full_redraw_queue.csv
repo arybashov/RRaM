@@ -33,6 +33,7 @@ priority,section,source_name,kind,status,target_path,source_note
 1,Лесная тропа / лесные карты,Черные ягоды,resource,generated,prototype-web/assets/cards/redraw/forest/forest-010-style-v1.png,`dark-forest/black-berries-v1.png`
 1,Лесная тропа / лесные карты,Железная руда высшего качества,resource,generated,prototype-web/assets/cards/redraw/forest/forest-011-style-v1.png,`forest/high-quality-iron-ore-v1.png`
 1,Лесная тропа / лесные карты,Толстая ветка,item_spell,generated,prototype-web/assets/cards/redraw/forest/forest-012-style-v1.png,`forest/thick-branch-v1.png`
+1,Лесная тропа / лесные карты,Ветка куста,item_spell,generated,prototype-web/assets/cards/redraw/forest/forest-016-style-v1.png,`generated-frame-highres-text/forest/forest-016-style-v2-card-highres-text.png`
 1,Озеро,Мраморный самоцвет,resource,generated,prototype-web/assets/cards/redraw/lake/lake-001-style-v1.png,`lake/marble-gem-v1.png`
 1,Озеро,Мутный изумруд,resource,generated,prototype-web/assets/cards/redraw/lake/lake-002-style-v1.png,`lake/cloudy-emerald-v1.png`
 1,Озеро,Драгоценный камень,item_spell,generated,prototype-web/assets/cards/redraw/lake/lake-003-style-v1.png,`lake/precious-gem-v1.png`
@@ -61,7 +62,7 @@ priority,section,source_name,kind,status,target_path,source_note
 1,Темный лес / чертежи / изделия,Щит др.,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-010-style-v1.png,`dark-forest/shield-dr-v1.png`
 1,Темный лес / чертежи / изделия,Чертеж на ломщит,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-011-style-v1.png,`dark-forest/blueprint-shield-lom-v1.png`
 1,Темный лес / чертежи / изделия,Ломщит,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-012-style-v1.png,`dark-forest/shield-lom-v1.png`
-1,Темный лес / чертежи / изделия,Чертеж на топормол,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-013-style-v1.png,`dark-forest/blueprint-topormol-v1.png`
+1,Темный лес / чертежи / изделия,Чертеж на топормол,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-013-style-v2.png,`dark-forest/blueprint-topormol-v2.png`
 1,Темный лес / чертежи / изделия,Топормол,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-014-style-v1.png,`dark-forest/topormol-v1.png`
 1,Темный лес / чертежи / изделия,Чертеж на щит калан,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-015-style-v1.png,`dark-forest/blueprint-shield-kalan-v1.png`
 1,Темный лес / чертежи / изделия,Щит калан,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-016-style-v1.png,`dark-forest/shield-kalan-v1.png`
@@ -73,7 +74,6 @@ priority,section,source_name,kind,status,target_path,source_note
 1,Темный лес / чертежи / изделия,Секира красное солнце,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-022-style-v1.png,`red/axe-sun-v1.png`
 1,Темный лес / чертежи / изделия,Задание на молот Иерихон,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-023-style-v1.png,`red/task-irikon-v1.png`
 1,Темный лес / чертежи / изделия,Иерихон,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-024-style-v1.png,`red/irikon-v1.png`
-1,Темный лес / чертежи / изделия,Чертеж Иерихон,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-025-style-v1.png,`blueprints/blueprint-irikon-v1.png`
 1,Темный лес / чертежи / изделия,Чертеж на меч лорп,blueprint_recipe,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-026-style-v1.png,`dark-forest/blueprint-sword-lorp-v1.png`
 1,Темный лес / чертежи / изделия,Меч Лорп,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-027-style-v1.png,`dark-forest/sword-lorp-v1.png`
 1,Темный лес / чертежи / изделия,Кольцо возврата,item_spell,generated,prototype-web/assets/cards/redraw/dark-forest/dark-forest-028-style-v1.png,`dark-forest/return-ring-v1.png`
@@ -107,8 +107,12 @@ priority,section,source_name,kind,status,target_path,source_note
 1,Рецепты,Маска бубун,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-012-style-v1.png,`recipes/bubun-mask-v1.png`
 1,Рецепты,Рецепт на маску оху,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-013-style-v1.png,`recipes/recipe-okhu-mask-v1.png`
 1,Рецепты,Маска оху,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-014-style-v1.png,`recipes/okhu-mask-v1.png`
-1,Рецепты,Рецепт на бутыль дип,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-015-style-v1.png,`recipes/recipe-dip-bottle-v1.png`
-1,Рецепты,Бутыль дип,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-016-style-v1.png,`recipes/dip-bottle-v1.png`
+1,Рецепты,Рецепт на проросший корень,blueprint_recipe,generated,prototype-web/assets/cards/redraw/recipes/recipes-028-style-v2.png,`recipes/recipe-sprouted-root-v2.png`
+1,Лес,Котел шамана,item_spell,generated,prototype-web/assets/cards/redraw/forest/forest-013-style-v1.png,`forest/shaman-cauldron-v1.png`
+1,Лес,Рецепт на малый лечебный бутыль,blueprint_recipe,generated,prototype-web/assets/cards/redraw/forest/forest-014-style-v1.png,`forest/recipe-small-healing-bottle-v1.png`
+1,Лес,Малый лечебный бутыль,item_spell,generated,prototype-web/assets/cards/redraw/forest/forest-015-style-v1.png,`forest/small-healing-bottle-v1.png`
+1,Рецепты,Рецепт на бутыль дил,blueprint_recipe,generated,prototype-web/assets/cards/redraw/recipes/recipes-029-style-v1.png,`generated-frame-highres-text/recipes/recipes-029-style-v1-card-highres-text.png`
+1,Рецепты,Бутыль дил,item_spell,generated,prototype-web/assets/cards/redraw/recipes/recipes-030-style-v1.png,`generated-frame-highres-text/recipes/recipes-030-style-v1-card-highres-text.png`
 1,Рецепты,Рецепт на маску злая,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-017-style-v1.png,`recipes/recipe-evil-mask-v1.png`
 1,Рецепты,Маска злая,item_spell,missing,prototype-web/assets/cards/redraw/recipes/recipes-018-style-v1.png,`recipes/evil-mask-v1.png`
 1,Рецепты,Рецепт на обычный посох,blueprint_recipe,missing,prototype-web/assets/cards/redraw/recipes/recipes-019-style-v1.png,`recipes/recipe-common-staff-v1.png`

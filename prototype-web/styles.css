@@ -1845,62 +1845,6 @@ h2::after {
   line-height: 1.5;
 }
 
-.combat-stats {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid rgba(118, 180, 255, 0.35);
-  border-left: 4px solid #76b4ff;
-  border-radius: var(--radius-sm);
-  background: rgba(29, 69, 116, 0.22);
-}
-
-.combat-stats-title {
-  margin-bottom: 8px;
-  color: #b9d6ff;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.combat-stats-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.combat-stat-chip {
-  min-width: 0;
-  padding: 5px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  background: rgba(9, 14, 24, 0.48);
-  color: #dce8f5;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.combat-stat-defense {
-  border-color: rgba(111, 202, 255, 0.45);
-  color: #bfe8ff;
-}
-
-.combat-stat-attack {
-  border-color: rgba(255, 127, 98, 0.5);
-  color: #ffd0c7;
-}
-
-.combat-stat-support {
-  border-color: rgba(137, 224, 166, 0.5);
-  color: #c8f5d6;
-}
-
-.combat-stat-muted {
-  border-color: rgba(178, 186, 199, 0.28);
-  color: #aeb7c4;
-}
-
 .card {
   position: relative;
   padding: 10px 12px 10px 14px;
@@ -3297,6 +3241,15 @@ h2::after {
   font-weight: 900;
   line-height: 17px;
   text-align: center;
+}
+
+.cbx-hp.combat-hp {
+  border-color: rgba(255, 226, 106, 0.85);
+  background: rgba(75, 53, 11, 0.92);
+  color: #ffe26a;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 7px rgba(255, 210, 64, 0.62);
 }
 
 .cbx-slots {

@@ -62,6 +62,7 @@ app.get('/ws', { websocket: true }, (socket, req) => {
   const now = Date.now();
   const authUser = getAuthUserFromRequest(req, authStore);
   clients.set(connectionId, {
+    connectionId,
     socket,
     roomId: null,
     playerId: null,
@@ -385,6 +386,9 @@ function assertJoined(client) {
 function broadcastState(roomId) {
   const room = store.getRoom(roomId);
   if (!room) return;
+  if (room.game?.over) {
+    kickRoomSpectators(roomId, 'Партия завершена. Просмотр закрыт.');
+  }
   for (const client of clients.values()) {
     if (client.roomId === roomId) {
       send(client.socket, ServerEvent.STATE_SNAPSHOT, {
@@ -393,6 +397,16 @@ function broadcastState(roomId) {
     }
   }
   maybeTriggerBot(roomId);
+}
+
+function kickRoomSpectators(roomId, reason) {
+  for (const client of clients.values()) {
+    if (client.roomId !== roomId || client.role !== 'spectator') continue;
+    bindClient(client, null, null, 'lobby');
+    lobbySubscribers.add(client.connectionId);
+    send(client.socket, ServerEvent.ROOM_WATCH_ENDED, { roomId, reason });
+    send(client.socket, ServerEvent.LOBBY_LIST, { rooms: store.listPublicRooms() });
+  }
 }
 
 function decorateActionResult(result, meta = {}) {

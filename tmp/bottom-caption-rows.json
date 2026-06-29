@@ -552,7 +552,7 @@
   {
     "id": "art_dark_forest_001",
     "name": "Средний золотой самородок",
-    "deck": "dark_forest",
+    "deck": "red",
     "type": "ingredient",
     "srcArt": "redraw/dark-forest/dark-forest-001-style-v1",
     "srcPng": "prototype-web/assets/cards/redraw/dark-forest/dark-forest-001-style-v1.png",
@@ -800,29 +800,18 @@
     "srcPng": "prototype-web/assets/cards/redraw/dark-forest/dark-forest-023-style-v1.png",
     "outArt": "generated-frame-highres-text/dark-forest/dark-forest-023-style-v1-card-highres-text",
     "outPng": "prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-023-style-v1-card-highres-text.png",
-    "caption": "Квестовый предмет. Передайте Кузнецу: вместе с Чертежом Ирикон и Золотым пером нужен для крафта Молота Иерихон."
+    "caption": "Квестовый предмет. Передайте Кузнецу: вместе с Золотым пером нужен для крафта Молота Иерихон."
   },
   {
     "id": "irikon",
     "name": "Иерихон",
-    "deck": "dark_forest",
+    "deck": "red",
     "type": "weapon",
     "srcArt": "redraw/dark-forest/dark-forest-024-style-v1",
     "srcPng": "prototype-web/assets/cards/redraw/dark-forest/dark-forest-024-style-v1.png",
     "outArt": "generated-frame-highres-text/dark-forest/dark-forest-024-style-v1-card-highres-text",
     "outPng": "prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-024-style-v1-card-highres-text.png",
     "caption": "Молот Иерихон. Оружие только Кузнеца: при атаке добавляет 35 урона без учёта защиты. Можно держать в инвентаре Кузнеца или выложить лицом вверх на Кузнеца."
-  },
-  {
-    "id": "blueprint_irikon",
-    "name": "Чертеж Иерихон",
-    "deck": "dark_forest",
-    "type": "blueprint",
-    "srcArt": "redraw/dark-forest/dark-forest-025-style-v1",
-    "srcPng": "prototype-web/assets/cards/redraw/dark-forest/dark-forest-025-style-v1.png",
-    "outArt": "generated-frame-highres-text/dark-forest/dark-forest-025-style-v1-card-highres-text",
-    "outPng": "prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-025-style-v1-card-highres-text.png",
-    "caption": "Чертёж Кузнеца. Вместе с Заданием на молот Ирикон и Золотым пером открывает Молот Иерихон; для крафта нужны два кубика 3+."
   },
   {
     "id": "art_dark_forest_026",

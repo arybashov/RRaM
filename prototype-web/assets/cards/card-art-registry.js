@@ -67,6 +67,17 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "copies": 1
   },
   {
+    "id": "shaman_cauldron",
+    "name": "Котел шамана",
+    "deck": "forest",
+    "type": "spell",
+    "art": "generated-frame-highres-text/forest/forest-013-style-v1-card-highres-text",
+    "source": "Колода Лес",
+    "inGame": true,
+    "gameId": "shaman_cauldron",
+    "copies": 1
+  },
+  {
     "id": "recipe_shaman_carpet",
     "name": "Базовый рецепт на ковер шамана",
     "deck": "base",
@@ -368,6 +379,18 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "inGame": false
   },
   {
+    "id": "art_forest_016",
+    "name": "Ветка куста",
+    "deck": "forest",
+    "type": "special",
+    "art": "generated-frame-highres-text/forest/forest-016-style-v2-card-highres-text",
+    "source": "Лесная тропа / лесные карты",
+    "inGame": true,
+    "gameId": "art_forest_016",
+    "copies": 1,
+    "desc": "Не применима ни к чему."
+  },
+  {
     "id": "art_lake_001",
     "name": "Мраморный самоцвет",
     "deck": "lake",
@@ -426,13 +449,26 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "copies": 1
   },
   {
+    "id": "recipe_sprouted_root",
+    "name": "Рецепт на проросший корень",
+    "deck": "recipes",
+    "type": "recipe",
+    "art": "generated-frame-highres-text/recipes/recipes-028-style-v2-card-highres-text",
+    "source": "Рецепты",
+    "inGame": true,
+    "gameId": "recipe_sprouted_root",
+    "copies": 1
+  },
+  {
     "id": "art_lake_007",
     "name": "Проросший корень",
     "deck": "lake",
     "type": "ingredient",
     "art": "generated-frame-highres-text/lake/lake-007-style-v1-card-highres-text",
     "source": "Озеро",
-    "inGame": false
+    "inGame": true,
+    "gameId": "art_lake_007",
+    "copies": 1
   },
   {
     "id": "art_trophy_001",
@@ -648,11 +684,12 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "name": "Чертеж на топормол",
     "deck": "dark_forest",
     "type": "blueprint",
-    "art": "dark-forest/blueprint-topormol-v1",
+    "art": "generated-frame-highres-text/dark-forest/dark-forest-013-style-v2-card-highres-text",
     "source": "Темный лес / чертежи / изделия",
     "inGame": true,
     "gameId": "art_dark_forest_013",
-    "copies": 1
+    "copies": 1,
+    "desc": "Положите чертеж на основное игровое поле рядом с Кузнецом. Грязная или смешанная железная руда - 2 карты или железная руда среднего качества - 1 карта. Толстая ветка или гнущаяся палка - 1 карта. Кузнец кидает: 2 раза 2+ или 1 раз 4+."
   },
   {
     "id": "topormol",
@@ -746,10 +783,10 @@ window.CARD_ART_REGISTRY = Object.freeze([
   {
     "id": "task_irikon",
     "name": "Задание на молот Иерихон",
-    "deck": "dark_forest",
+    "deck": "red",
     "type": "special",
     "art": "generated-frame-highres-text/dark-forest/dark-forest-023-style-v1-card-highres-text",
-    "source": "Темный лес / чертежи / изделия",
+    "source": "Красная колода",
     "inGame": true,
     "gameId": "task_irikon",
     "copies": 1
@@ -757,24 +794,13 @@ window.CARD_ART_REGISTRY = Object.freeze([
   {
     "id": "irikon",
     "name": "Иерихон",
-    "deck": "dark_forest",
+    "deck": "red",
     "type": "weapon",
     "art": "generated-frame-highres-text/dark-forest/dark-forest-024-style-v1-card-highres-text",
-    "source": "Темный лес / чертежи / изделия",
+    "source": "Красная колода",
     "inGame": true,
     "gameId": "irikon",
-    "copies": 1
-  },
-  {
-    "id": "blueprint_irikon",
-    "name": "Чертеж Иерихон",
-    "deck": "dark_forest",
-    "type": "blueprint",
-    "art": "generated-frame-highres-text/dark-forest/dark-forest-025-style-v1-card-highres-text",
-    "source": "Темный лес / чертежи / изделия",
-    "inGame": true,
-    "gameId": "blueprint_irikon",
-    "copies": 1
+    "copies": 0
   },
   {
     "id": "art_dark_forest_026",
@@ -1041,10 +1067,12 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "id": "art_recipes_009",
     "name": "Рецепт на маску трехликого",
     "deck": "recipes",
-    "type": "blueprint",
+    "type": "recipe",
     "art": "generated-frame-highres-text/recipes/recipes-009-square-v1-card-highres-text",
     "source": "Рецепты",
-    "inGame": false
+    "inGame": true,
+    "gameId": "art_recipes_009",
+    "copies": 1
   },
   {
     "id": "art_recipes_010",
@@ -1053,7 +1081,9 @@ window.CARD_ART_REGISTRY = Object.freeze([
     "type": "special",
     "art": "generated-frame-highres-text/recipes/recipes-010-square-v1-card-highres-text",
     "source": "Рецепты",
-    "inGame": false
+    "inGame": true,
+    "gameId": "art_recipes_010",
+    "copies": 0
   },
   {
     "id": "art_recipes_011",
@@ -1093,21 +1123,49 @@ window.CARD_ART_REGISTRY = Object.freeze([
   },
   {
     "id": "art_recipes_015",
-    "name": "Рецепт на бутыль дип",
-    "deck": "recipes",
-    "type": "blueprint",
-    "art": "generated-frame-highres-text/recipes/recipes-015-square-v1-card-highres-text",
-    "source": "Рецепты",
-    "inGame": false
+    "name": "Рецепт на малый лечебный бутыль",
+    "deck": "forest",
+    "type": "recipe",
+    "art": "generated-frame-highres-text/forest/forest-014-style-v1-card-highres-text",
+    "source": "Колода Лес",
+    "inGame": true,
+    "gameId": "art_recipes_015",
+    "copies": 1
   },
   {
     "id": "art_recipes_016",
-    "name": "Бутыль дип",
+    "name": "Малый лечебный бутыль",
+    "deck": "forest",
+    "type": "special",
+    "art": "generated-frame-highres-text/forest/forest-015-style-v1-card-highres-text",
+    "source": "Колода Лес",
+    "inGame": true,
+    "gameId": "art_recipes_016",
+    "copies": 1
+  },
+  {
+    "id": "recipe_dil_bottle",
+    "name": "Рецепт на бутыль дил",
+    "deck": "recipes",
+    "type": "recipe",
+    "art": "generated-frame-highres-text/recipes/recipes-029-style-v1-card-highres-text",
+    "source": "Рецепты",
+    "inGame": true,
+    "gameId": "recipe_dil_bottle",
+    "copies": 1,
+    "desc": "Материалы: проросший корень или плетённый корень — 1 карта. Шаман выкладывает Ковёр шамана на игровое поле и кидает кубик 2 раза: 2+. После успеха Ковёр возвращается в инвентарь, рецепт открывает Бутыль дил."
+  },
+  {
+    "id": "dil_bottle",
+    "name": "Бутыль дил",
     "deck": "recipes",
     "type": "special",
-    "art": "generated-frame-highres-text/recipes/recipes-016-square-v1-card-highres-text",
+    "art": "generated-frame-highres-text/recipes/recipes-030-style-v1-card-highres-text",
     "source": "Рецепты",
-    "inGame": false
+    "inGame": true,
+    "gameId": "dil_bottle",
+    "copies": 0,
+    "desc": "Когда вы используете эту карту, к вашему общему урону добавляется +30 до конца драки. После завершения драки карта возвращается в инвентарь. Можно применить только один раз в драке."
   },
   {
     "id": "art_recipes_017",

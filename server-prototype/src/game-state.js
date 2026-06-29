@@ -71,6 +71,9 @@ export function createStore({ roomPersistence = null } = {}) {
     if (room.vsBot || !room.public) {
       throw new Error('Комната недоступна для просмотра.');
     }
+    if (room.game?.over) {
+      throw new Error('Партия уже завершена. Просмотр закрыт.');
+    }
     return { room };
   }
 
@@ -115,7 +118,7 @@ export function createStore({ roomPersistence = null } = {}) {
     const list = [];
     for (const room of rooms.values()) {
       const canJoin = room.status === 'waiting' && room.players.length < PLAYER_LIMIT;
-      const canWatch = room.status === 'active' && Boolean(room.game);
+      const canWatch = room.status === 'active' && Boolean(room.game) && !room.game.over;
       if (
         room.public
         && !room.vsBot

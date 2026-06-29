@@ -363,7 +363,7 @@ async function tick(){
       const alive = r.game.characters.filter(c=>!c.dead).length;
       game = r.game.over ? '<span class=ok>завершена</span>' : 'ход активен · живых фишек '+alive;
     }
-    const watch = r.status === 'active' && r.type === 'public' && r.game
+    const watch = r.status === 'active' && r.type === 'public' && r.game && !r.game.over
       ? '<a class=watch-link target="_blank" rel="noopener" href="/?watch='+encodeURIComponent(r.code)+'">Смотреть</a>'
       : '<span class=muted>—</span>';
     return '<tr><td><b>'+r.code+'</b></td><td><span class=pill>'+r.type+'</span></td><td>'+r.status+'</td><td>'+players+'</td><td>'+game+'</td><td>'+watch+'</td></tr>';

@@ -80,6 +80,7 @@ export const ServerEvent = Object.freeze({
   ROOM_CREATED: 'room:created',
   ROOM_JOINED: 'room:joined',
   ROOM_WATCHED: 'room:watched',
+  ROOM_WATCH_ENDED: 'room:watchEnded',
   SESSION_RESUMED: 'session:resumed',
   // список открытых публичных игр
   LOBBY_LIST: 'lobby:list',

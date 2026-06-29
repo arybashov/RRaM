@@ -237,6 +237,36 @@ button:hover, .file-btn:hover {
   white-space: nowrap;
 }
 
+.palette-description {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 5px;
+  padding: 2px 7px;
+  border: 1px solid rgba(149,168,196,0.35);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.palette-description.is-filled {
+  border-color: rgba(76,196,163,0.55);
+  color: #8df0d4;
+  background: rgba(76,196,163,0.12);
+}
+
+.palette-description.is-empty {
+  border-color: rgba(229,199,106,0.55);
+  color: var(--gold);
+  background: rgba(229,199,106,0.1);
+}
+
+.palette-description.is-missing {
+  background: rgba(255,255,255,0.03);
+}
+
 .palette-actions {
   display: flex;
   gap: 6px;
@@ -353,6 +383,56 @@ button:hover, .file-btn:hover {
   background-repeat: no-repeat;
   background-position: 0 0;
   background-size: 100% 100%;
+}
+
+.page-deck-separator {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(28px, 1fr) auto minmax(28px, 1fr);
+  gap: 10px;
+  align-items: center;
+  color: #fff2b6;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.85);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.page-deck-separator:active {
+  cursor: grabbing;
+}
+
+.page-deck-separator.selected span {
+  border-color: rgba(141, 240, 212, 0.95);
+  box-shadow: 0 0 0 3px rgba(76, 196, 163, 0.26), 0 3px 12px rgba(0,0,0,0.55);
+}
+
+.page-deck-separator::before,
+.page-deck-separator::after {
+  content: "";
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(229, 199, 106, 0.95));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.65);
+}
+
+.page-deck-separator::after {
+  background: linear-gradient(90deg, rgba(229, 199, 106, 0.95), transparent);
+}
+
+.page-deck-separator span {
+  padding: 5px 12px 6px;
+  border: 1px solid rgba(229, 199, 106, 0.7);
+  border-radius: 999px;
+  background: rgba(7, 16, 27, 0.86);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.55);
 }
 
 .empty-state {

@@ -423,13 +423,6 @@
     "copies": 1
   },
   {
-    "id": "blueprint_irikon",
-    "name": "Чертёж Ирикон",
-    "deck": "blueprints",
-    "type": "blueprint",
-    "copies": 1
-  },
-  {
     "id": "phoenix_1",
     "name": "Феникс (перо к своему кузнецу)",
     "deck": "fairy_glade",

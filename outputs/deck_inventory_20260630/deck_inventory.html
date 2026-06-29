@@ -1,0 +1,3183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Таблица колод</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111827;
+      --panel: #172033;
+      --panel-2: #202b42;
+      --line: #35425c;
+      --text: #e8eef8;
+      --muted: #aab6cb;
+      --accent: #38bdf8;
+      --accent-2: #f5d56a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 15px;
+    }
+    header {
+      position: static;
+      z-index: 5;
+      background: rgba(17, 24, 39, .96);
+      border-bottom: 1px solid var(--line);
+      padding: 16px 22px 14px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 24px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+    .meta {
+      display: flex;
+      gap: 16px;
+      color: var(--muted);
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 360px) 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0d1423;
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 8px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.active {
+      border-color: var(--accent);
+      color: #dff6ff;
+      background: #123047;
+    }
+    button span {
+      color: var(--accent-2);
+      font-weight: 700;
+      margin-left: 4px;
+    }
+    main {
+      padding: 18px 22px 32px;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .summary-card {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      min-height: 118px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 10px;
+    }
+    .summary-card img {
+      width: 54px;
+      height: 78px;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
+    .summary-card h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+    .summary-card p {
+      margin: 0 0 4px;
+      color: var(--text);
+      font-weight: 700;
+    }
+    small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+      margin-top: 4px;
+    }
+    .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: auto;
+      background: var(--panel);
+    }
+    table {
+      width: 100%;
+      min-width: 1420px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #243047;
+      color: #f8fbff;
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    tbody td {
+      vertical-align: top;
+      padding: 10px;
+      border-bottom: 1px solid #2c3850;
+    }
+    tbody tr:hover {
+      background: rgba(56, 189, 248, .08);
+    }
+    .image-cell {
+      text-align: center;
+    }
+    .image-stack {
+      white-space: normal;
+    }
+    th:nth-child(1), td:nth-child(1) { width: 120px; }
+    th:nth-child(2), td:nth-child(2) { width: 180px; }
+    th:nth-child(3), td:nth-child(3) { width: 250px; }
+    th:nth-child(4), td:nth-child(4) { width: 110px; }
+    th:nth-child(5), td:nth-child(5) { width: 78px; }
+    th:nth-child(6), td:nth-child(6) { width: 430px; }
+    th:nth-child(7), td:nth-child(7) { width: 420px; }
+    .card-face {
+      width: 62px;
+      max-height: 88px;
+      object-fit: contain;
+      display: inline-block;
+      margin: 0 3px 6px;
+      vertical-align: top;
+    }
+    .card-back {
+      width: 50px;
+      max-height: 74px;
+      object-fit: contain;
+      display: inline-block;
+      margin: 0 3px 6px;
+      vertical-align: top;
+    }
+    .card-title {
+      width: 240px;
+      font-weight: 800;
+      font-size: 16px;
+    }
+    .count {
+      text-align: right;
+      font-weight: 800;
+      color: var(--accent-2);
+    }
+    .questions {
+      white-space: pre-wrap;
+      min-width: 380px;
+      max-width: 560px;
+      line-height: 1.35;
+      color: #d9e2f2;
+    }
+    .instruction {
+      white-space: pre-wrap;
+      min-width: 420px;
+      max-width: 620px;
+      line-height: 1.35;
+      color: #f2e8c9;
+    }
+    .hidden { display: none !important; }
+    @media (max-width: 800px) {
+      header { position: static; }
+      .toolbar { grid-template-columns: 1fr; }
+      thead th { top: 0; }
+      main { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Таблица колод по ручным разделителям</h1>
+    <div class="meta">
+      <span>Колод: 11</span>
+      <span>Карт всего: 481</span>
+      <span>Уникальных строк: 124</span>
+    </div>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Поиск по карте, описанию, типу">
+      <div class="tabs">
+        <button class="deck-tab active" type="button" data-deck="">Все <span>481</span></button>
+        <button class="deck-tab" type="button" data-deck="Базовые карты">Базовые карты <span>25</span></button><button class="deck-tab" type="button" data-deck="Смешанный грунт">Смешанный грунт <span>60</span></button><button class="deck-tab" type="button" data-deck="Лесная тропа">Лесная тропа <span>57</span></button><button class="deck-tab" type="button" data-deck="Озеро">Озеро <span>26</span></button><button class="deck-tab" type="button" data-deck="Колода Лес">Колода Лес <span>43</span></button><button class="deck-tab" type="button" data-deck="Тёмный лес">Тёмный лес <span>51</span></button><button class="deck-tab" type="button" data-deck="Чертежи">Чертежи <span>84</span></button><button class="deck-tab" type="button" data-deck="Рецепты">Рецепты <span>54</span></button><button class="deck-tab" type="button" data-deck="Таинственная опушка">Таинственная опушка <span>12</span></button><button class="deck-tab" type="button" data-deck="Бараны">Бараны <span>48</span></button><button class="deck-tab" type="button" data-deck="Красная колода">Красная колода <span>21</span></button>
+      </div>
+    </div>
+  </header>
+  <main>
+    <section class="summary">
+      <article class="summary-card" data-deck="Базовые карты">
+        <img src="html-assets/back_base.png" alt="">
+        <div>
+          <h2>Базовые карты</h2>
+          <p>25 карт, 16 уникальных лиц</p>
+          <small>стр. 1, y 118</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Смешанный грунт">
+        <img src="html-assets/back_mixed.png" alt="">
+        <div>
+          <h2>Смешанный грунт</h2>
+          <p>60 карт, 8 уникальных лиц</p>
+          <small>стр. 8, y 34</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Лесная тропа">
+        <img src="html-assets/back_forest_trail.png" alt="">
+        <div>
+          <h2>Лесная тропа</h2>
+          <p>57 карт, 16 уникальных лиц</p>
+          <small>стр. 21, y 550</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Озеро">
+        <img src="html-assets/back_lake.png" alt="">
+        <div>
+          <h2>Озеро</h2>
+          <p>26 карт, 10 уникальных лиц</p>
+          <small>стр. 34, y 9</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Колода Лес">
+        <img src="html-assets/back_forest.png" alt="">
+        <div>
+          <h2>Колода Лес</h2>
+          <p>43 карт, 18 уникальных лиц</p>
+          <small>стр. 40, y 9</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Тёмный лес">
+        <img src="html-assets/back_dark_forest.png" alt="">
+        <div>
+          <h2>Тёмный лес</h2>
+          <p>51 карт, 15 уникальных лиц</p>
+          <small>стр. 49, y 1056</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Чертежи">
+        <img src="html-assets/back_blueprints.png" alt="">
+        <div>
+          <h2>Чертежи</h2>
+          <p>84 карт, 42 уникальных лиц</p>
+          <small>стр. 61, y 20</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Рецепты">
+        <img src="html-assets/back_recipes.png" alt="">
+        <div>
+          <h2>Рецепты</h2>
+          <p>54 карт, 27 уникальных лиц</p>
+          <small>стр. 80, y 13</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Таинственная опушка">
+        <img src="html-assets/back_fairy_glade.png" alt="">
+        <div>
+          <h2>Таинственная опушка</h2>
+          <p>12 карт, 6 уникальных лиц</p>
+          <small>стр. 92, y 14</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Бараны">
+        <img src="html-assets/back_sheep.png" alt="">
+        <div>
+          <h2>Бараны</h2>
+          <p>48 карт, 6 уникальных лиц</p>
+          <small>стр. 94, y 1000</small>
+        </div>
+      </article>
+      <article class="summary-card" data-deck="Красная колода">
+        <img src="html-assets/back_red.png" alt="">
+        <div>
+          <h2>Красная колода</h2>
+          <p>21 карт, 7 уникальных лиц</p>
+          <small>стр. 106, y 272</small>
+        </div>
+      </article></section>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Лицо</th>
+            <th>Рубашка</th>
+            <th>Карта</th>
+            <th>Тип</th>
+            <th>Кол-во</th>
+            <th>Чёткая инструкция</th>
+            <th>Вопросы</th>
+          </tr>
+        </thead>
+        <tbody>
+      <tr data-decks="Базовые карты|Бараны" data-search="базовые карты бараны баран beast sheep_ram по описанию из json: боран.
+киньте кубик 2-а раза he менее 1-го или 1 раз
+he менее 3-х и заберите 1-карту шкура борана.
+когда вы начинаете драться с бананом, вы
+в начале своего хода снимаете по 1 карте со
+своего столба здоровья. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_sheep_ram_%D0%B1%D0%B0%D1%80%D0%B0%D0%BD_generated_frame_highres_text_base_base_010_style_v1_card_hi.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""><img class="card-back" src="html-assets/back_sheep.png" alt=""></td>
+        <td class="card-title">Баран<small>sheep_ram</small></td>
+        <td>beast</td>
+        <td class="count">10</td>
+        <td class="instruction">По описанию из JSON: Боран.
+Киньте кубик 2-а раза He менее 1-го или 1 раз
+He менее 3-х и заберите 1-карту шкура борана.
+Когда вы начинаете драться с бананом, вы
+в начале своего хода снимаете по 1 карте со
+своего столба здоровья.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты бусы телепортации special teleport_beads по описанию из json: бусы телепортации.
+базовая карта для любого класса. (одноразово)
+если вы кините кубик 1 раз не менее 2-х то вы
+телепортируетесь на клетку где вы появились в
+начале всей своей партии.
+для заряда бус телепортации, обратитесь к
+шаману. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_teleport_beads_%D0%B1%D1%83%D1%81%D1%8B_%D1%82%D0%B5%D0%BB%D0%B5%D0%BF%D0%BE%D1%80%D1%82%D0%B0%D1%86%D0%B8%D0%B8_generated_frame_highres_text_base_base_003.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Бусы телепортации<small>teleport_beads</small></td>
+        <td>special</td>
+        <td class="count">5</td>
+        <td class="instruction">По описанию из JSON: Бусы телепортации.
+Базовая карта для любого класса. (одноразово)
+Если вы кините кубик 1 раз не менее 2-х то вы
+телепортируетесь на клетку где вы появились В
+начале всей своей партии.
+Для заряда бус телепортации, обратитесь к
+шаману.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты гриффон companion griffin спутник охотника. в атаке по игроку добавляет урон по сумме кубиков: 2 = 10, 3 = 20, 4 = 25, 5+ = 30; после атаки переворачивается. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_griffin_%D0%B3%D1%80%D0%B8%D1%84%D1%84%D0%BE%D0%BD_base_hunter_griffin_v1.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Гриффон<small>griffin</small></td>
+        <td>companion</td>
+        <td class="count">1</td>
+        <td class="instruction">Спутник Охотника. В атаке по игроку добавляет урон по сумме кубиков: 2 = 10, 3 = 20, 4 = 25, 5+ = 30; после атаки переворачивается.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты|Смешанный грунт|Тёмный лес" data-search="базовые карты смешанный грунт тёмный лес грязная смешанная железная руда ingredient ore_medium, art_mixed_002 по описанию из json: грязная мли смешенная железная руда.
+(ингредиент)
+примените эту карту в драке с противникам:
+выложите эту карту рубашкой вверх
+и ёсли протианик атаковал вас первым то bы сначала
+переворачиваете эту карту описанием вверх
+а потом кладете её обратно себе в инвентарь.
+после этого вы можете взять карту с любой колоды,
+не находясь на этой точки (за исключения колод чертежа и рецепты)
+можно использовать один раз в драке вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_ore_medium_art_mixed_002_%D0%B3%D1%80%D1%8F%D0%B7%D0%BD%D0%B0%D1%8F_%D1%81%D0%BC%D0%B5%D1%88%D0%B0%D0%BD%D0%BD%D0%B0%D1%8F_%D0%B6%D0%B5%D0%BB%D0%B5%D0%B7%D0%BD%D0%B0%D1%8F_%D1%80%D1%83%D0%B4%D0%B0_generated_frame_hi.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""><img class="card-back" src="html-assets/back_mixed.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Грязная смешанная железная руда<small>ore_medium, art_mixed_002</small></td>
+        <td>ingredient</td>
+        <td class="count">22</td>
+        <td class="instruction">По описанию из JSON: Грязная мли смешенная железная руда.
+(ингредиент)
+Примените эту карту в драке с противникам:
+выложите эту карту рубашкой вверх
+и ёсли протианик атаковал Вас первым то Bы сначала
+переворачиваете эту карту описанием вверх
+а потом кладете её обратно себе в инвентарь.
+После этого Вы можете взять карту с любой колоды,
+не находясь на этой точки (за исключения колод чертежа и рецепты)
+Можно использовать один раз в драке</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты дубина weapon club по описанию из json: дубина 
+класс:воин
+атака по врагу: каждое начало своего хода
+враг снимает - 10 карт со столба здоровья,
+(без учета защиты врага).
+атака по зверям: если в первую сваю атаку
+вы кинули кубик на 4 или выше вы убиваете
+зверя с одного хода атаки. если нет вы
+деретес со зверям согласно его описанию. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_club_%D0%B4%D1%83%D0%B1%D0%B8%D0%BD%D0%B0_generated_frame_highres_text_base_base_002_style_v1_card_highre.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Дубина<small>club</small></td>
+        <td>weapon</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Дубина 
+Класс:воин
+Атака по врагу: каждое начало своего хода
+враг снимает - 10 карт со столба здоровья,
+(без учета защиты врага).
+Атака по зверям: если в первую сваю атаку
+вы кинули кубик на 4 или выше вы убиваете
+зверя с одного хода атаки. Если нет вы
+деретес со зверям согласно его описанию.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты|Бараны" data-search="базовые карты бараны клубок сплетенной нити из шерсти барана ingredient yarn по описанию из json: клубок сплетенной нити из шерсти барана.
+ингредиент для создания оружия, легких
+доспех, предметов ut. д.
+см. согласно требованиям чертежей или
+рецептов. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_yarn_%D0%BA%D0%BB%D1%83%D0%B1%D0%BE%D0%BA_%D1%81%D0%BF%D0%BB%D0%B5%D1%82%D0%B5%D0%BD%D0%BD%D0%BE%D0%B9_%D0%BD%D0%B8%D1%82%D0%B8_%D0%B8%D0%B7_%D1%88%D0%B5%D1%80%D1%81%D1%82%D0%B8_%D0%B1%D0%B0%D1%80%D0%B0%D0%BD%D0%B0_generated_frame_highres_text_b.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""><img class="card-back" src="html-assets/back_sheep.png" alt=""></td>
+        <td class="card-title">Клубок сплетенной нити из шерсти барана<small>yarn</small></td>
+        <td>ingredient</td>
+        <td class="count">10</td>
+        <td class="instruction">По описанию из JSON: Клубок сплетенной нити из шерсти барана.
+Ингредиент для создания оружия, легких
+доспех, предметов UT. Д.
+См. Согласно требованиям чертежей или
+рецептов.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты ковер шамана tool shaman_carpet по описанию из json: кавер шамана.
+неотемлимый ингредиент для обрядов
+и изделий шамана. при обычном
+использовании ковра шаман каждое
+начало своего хода прибовляет себе на
+столб здоровья +2 карты. остальное
+использование ковра см. согласно
+требованиям рецептов. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_shaman_carpet_%D0%BA%D0%BE%D0%B2%D0%B5%D1%80_%D1%88%D0%B0%D0%BC%D0%B0%D0%BD%D0%B0_generated_frame_highres_text_base_base_005_style.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Ковер шамана<small>shaman_carpet</small></td>
+        <td>tool</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Кавер шамана.
+Неотемлимый Ингредиент для обрядов
+и изделий шамана. При обычном
+использовании ковра шаман каждое
+начало своего хода прибовляет себе на
+столб здоровья +2 карты. Остальное
+использование ковра см. согласно
+требованиям рецептов.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты мешок tool sack по описанию из json: мешок.
+примените эту карту
+стоя на любой точке добычи.
+вы забираете с одного кубика,
+вне зависимости от того
+сколько на нем выпадет очков,
+по 2 карты. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_sack_%D0%BC%D0%B5%D1%88%D0%BE%D0%BA_generated_frame_highres_text_base_base_012_style_v1_card_highres.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Мешок<small>sack</small></td>
+        <td>tool</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Мешок.
+Примените эту карту
+стоя на любой точке добычи.
+Вы забираете с одного кубика,
+вне зависимости от того
+сколько на нем выпадет очков,
+по 2 карты.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты молоток tool hammer по описанию из json: палаток
+класс: кузнец
+примените этот предмет при изготовлении чертежа:
+все требования уменьшаются на 2.
+пример чертежа: киньте кубик 2 раза не менее 3.
+с палатком: киньте кубик 1 раз не менее 2.
+атака по врагу: киньте кубик не менее 4
+и нанесите врагу 30 урона вме зависимости от брани врага, вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_hammer_%D0%BC%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%BA_generated_frame_highres_text_base_base_014_style_v1_card_hig.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Молоток<small>hammer</small></td>
+        <td>tool</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Палаток
+Класс: кузнец
+Примените этот предмет при изготовлении чертежа:
+все требования уменьшаются на 2.
+Пример чертежа: киньте кубик 2 раза не менее 3.
+С палатком: киньте кубик 1 раз не менее 2.
+Атака по врагу: киньте кубик не менее 4
+и нанесите врагу 30 урона вме зависимости от брани врага,</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты|Бараны" data-search="базовые карты бараны очищенная шкура барана ingredient sheep_hide_c по описанию из json: очищеная шкура барана
+применимо к чертетежам и рецептам вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_sheep_hide_c_%D0%BE%D1%87%D0%B8%D1%89%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F_%D1%88%D0%BA%D1%83%D1%80%D0%B0_%D0%B1%D0%B0%D1%80%D0%B0%D0%BD%D0%B0_generated_frame_highres_text_base_base_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""><img class="card-back" src="html-assets/back_sheep.png" alt=""></td>
+        <td class="card-title">Очищенная шкура барана<small>sheep_hide_c</small></td>
+        <td>ingredient</td>
+        <td class="count">10</td>
+        <td class="instruction">По описанию из JSON: Очищеная Шкура Барана
+Применимо к чертетежам и рецептам</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты рецепт на ковер шамана recipe recipe_shaman_carpet по описанию из json: базовый рецепт на кавер шамана
+необходимые материалы для изготовления предмета
+шкура медведя: 1 карта. сплетенная нить из шкуры
+барана: 1 карта. пусть шаман кинет кубик 1 раз не
+менее 3-х если шаман не сможет кинуть нужное
+количество за 2-е попытки, все материалы просто
+замешиваться в свои колоды обратно, а базовый
+рецепт остается. в случии успеха шаман открывает
+рецепт и забирает изделия. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_recipe_shaman_carpet_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BA%D0%BE%D0%B2%D0%B5%D1%80_%D1%88%D0%B0%D0%BC%D0%B0%D0%BD%D0%B0_generated_frame_highres_text_ba.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Рецепт на ковер шамана<small>recipe_shaman_carpet</small></td>
+        <td>recipe</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Базовый Рецепт на кавер шамана
+Необходимые материалы для изготовления предмета
+шкура медведя: 1 карта. Сплетенная нить из шкуры
+барана: 1 карта. Пусть шаман кинет кубик 1 раз не
+менее 3-х Если шаман не сможет кинуть нужное
+количество за 2-е попытки, все материалы просто
+замешиваться в свои колоды обратно, а базовый
+рецепт остается. В случии успеха шаман открывает
+рецепт и забирает изделия.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты рецепт на мешок recipe recipe_sack по описанию из json: рецепт на мешок.
+необходимые материалы для изготовления предмета:
+клубок сплетенной нити из шерсти барана - 1 карта.
+очищения шкура барана - 1 карта.
+пусть помогник кузнеца кинет кубик 2 раза не менее 3.
+после выполнения условий персонаж забирает карту мешок. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_recipe_sack_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BC%D0%B5%D1%88%D0%BE%D0%BA_generated_frame_highres_text_base_base_011_styl.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Рецепт на мешок<small>recipe_sack</small></td>
+        <td>recipe</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Рецепт на мешок.
+Необходимые материалы для изготовления предмета:
+Клубок сплетенной нити из шерсти барана - 1 карта.
+Очищения шкура барана - 1 карта.
+Пусть помогник кузнеца кинет кубик 2 раза не менее 3.
+После выполнения условий персонаж забирает карту мешок.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты чертеж на дубину blueprint bp_club_base по описанию из json: чертёж на дубину.
+необходимые материалы для
+изготовления предмета: убейти
+кабана, медведя или волка. то
+что вы заберёте с убитого зверя
+отдайте шаману. после этого воин
+откроет чертёж и забирет дубину. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_bp_club_base_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%B4%D1%83%D0%B1%D0%B8%D0%BD%D1%83_generated_frame_highres_text_base_base_001_st.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Чертеж на дубину<small>bp_club_base</small></td>
+        <td>blueprint</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Чертёж на дубину.
+Необходимые материалы для
+изготовления предмета: убейти
+кабана, медведя или волка. То
+что вы заберёте с убитого зверя
+отдайте шаману. После этого воин
+откроет чертёж и забирет дубину.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты" data-search="базовые карты чертеж на молоток blueprint bp_hammer_base по описанию из json: чертёж на палаток
+класс: кузнец
+необходимые материалы для
+изготовления предмета: смешная
+железная руда - 1 карта. пусть кузнец
+кинет кубик 2-а раза не менее 2-х.
+если кузнец не сможет кинуть нужное
+количество за 4 попытки он может
+попробовать ewe. в случии успеха кузнец
+открывает чертёж и заберает молоток вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_bp_hammer_base_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BC%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%BA_generated_frame_highres_text_base_base_013.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""></td>
+        <td class="card-title">Чертеж на молоток<small>bp_hammer_base</small></td>
+        <td>blueprint</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Чертёж на палаток
+Класс: кузнец
+Необходимые материалы для
+изготовления предмета: смешная
+железная руда - 1 карта. Пусть кузнец
+кинет кубик 2-а раза не менее 2-х.
+Если кузнец не сможет кинуть нужное
+количество за 4 попытки он может
+попробовать ewe. В случии успеха кузнец
+открывает чертёж и заберает молоток</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты|Бараны" data-search="базовые карты бараны шерсть барана ingredient sheep_wool по описанию из json: шерсть барана
+компонент для создания нити
+кинте кубик 1 раз не менее 2-х и компонент можно открыть и забрать 1
+карту клубок сплетенной нити. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_sheep_wool_%D1%88%D0%B5%D1%80%D1%81%D1%82%D1%8C_%D0%B1%D0%B0%D1%80%D0%B0%D0%BD%D0%B0_generated_frame_highres_text_base_base_008_style_v.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""><img class="card-back" src="html-assets/back_sheep.png" alt=""></td>
+        <td class="card-title">Шерсть барана<small>sheep_wool</small></td>
+        <td>ingredient</td>
+        <td class="count">10</td>
+        <td class="instruction">По описанию из JSON: Шерсть барана
+Компонент для создания нити
+Кинте кубик 1 раз не менее 2-х и компонент можно открыть и забрать 1
+карту клубок сплетенной нити.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Базовые карты|Бараны" data-search="базовые карты бараны шкура барана ingredient sheep_hide_r по описанию из json: шкура барана
+применима к изделиям см. со’тасно требованиям чеотежей и рецептов,
+или кинте кубик 1 раз he менее 2-х и заберите 1-карту шерсти борана и1-у
+карту очищеную шкуру борача вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_sheep_hide_r_%D1%88%D0%BA%D1%83%D1%80%D0%B0_%D0%B1%D0%B0%D1%80%D0%B0%D0%BD%D0%B0_generated_frame_highres_text_base_base_009_style_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_base.png" alt=""><img class="card-back" src="html-assets/back_sheep.png" alt=""></td>
+        <td class="card-title">Шкура барана<small>sheep_hide_r</small></td>
+        <td>ingredient</td>
+        <td class="count">10</td>
+        <td class="instruction">По описанию из JSON: Шкура барана
+Применима к изделиям см. со’тасно требованиям чеотежей и рецептов,
+или кинте кубик 1 раз He менее 2-х и заберите 1-карту шерсти борана и1-у
+карту очищеную шкуру борача</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Смешанный грунт|Лесная тропа|Колода Лес|Тёмный лес" data-search="смешанный грунт лесная тропа колода лес тёмный лес гриб мухомор provocation amanita по описанию из json: гриб мухомор
+(мнгредмент)
+если применить эту квоту в драке и положить рубашкой вверх,
+а протианик нападает на вас первым.
+вы переворачиваете эту карту описанием ваерх,
+прогивник, которй на вас hanan снимает со своего столба здоровой 10 карт.
+вне зависимости ot го защиты или брони
+(одноразовое применение} - после применения эта карта замещмвается
+8 свою колоду обратно. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_amanita_%D0%B3%D1%80%D0%B8%D0%B1_%D0%BC%D1%83%D1%85%D0%BE%D0%BC%D0%BE%D1%80_generated_frame_highres_text_forest_forest_001_style_v.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_mixed.png" alt=""><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Гриб мухомор<small>amanita</small></td>
+        <td>provocation</td>
+        <td class="count">13</td>
+        <td class="instruction">По описанию из JSON: Гриб мухомор
+(мнгредмент)
+Если применить эту квоту в драке и положить рубашкой вверх,
+а протианик нападает на Вас первым.
+Вы переворачиваете эту карту описанием ваерх,
+Прогивник, которй на Вас HANAN снимает со своего столба здоровой 10 карт.
+Вне зависимости OT го защиты или брони
+(одноразовое применение} - после применения эта карта замещмвается
+8 свою колоду обратно.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Смешанный грунт|Лесная тропа|Красная колода" data-search="смешанный грунт лесная тропа красная колода дикий кабан beast art_mixed_006 по описанию из json: дикий кабан.
+чтобы убить кабана, киньте кубик 3 раза
+не менее 2-х или 1 раз не менее 4-х.
+каждое начало своего хода вы
+снимаете со своего столба здоровья по 5 карт. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_mixed_006_%D0%B4%D0%B8%D0%BA%D0%B8%D0%B9_%D0%BA%D0%B0%D0%B1%D0%B0%D0%BD_generated_frame_highres_text_mixed_mixed_006_styl.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_mixed.png" alt=""><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_red.png" alt=""></td>
+        <td class="card-title">Дикий кабан<small>art_mixed_006</small></td>
+        <td>beast</td>
+        <td class="count">13</td>
+        <td class="instruction">По описанию из JSON: Дикий кабан.
+Чтобы убить кабана, киньте кубик 3 раза
+не менее 2-х или 1 раз не менее 4-х.
+Каждое начало своего хода вы
+снимаете со своего столба здоровья по 5 карт.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Смешанный грунт|Лесная тропа|Колода Лес|Тёмный лес" data-search="смешанный грунт лесная тропа колода лес тёмный лес железная руда среднего качества ingredient art_mixed_001 по описанию из json: железная руда среднего качества.
+(ингредиент)
+примените эту карту в драке с противникам:
+выложите эту карту рубашкой вверх
+и если противник атаковал вас первым
+то вы сначала переворачиваете
+эту карту описанием вверх
+апотом кладете её обратно
+себе в инвентарь. после этого
+вы можете взять 2 карты с любой колоды,
+не находясь на этой точки,
+мо выбрать и забрать только одну
+(32 исключения колод чертежа и рецепты),
+вторую карту вы замещиваете
+обратно в соответствующую колоду.
+можно использовать один раз в драке. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_mixed_001_%D0%B6%D0%B5%D0%BB%D0%B5%D0%B7%D0%BD%D0%B0%D1%8F_%D1%80%D1%83%D0%B4%D0%B0_%D1%81%D1%80%D0%B5%D0%B4%D0%BD%D0%B5%D0%B3%D0%BE_%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0_generated_frame_highres_text_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_mixed.png" alt=""><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Железная руда среднего качества<small>art_mixed_001</small></td>
+        <td>ingredient</td>
+        <td class="count">26</td>
+        <td class="instruction">По описанию из JSON: Железная руда среднего качества.
+(ингредиент)
+Примените эту карту в драке с противникам:
+выложите эту карту рубашкой вверх
+и если противник атаковал Вас первым
+то вы сначала переворачиваете
+эту карту описанием вверх
+апотом кладете её обратно
+себе в инвентарь. После этого
+Вы можете взять 2 карты с любой колоды,
+не находясь на этой точки,
+мо выбрать и забрать только одну
+(32 исключения колод чертежа и рецепты),
+вторую карту вы замещиваете
+обратно в соответствующую колоду.
+Можно использовать один раз в драке.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Смешанный грунт|Лесная тропа" data-search="смешанный грунт лесная тропа малый золотой самородок special gold_nugget по описанию из json: малый золотой самородок.
+(ингредиент)
+если вы сбросите эту карту обратно в свою колоду,
+то вы лечите себя на 20 карт столба здоровья.
+(одноразовое применение) -
+после применения эта карта замешивается
+в свою колоду обратно. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_gold_nugget_%D0%BC%D0%B0%D0%BB%D1%8B%D0%B9_%D0%B7%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%B9_%D1%81%D0%B0%D0%BC%D0%BE%D1%80%D0%BE%D0%B4%D0%BE%D0%BA_generated_frame_highres_text_mixed_mixe.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_mixed.png" alt=""><img class="card-back" src="html-assets/back_forest_trail.png" alt=""></td>
+        <td class="card-title">Малый золотой самородок<small>gold_nugget</small></td>
+        <td>special</td>
+        <td class="count">8</td>
+        <td class="instruction">По описанию из JSON: Малый золотой самородок.
+(ингредиент)
+Если Вы сбросите эту карту обратно в свою колоду,
+то вы лечите себя на 20 карт столба здоровья.
+(одноразовое применение) -
+после применения эта карта замешивается
+в свою колоду обратно.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Смешанный грунт|Лесная тропа|Озеро|Колода Лес|Тёмный лес|Красная колода" data-search="смешанный грунт лесная тропа озеро колода лес тёмный лес красная колода очищенная шкура зверя ingredient hide_red__2 по описанию из json: очищеная шкура зверя.
+ингредиент для изготовления
+предмета. см. согласно
+требованиям чертежа, рецепта. или
+пусть шаман или помошник кузнеца
+кинет кубик 1 раз не менее 2-х и
+забирет 1-у карту кожаный ласкут. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_hide_red_2_%D0%BE%D1%87%D0%B8%D1%89%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F_%D1%88%D0%BA%D1%83%D1%80%D0%B0_%D0%B7%D0%B2%D0%B5%D1%80%D1%8F_generated_frame_highres_text_mixed_mixed_0.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_mixed.png" alt=""><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_lake.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""><img class="card-back" src="html-assets/back_red.png" alt=""></td>
+        <td class="card-title">Очищенная шкура зверя<small>hide_red__2</small></td>
+        <td>ingredient</td>
+        <td class="count">25</td>
+        <td class="instruction">По описанию из JSON: Очищеная шкура зверя.
+Ингредиент для изготовления
+предмета. См. Согласно
+требованиям чертежа, рецепта. Или
+пусть шаман или помошник кузнеца
+кинет кубик 1 раз не менее 2-х и
+забирет 1-у карту кожаный ласкут.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Смешанный грунт|Колода Лес|Таинственная опушка" data-search="смешанный грунт колода лес таинственная опушка сухой череп ingredient art_mixed_003 по описанию из json: сухой череп или череп.
+(ингредиент)
+примените эту карту в драке
+с дварфом и дварф отходит от вас
+на 7 бордов в противоположную сторону от вас.
+после применения вы кладете
+эту карту обратно себе в инвентарь.
+(можно применить один раз в драке). вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_mixed_003_%D1%81%D1%83%D1%85%D0%BE%D0%B9_%D1%87%D0%B5%D1%80%D0%B5%D0%BF_generated_frame_highres_text_mixed_mixed_003_styl.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_mixed.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_fairy_glade.png" alt=""></td>
+        <td class="card-title">Сухой череп<small>art_mixed_003</small></td>
+        <td>ingredient</td>
+        <td class="count">9</td>
+        <td class="instruction">По описанию из JSON: Сухой череп или череп.
+(ингредиент)
+Примените эту карту в драке
+с дварфом и дварф отходит от вас
+на 7 бордов в противоположную сторону от вас.
+После применения вы кладете
+эту карту обратно себе в инвентарь.
+(Можно применить один раз в драке).</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Смешанный грунт|Лесная тропа|Колода Лес|Красная колода" data-search="смешанный грунт лесная тропа колода лес красная колода шкура убитого зверя ingredient art_mixed_005 по описанию из json: шкура убитого зверя.
+класс шаман
+если не применять для изделия, пусть шаман кинет
+кубик 1 раз не менее 2-х и забирет 1-карту очищеной
+кожи убитого зверя. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_mixed_005_%D1%88%D0%BA%D1%83%D1%80%D0%B0_%D1%83%D0%B1%D0%B8%D1%82%D0%BE%D0%B3%D0%BE_%D0%B7%D0%B2%D0%B5%D1%80%D1%8F_generated_frame_highres_text_mixed_mixed_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_mixed.png" alt=""><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_red.png" alt=""></td>
+        <td class="card-title">Шкура убитого зверя<small>art_mixed_005</small></td>
+        <td>ingredient</td>
+        <td class="count">17</td>
+        <td class="instruction">По описанию из JSON: Шкура убитого зверя.
+Класс шаман
+Если не применять для изделия, пусть шаман кинет
+кубик 1 раз не менее 2-х и забирет 1-карту очищеной
+кожи убитого зверя.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа|Тёмный лес" data-search="лесная тропа тёмный лес гнущаяся палка special art_forest_007 по описанию из json: гнущаяся палка.
+(ингредиент)
+применение эту карту в драке
+со зверем и киньте кубик один раз не менее 4 то вы убиваете зверя сразу, если вы кладете эту карту в драке с дварфом и
+кидаете кубик один раз не менее 5,
+то дварф а следующий свой ход атаки не может вас атаковать.
+если вы кладете эту карту в драке с противником,
+вы наносите противнику на 10 урона больше
+(без учета количества очков, выпавших на кубиках).
+(многоразовое применение) вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_forest_007_%D0%B3%D0%BD%D1%83%D1%89%D0%B0%D1%8F%D1%81%D1%8F_%D0%BF%D0%B0%D0%BB%D0%BA%D0%B0_generated_frame_highres_text_forest_forest_00.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Гнущаяся палка<small>art_forest_007</small></td>
+        <td>special</td>
+        <td class="count">7</td>
+        <td class="instruction">По описанию из JSON: Гнущаяся палка.
+(ингредиент)
+Применение эту карту в драке
+со зверем и киньте кубик один раз не менее 4 то вы убиваете зверя сразу, Если вы кладете эту карту в драке с дварфом и
+кидаете кубик один раз не менее 5,
+то дварф а следующий свой ход атаки не может вас атаковать.
+Если вы кладете эту карту в драке с противником,
+Вы наносите противнику на 10 урона больше
+(без учета количества очков, выпавших на кубиках).
+(многоразовое применение)</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа|Тёмный лес" data-search="лесная тропа тёмный лес дикие красные ягоды provocation red_berries по описанию из json: дыкие красные ягоды
+(ингредиент)
+применение карты: положите эту карту рубашкой вверх.
+когда противник нападет на bac первым. перевернаге карту описаннем вверх
+и противник забирает эту карту себе в инвентарь и кладет ее (карту) вверх ногами
+те описание вверх чтобы всё описание было перевернуто.
+пока эта карта лежит в инвентаре напавшего - противника,
+он каждое начало своего хода снимает со своемо столба здоровья по 5 карт.
+чтобы сбросить эту карту киньте кубик одим раз не менее 4-x очков вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_red_berries_%D0%B4%D0%B8%D0%BA%D0%B8%D0%B5_%D0%BA%D1%80%D0%B0%D1%81%D0%BD%D1%8B%D0%B5_%D1%8F%D0%B3%D0%BE%D0%B4%D1%8B_generated_frame_highres_text_forest_forest_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Дикие красные ягоды<small>red_berries</small></td>
+        <td>provocation</td>
+        <td class="count">3</td>
+        <td class="instruction">По описанию из JSON: Дыкие красные ягоды
+(ингредиент)
+Применение карты: положите эту карту рубашкой вверх.
+Когда противник нападет на BAC первым. перевернаге карту описаннем вверх
+и противник забирает эту карту себе в инвентарь и кладет ее (карту) вверх ногами
+те описание вверх чтобы всё описание было перевернуто.
+Пока эта карта лежит в инвентаре напавшего - противника,
+Он каждое начало своего хода снимает со своемо столба здоровья по 5 карт.
+Чтобы сбросить эту карту киньте кубик одим раз не менее 4-X очков</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа|Колода Лес|Тёмный лес" data-search="лесная тропа колода лес тёмный лес дубовые желуди ingredient art_forest_003 по описанию из json: дубовые желуди.
+(ингредиент)
+если применить эту карту стоя на точке добычи карт то за цену одного кубик;
+вы: берете уже 2 карты, но выбираете и забираете только одну из них
+а вторая карта замещивается обратно в свою колоду
+{многоразовое применёние) вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_forest_003_%D0%B4%D1%83%D0%B1%D0%BE%D0%B2%D1%8B%D0%B5_%D0%B6%D0%B5%D0%BB%D1%83%D0%B4%D0%B8_generated_frame_highres_text_forest_forest_00.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Дубовые желуди<small>art_forest_003</small></td>
+        <td>ingredient</td>
+        <td class="count">10</td>
+        <td class="instruction">По описанию из JSON: Дубовые желуди.
+(ингредиент)
+Если применить Эту карту стоя на точке добычи карт То за цену одного кубик;
+Вы: берете уже 2 карты, но выбираете и забираете только одну из них
+А вторая карта замещивается обратно в свою колоду
+{многоразовое применёние)</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа|Колода Лес|Тёмный лес" data-search="лесная тропа колода лес тёмный лес железная руда высшего качества ingredient art_forest_011 по описанию из json: железная руда высшего качества
+{ингредиент)
+если вы применяете эту карту, не находясь в драке
+вы можете взять одну карту (только не чертежи или рецепты),
+не находясь на точке. с любой колоды.
+(одноразовое применение) -
+после применения эта карта замешивается в свою колоду обратно. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_forest_011_%D0%B6%D0%B5%D0%BB%D0%B5%D0%B7%D0%BD%D0%B0%D1%8F_%D1%80%D1%83%D0%B4%D0%B0_%D0%B2%D1%8B%D1%81%D1%88%D0%B5%D0%B3%D0%BE_%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0_generated_frame_highres_text_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Железная руда высшего качества<small>art_forest_011</small></td>
+        <td>ingredient</td>
+        <td class="count">12</td>
+        <td class="instruction">По описанию из JSON: Железная руда высшего качества
+{ингредиент)
+Если вы применяете эту карту, не находясь В драке
+вы можете взять одну карту (только не чертежи или рецепты),
+не находясь на точке. С любой колоды.
+(одноразовое применение) -
+после применения эта карта замешивается в свою колоду обратно.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа|Колода Лес|Тёмный лес" data-search="лесная тропа колода лес тёмный лес кора дерева armor bark по описанию из json: кора дерева.
+(ингредиент)
+если применить эту карту в любой драке,
+вы снимаете со своего столба здоровья на
+5 карт меньше от обещай атаки противника.
+(многоразовое применение) вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_bark_%D0%BA%D0%BE%D1%80%D0%B0_%D0%B4%D0%B5%D1%80%D0%B5%D0%B2%D0%B0_generated_frame_highres_text_forest_forest_002_style_v1_ca.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Кора дерева<small>bark</small></td>
+        <td>armor</td>
+        <td class="count">11</td>
+        <td class="instruction">По описанию из JSON: Кора дерева.
+(ингредиент)
+Если применить эту карту в любой драке,
+Вы снимаете со своего столба здоровья на
+5 карт меньше от обещай атаки противника.
+(многоразовое применение)</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа|Колода Лес|Тёмный лес" data-search="лесная тропа колода лес тёмный лес ночной филин provocation owl_night по описанию из json: ночной фильм.
+{мнгредаент)
+применения карты. положате эту карту в драке с противнаком рубашкой вверх.
+еслы протменик атаковал вас первым, переверните карту описанием вверх, а противник который на bac напал отдает вам из инвемтаря любую карту навсегда,
+если у акующег нет в инвентаре карты
+тогда вы сами выбыраете какую карту вы заберате у противника  с игрового поля.
+(одноразовое применение) -
+после примеменая эта карта замешавается в свою колоду обратно. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_owl_night_%D0%BD%D0%BE%D1%87%D0%BD%D0%BE%D0%B9_%D1%84%D0%B8%D0%BB%D0%B8%D0%BD_generated_frame_highres_text_forest_forest_008_style.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Ночной филин<small>owl_night</small></td>
+        <td>provocation</td>
+        <td class="count">7</td>
+        <td class="instruction">По описанию из JSON: Ночной фильм.
+{мнгредаент)
+Применения карты. положате эту карту в драке с противнаком рубашкой вверх.
+Еслы протменик атаковал Вас первым, переверните карту описанием вверх, а противник который на Bac напал отдает вам из инвемтаря любую карту навсегда,
+Если у акующег нет В инвентаре карты
+Тогда Вы сами выбыраете какую карту вы заберате у противника  с игрового поля.
+(одноразовое применение) -
+после примеменая эта карта замешавается в свою колоду обратно.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа|Тёмный лес" data-search="лесная тропа тёмный лес полена дерева ingredient art_forest_005 по описанию из json: поленья дерев.
+(ингредиент)
+применяется в драке
+если вы полсжите эту карту в драке со зверем вы
+снемаете со своего столба здоровья на 5 карт меньше ot общего манесенного урона по вам зверем. если применить эту карту в драке с противником,  то очки которые выпали на кубиках
+ивы решили их использовать в атаку, умножаются на 2
+пример: вы кинупы кубик на 6 и с применением этой карты вы наносите
+по врагу 12 карт со столба здоровья.
+(многоразорое применение) вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_forest_005_%D0%BF%D0%BE%D0%BB%D0%B5%D0%BD%D0%B0_%D0%B4%D0%B5%D1%80%D0%B5%D0%B2%D0%B0_generated_frame_highres_text_forest_forest_005.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Полена дерева<small>art_forest_005</small></td>
+        <td>ingredient</td>
+        <td class="count">5</td>
+        <td class="instruction">По описанию из JSON: Поленья дерев.
+(ингредиент)
+Применяется в драке
+Если вы полсжите эту карту в драке со зверем вы
+снемаете со своего столба здоровья на 5 карт меньше OT общего манесенного урона по вам зверем. Если применить эту карту в драке с противником,  то очки которые выпали на кубиках
+ивы решили их использовать в атаку, умножаются на 2
+Пример: вы кинупы кубик на 6 и с применением этой карты вы наносите
+по врагу 12 карт со столба здоровья.
+(многоразорое применение)</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа" data-search="лесная тропа полянка мухоморов provocation amanita_glade по описанию из json: полянка мухоморов.
+(ингредиент)
+в драке с противникам выложите эту карту рубашкой вверх
+м если противник атаковал вас первым то вы стдаете эту карту в инвентарь
+напавшему и он сразу снимает со своего столба здоровья 20 карт.
+противник,
+который берет эту карту себе в инвентарь,
+кладёт её тёкстом ввёрх т.е вёрх ногами.(у нас еще есть вверх-ногами))
+пока эта карта находиться в инвентаре
+противника oh каждое начало своего хода снимает no 10 карт
+со своего столба здоровья
+чтобы скинуть эту карту обратно в свою? колоду
+киньте кубик один раз менее 5 вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_amanita_glade_%D0%BF%D0%BE%D0%BB%D1%8F%D0%BD%D0%BA%D0%B0_%D0%BC%D1%83%D1%85%D0%BE%D0%BC%D0%BE%D1%80%D0%BE%D0%B2_generated_frame_highres_text_forest_forest_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""></td>
+        <td class="card-title">Полянка мухоморов<small>amanita_glade</small></td>
+        <td>provocation</td>
+        <td class="count">1</td>
+        <td class="instruction">По описанию из JSON: Полянка мухоморов.
+(ингредиент)
+В драке с противникам выложите эту карту рубашкой вверх
+м если противник атаковал Вас первым то вы стдаете эту карту в инвентарь
+напавшему и он сразу снимает со своего столба здоровья 20 карт.
+Противник,
+который берет эту карту себе в инвентарь,
+кладёт её тёкстом ввёрх т.е вёрх ногами.(у нас еще есть вверх-ногами))
+Пока эта карта находиться в инвентаре
+противника OH каждое начало своего хода снимает no 10 карт
+со своего столба здоровья
+Чтобы скинуть Эту карту обратно в свою? колоду
+киньте кубик один раз менее 5</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа" data-search="лесная тропа толстая ветка special art_forest_012 по описанию из json: толстая ветка.
+(ингредиент)
+положите эту карту в драке,
+и вы наносите противнику на 10 урона больше
+(без учета количества очков, выпавших на кубика).
+(многоразовое применение) вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_forest_012_%D1%82%D0%BE%D0%BB%D1%81%D1%82%D0%B0%D1%8F_%D0%B2%D0%B5%D1%82%D0%BA%D0%B0_generated_frame_highres_text_forest_forest_012.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""></td>
+        <td class="card-title">Толстая ветка<small>art_forest_012</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Толстая ветка.
+(ингредиент)
+Положите эту карту в драке,
+и Вы наносите противнику на 10 урона больше
+(без учета количества очков, выпавших на кубика).
+(многоразовое применение)</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Лесная тропа|Колода Лес" data-search="лесная тропа колода лес черные ягоды provocation black_berries по описанию из json: черные ягоды.
+(интредиенг)
+применение в драке:
+положите в драке эту карту рубашкой вверх
+и если пропивник нападет на вас первым,
+то первая атака, которую по вам провели ,
+весь урон возвращается к вам лечением.
+те. на сколько вас ударили, на столько вы и вылечились.
+(одноразовое применение) —
+после применения эта карта замешивается в свою колоду обратно. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_black_berries_%D1%87%D0%B5%D1%80%D0%BD%D1%8B%D0%B5_%D1%8F%D0%B3%D0%BE%D0%B4%D1%8B_generated_frame_highres_text_forest_forest_010_s.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest_trail.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""></td>
+        <td class="card-title">Черные ягоды<small>black_berries</small></td>
+        <td>provocation</td>
+        <td class="count">5</td>
+        <td class="instruction">По описанию из JSON: Черные ягоды.
+(интредиенг)
+Применение в драке:
+Положите в драке эту карту рубашкой вверх
+и если пропивник нападет на Вас первым,
+то первая атака, которую по Вам провели ,
+весь урон возвращается к Вам лечением.
+Те. на сколько Вас ударили, на столько Вы и вылечились.
+(одноразовое применение) —
+после применения эта карта замешивается в свою колоду обратно.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро|Красная колода" data-search="озеро красная колода бурый медведь beast art_trophy_001 по описанию из json: бурый медведь
+для того чтобы бить медведя необходим кинуть кубик 2-а раза
+не менее 3-х или 1 роз he менее 5, каждое начало своего хода
+вы скимеете со стелёа здоровэя по 15 карт без учета вашей
+защиты и артефактов. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_trophy_001_%D0%B1%D1%83%D1%80%D1%8B%D0%B9_%D0%BC%D0%B5%D0%B4%D0%B2%D0%B5%D0%B4%D1%8C_generated_frame_highres_text_beasts_hides_beas.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""><img class="card-back" src="html-assets/back_red.png" alt=""></td>
+        <td class="card-title">Бурый медведь<small>art_trophy_001</small></td>
+        <td>beast</td>
+        <td class="count">4</td>
+        <td class="instruction">По описанию из JSON: Бурый Медведь
+Для того чтобы бить медведя необходим кинуть кубик 2-а раза
+не менее 3-х или 1 роз He менее 5, Каждое начало своего хода
+вы скимеете со стелёа здоровэя по 15 карт Без учета вашей
+защиты и артефактов.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро" data-search="озеро драгоценный камень special art_lake_003 по описанию из json: драгоценный камень.
+(ингредиент), (заклинание).
+если применить эту карту в драке с противникам,
+то он не может вас атаковать.
+эту карту можно применить
+только к одному персонажу противника.
+можно использовать один раз в драке. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_lake_003_%D0%B4%D1%80%D0%B0%D0%B3%D0%BE%D1%86%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BA%D0%B0%D0%BC%D0%B5%D0%BD%D1%8C_generated_frame_highres_text_lake_lake_003_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""></td>
+        <td class="card-title">Драгоценный камень<small>art_lake_003</small></td>
+        <td>special</td>
+        <td class="count">3</td>
+        <td class="instruction">По описанию из JSON: Драгоценный камень.
+(ингредиент), (заклинание).
+Если применить эту карту в драке с противникам,
+то он не может вас атаковать.
+Эту карту можно применить
+только к одному персонажу противника.
+Можно использовать один раз в драке.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро" data-search="озеро крапленый аметист ingredient art_lake_004 по описанию из json: краплёный аметист.
+(ингредиент)
+если применить эту карту
+в изготовлении чертежа или рецепта,
+то вы можете вместо одного
+недостающего ингредиента заменить этой картой
+и начать изготовление.
+(одноразовое применение) -
+после применения эта карта замешивается
+в свою колоду обратно. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_lake_004_%D0%BA%D1%80%D0%B0%D0%BF%D0%BB%D0%B5%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BC%D0%B5%D1%82%D0%B8%D1%81%D1%82_generated_frame_highres_text_lake_lake_004_s.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""></td>
+        <td class="card-title">Крапленый аметист<small>art_lake_004</small></td>
+        <td>ingredient</td>
+        <td class="count">3</td>
+        <td class="instruction">По описанию из JSON: Краплёный аметист.
+(ингредиент)
+Если применить эту карту
+в изготовлении чертежа или рецепта,
+то вы можете вместо одного
+недостающего ингредиента заменить этой картой
+и начать изготовление.
+(одноразовое применение) -
+после применения эта карта замешивается
+в свою колоду обратно.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро" data-search="озеро мраморный самоцвет ingredient art_lake_001 по описанию из json: мраморный самоцвет
+(ингредиент), (заклинание).
+если применить эту карту в драке с дварфом
+то общий нанесенный по нему (по дварфу)
+урон для убийства уменьшается на 2.
+те. - “если противник нанесет
+по вам общего урона 15 за один ход
+с применением этого камня в драке
+общего урона нужно нанести 13.
+можно использовать один раз в драке. ??? вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_lake_001_%D0%BC%D1%80%D0%B0%D0%BC%D0%BE%D1%80%D0%BD%D1%8B%D0%B9_%D1%81%D0%B0%D0%BC%D0%BE%D1%86%D0%B2%D0%B5%D1%82_generated_frame_highres_text_lake_lake_001_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""></td>
+        <td class="card-title">Мраморный самоцвет<small>art_lake_001</small></td>
+        <td>ingredient</td>
+        <td class="count">3</td>
+        <td class="instruction">По описанию из JSON: Мраморный самоцвет
+(ингредиент), (заклинание).
+Если применить эту карту в драке с дварфом
+то общий нанесенный по нему (по дварфу)
+урон для убийства уменьшается на 2.
+Те. - “если противник нанесет
+по Вам общего урона 15 за один ход
+с применением этого камня в драке
+общего урона нужно нанести 13.
+Можно использовать один раз в драке. ???</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро" data-search="озеро мутный изумруд ingredient art_lake_002 по описанию из json: мутный изумруд.
+(ингредиент), (заклинание).
+если применить эту карту в драке
+с любым зверем, то он не может вас атаковать.
+вы просто убиваете зверя
+согласно его описанию и все.
+можно использовать один раз в драке. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_lake_002_%D0%BC%D1%83%D1%82%D0%BD%D1%8B%D0%B9_%D0%B8%D0%B7%D1%83%D0%BC%D1%80%D1%83%D0%B4_generated_frame_highres_text_lake_lake_002_styl.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""></td>
+        <td class="card-title">Мутный изумруд<small>art_lake_002</small></td>
+        <td>ingredient</td>
+        <td class="count">3</td>
+        <td class="instruction">По описанию из JSON: Мутный изумруд.
+(ингредиент), (заклинание).
+Если применить эту карту в драке
+с любым зверем, то он не может вас атаковать.
+Вы просто убиваете зверя
+согласно его описанию и все.
+Можно использовать один раз в драке.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро" data-search="озеро необработанный рубин ingredient raw_ruby по описанию из json: необработанный рубин.
+(ингредиент), (заклинание).
+примените эту карту в драке с противникам
+выложите эту карту рубашкой вверх и если
+противник атаковал вас первым то вы берете одну карту
+с инвентаря кузнеца или шамана противника, навсегда.
+когда противник видит эту карту вы
+должны сказать ему шаман или кузнец будет отдавать вам карту.
+(одноразовое применение) 
+после применения зта карта замешивается в свою колоду обратно. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_raw_ruby_%D0%BD%D0%B5%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%BD%D0%BD%D1%8B%D0%B9_%D1%80%D1%83%D0%B1%D0%B8%D0%BD_generated_frame_highres_text_lake_lake_005_st.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""></td>
+        <td class="card-title">Необработанный рубин<small>raw_ruby</small></td>
+        <td>ingredient</td>
+        <td class="count">3</td>
+        <td class="instruction">По описанию из JSON: Необработанный рубин.
+(ингредиент), (заклинание).
+Примените эту карту в драке с противникам
+выложите эту карту рубашкой вверх и если
+противник атаковал Вас первым то вы берете одну карту
+с инвентаря кузнеца или шамана противника, навсегда.
+Когда противник видит эту карту вы
+должны сказать ему шаман или кузнец будет отдавать Вам карту.
+(одноразовое применение) 
+после применения зта карта замешивается в свою колоду обратно.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро" data-search="озеро озерная лягушка special lake_frog по описанию из json: озерная лягушка.
+(ингредиент) (заклинание).
+эту карту может применить только шаман
+когда вы находитесь в драке с любым зверем
+вы! можете примёмить эту карту положив
+на карту самого зверя на все время драки.
+тем самым вы превращаете зверя в лягушку,
+и зверь не может bаc атаковать.
+вы просто убиваете его согласно описанию.
+если применить эту карту в драке с дварфом
+и так же положить её на карту дварфа то дварф ме может
+вас атаковать пока он не кинет суммарное количество
+очков с двух кубиков нe менее 6.
+после этого вы забираете карту обратно себе в инвентарь
+(межно применить толко один раз в драке).
+если примнить эту карту в драке с противником,
+то вы так же кладете ее на любого персонажа.
+в тот момент когда звклятье лежит на персонаже оружие его нe работает.
+он не может вас этаковать, но bot защита противника работает так же.
+как и без заклатья. противник ме может вас атаковать пока oh не кинет
+суммарное чоличество очков с двух кубиков he менее 8
+песле этого вы забираете карту обратно себе в инвентарь.
+(можно применить телько один раз в драке). вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_lake_frog_%D0%BE%D0%B7%D0%B5%D1%80%D0%BD%D0%B0%D1%8F_%D0%BB%D1%8F%D0%B3%D1%83%D1%88%D0%BA%D0%B0_generated_frame_highres_text_lake_lake_006_style_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""></td>
+        <td class="card-title">Озерная лягушка<small>lake_frog</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Озерная лягушка.
+(ингредиент) (заклинание).
+Эту карту может применить только шаман
+Когда Вы находитесь в драке с любым зверем
+вы! можете примёмить эту карту положив
+на карту самого зверя на все время драки.
+Тем самым Вы превращаете зверя в лягушку,
+и зверь не может BАC атаковать.
+Вы просто убиваете его согласно описанию.
+Если применить эту карту в драке с Дварфом
+и так же положить её на карту дварфа то дварф ме может
+Вас атаковать пока он не кинет суммарное количество
+очков с двух кубиков нe менее 6.
+После этого Вы забираете карту обратно себе В инвентарь
+(Межно применить толко один раз в драке).
+Если примнить эту карту в драке с противником,
+то Вы так же кладете ее на любого персонажа.
+В тот момент когда звклятье лежит на персонаже оружие его нe работает.
+он не может вас этаковать, но BOT защита противника работает так же.
+как и без заклатья. Противник ме может Вас атаковать пока OH не кинет
+суммарное чоличество очков с двух кубиков He менее 8
+Песле этого вы забираете карту обратно себе в инвентарь.
+(Можно применить телько один раз в драке).</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро|Колода Лес" data-search="озеро колода лес проросший корень ingredient art_lake_007 по описанию из json: проросший корень.
+(ингредиент), (заклинание).
+примените эту карту в драке с протиеникам:
+выложите эту карту рубашкой вверх и если против ник
+атаковал bac первым и на одном из его кубиков выпала цифра 3
+или меньше то вы не получаете не какого урона на время всей драки,
+когда у противника будет выпадать на
+одном из кубиков цифра 3 или меньше.
+советую переворачивать эту карту описанием вверх,
+когда цифры выпавших кубиков у противника
+будут соответствовать необходимым вам требованиям.
+(можно применить только один раз в драке) вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_lake_007_%D0%BF%D1%80%D0%BE%D1%80%D0%BE%D1%81%D1%88%D0%B8%D0%B9_%D0%BA%D0%BE%D1%80%D0%B5%D0%BD%D1%8C_generated_frame_highres_text_lake_lake_007_st.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""><img class="card-back" src="html-assets/back_forest.png" alt=""></td>
+        <td class="card-title">Проросший корень<small>art_lake_007</small></td>
+        <td>ingredient</td>
+        <td class="count">5</td>
+        <td class="instruction">По описанию из JSON: Проросший корень.
+(ингредиент), (заклинание).
+Примените эту карту в драке с протиеникам:
+выложите эту карту рубашкой вверх и если против ник
+атаковал Bac первым и на одном из его кубиков выпала цифра 3
+или меньше то вы не получаете не какого урона на время всей драки,
+когда у противника будет выпадать на
+одном из кубиков цифра 3 или меньше.
+Советую переворачивать эту карту описанием вверх,
+когда цифры выпавших кубиков у противника
+будут соответствовать необходимым Вам требованиям.
+(Можно применить только один раз в драке)</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Озеро|Тёмный лес|Красная колода" data-search="озеро тёмный лес красная колода шкура медведя ingredient bear_hide по описанию из json: шкура медведя
+пруменима для изделий
+см согласно требованиям чертежа или рецепта или пусть шаман или помощник кузнеца кинет кубик 1 раз не менее 2-х и
+заберет очищеную шкуру зверя. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_bear_hide_%D1%88%D0%BA%D1%83%D1%80%D0%B0_%D0%BC%D0%B5%D0%B4%D0%B2%D0%B5%D0%B4%D1%8F_generated_frame_highres_text_beasts_hides_beasts_hi.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_lake.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""><img class="card-back" src="html-assets/back_red.png" alt=""></td>
+        <td class="card-title">Шкура медведя<small>bear_hide</small></td>
+        <td>ingredient</td>
+        <td class="count">8</td>
+        <td class="instruction">По описанию из JSON: Шкура медведя
+Пруменима для изделий
+См Согласно требованиям чертежа или рецепта или пусть шаман или помощник кузнеца кинет кубик 1 раз не менее 2-х и
+заберет очищеную шкуру зверя.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Колода Лес|Тёмный лес" data-search="колода лес тёмный лес большой золотой самородок ingredient art_dark_forest_002 по описанию из json: большой золотой самородок.
+(ингредиент)
+если вы сбросите эту карту обратно в свою колоду,
+то вы лечите себя на 40 . вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_002_%D0%B1%D0%BE%D0%BB%D1%8C%D1%88%D0%BE%D0%B9_%D0%B7%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%B9_%D1%81%D0%B0%D0%BC%D0%BE%D1%80%D0%BE%D0%B4%D0%BE%D0%BA_generated_frame_highres_text_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Большой золотой самородок<small>art_dark_forest_002</small></td>
+        <td>ingredient</td>
+        <td class="count">9</td>
+        <td class="instruction">По описанию из JSON: Большой золотой самородок.
+(ингредиент)
+Если Вы сбросите эту карту обратно в свою колоду,
+то вы лечите себя на 40 .</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Колода Лес" data-search="колода лес котел шамана spell shaman_cauldron по описанию из json: котел шамана
+(заклинание}
+вы можете спрятаться в этом котле
+положив эту карту на основное игровое поле
+на фишку персонажа
+противник или дварф вне зависммости есть ли
+еще вражеские персонажи обязан атаковать только
+котел. чтобы противник снял со спрятанного
+персонажа котел он должен кинуть кубики с общим количеством he менее 8. если противник или дварф кидают меньше 8 то продолжают атаковать котел.
+после применения котла его нужно перезарядить через шкуру ритуалов. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_shaman_cauldron_%D0%BA%D0%BE%D1%82%D0%B5%D0%BB_%D1%88%D0%B0%D0%BC%D0%B0%D0%BD%D0%B0_generated_frame_highres_text_base_base_016_sty.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest.png" alt=""></td>
+        <td class="card-title">Котел шамана<small>shaman_cauldron</small></td>
+        <td>spell</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Котел шамана
+(заклинание}
+Вы можете спрятаться в этом котле
+положив эту карту на основное игровое поле
+на фишку персонажа
+Противник или дварф вне зависммости есть ли
+еще вражеские персонажи обязан атаковать только
+котел. Чтобы противник снял со спрятанного
+персонажа котел он должен кинуть кубики с общим количеством He менее 8. Если противник или дварф кидают меньше 8 то продолжают атаковать котел.
+После применения котла его нужно перезарядить через шкуру ритуалов.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Колода Лес" data-search="колода лес малый лечебный бутыль special art_recipes_016 по описанию из json: малый лечебный бутыль.
+при использовании этой карты
+вы восстанавливаете себе
+на столб здоровья +40 карт.
+после применения эта карта возвращается
+обратно на рецепт. чтобы из рецепта на малый лечебный
+бутыль снова получить лечебный бутыль
+вам нужно проделать опять условия рецепта. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_016_%D0%BC%D0%B0%D0%BB%D1%8B%D0%B9_%D0%BB%D0%B5%D1%87%D0%B5%D0%B1%D0%BD%D1%8B%D0%B9_%D0%B1%D1%83%D1%82%D1%8B%D0%BB%D1%8C_generated_frame_highres_text_forest_f.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest.png" alt=""></td>
+        <td class="card-title">Малый лечебный бутыль<small>art_recipes_016</small></td>
+        <td>special</td>
+        <td class="count">3</td>
+        <td class="instruction">По описанию из JSON: Малый лечебный бутыль.
+При использовании этой карты
+вы восстанавливаете себе
+на столб здоровья +40 карт.
+После применения эта карта возвращается
+обратно на рецепт. Чтобы из рецепта на малый лечебный
+бутыль снова получить лечебный бутыль
+Вам нужно проделать опять условия рецепта.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Колода Лес" data-search="колода лес обычная сова provocation owl_common по описанию из json: обычная сова.
+если применить эту карту в драке и положить рубашкой вверх,
+а враг нападет на вас первый.
+вы переворачиваете карту сова описанием вверх.
+противник, который налал на вас не наносит
+вам не какого урона и отходит
+от bac в сторону своей пераоначальной точки на 6 бордов.
+действует на основного противника и дварфов.
+в драке со зверем не применяется.
+(можно использовать один раз в драке). вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_owl_common_%D0%BE%D0%B1%D1%8B%D1%87%D0%BD%D0%B0%D1%8F_%D1%81%D0%BE%D0%B2%D0%B0_generated_frame_highres_text_forest_forest_009_styl.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest.png" alt=""></td>
+        <td class="card-title">Обычная сова<small>owl_common</small></td>
+        <td>provocation</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Обычная сова.
+Если применить эту карту в драке и положить рубашкой вверх,
+а враг нападет на вас первый.
+Вы переворачиваете карту сова описанием вверх.
+Противник, который налал на вас не наносит
+Вам не какого урона и отходит
+от Bac в сторону своей пераоначальной точки на 6 бордов.
+Действует на основного противника и дварфов.
+В драке со зверем не применяется.
+(можно использовать один раз в драке).</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Колода Лес" data-search="колода лес рецепт на проросший корень recipe recipe_sprouted_root по описанию из json: рецепт на проросший корень.
+пусть шаман выложит на игровое поле
+ковер шамана и кинет кубик 1 раза не менее 3-х.
+после этого шаман забирает ковер шамана обратно
+себе в инвентарь и открывает рецепт. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_recipe_sprouted_root_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BF%D1%80%D0%BE%D1%80%D0%BE%D1%81%D1%88%D0%B8%D0%B9_%D0%BA%D0%BE%D1%80%D0%B5%D0%BD%D1%8C_generated_frame_highres_tex.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest.png" alt=""></td>
+        <td class="card-title">Рецепт на проросший корень<small>recipe_sprouted_root</small></td>
+        <td>recipe</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на проросший корень.
+Пусть шаман выложит на игровое поле
+ковер шамана и кинет кубик 1 раза не менее 3-х.
+После этого шаман забирает ковер шамана обратно
+себе в инвентарь и открывает рецепт.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Колода Лес|Красная колода" data-search="колода лес красная колода серый волк beast wolf по описанию из json: cерый волк
+для того чтобы убить киньте кубик 2 раза не менее 2:
+или 1 раз he менее 5 - и каждое начало своего хода вы
+снимаете с себя по 5 карт пока he убьёте волка. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_wolf_%D1%81%D0%B5%D1%80%D1%8B%D0%B9_%D0%B2%D0%BE%D0%BB%D0%BA_generated_frame_highres_text_beasts_hides_beasts_hides_003_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_red.png" alt=""></td>
+        <td class="card-title">Серый волк<small>wolf</small></td>
+        <td>beast</td>
+        <td class="count">4</td>
+        <td class="instruction">По описанию из JSON: Cерый волк
+Для того чтобы убить киньте кубик 2 раза не менее 2:
+или 1 раз He менее 5 - и Каждое начало своего хода вы
+снимаете с себя по 5 карт пока He убьёте волка.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Колода Лес|Тёмный лес" data-search="колода лес тёмный лес средний золотой самородок ingredient art_dark_forest_001 по описанию из json: средний золотой самородок.
+(ингредиент)
+есля вы сбросите эту карту обратно в свою колоду,
+то вы лечите себя на 30 карт столба здоровья.
+(одноразовое применение) -
+после применения эта карта замешивается в свою колоду обратно вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_001_%D1%81%D1%80%D0%B5%D0%B4%D0%BD%D0%B8%D0%B9_%D0%B7%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%B9_%D1%81%D0%B0%D0%BC%D0%BE%D1%80%D0%BE%D0%B4%D0%BE%D0%BA_generated_frame_highres_text_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_forest.png" alt=""><img class="card-back" src="html-assets/back_dark_forest.png" alt=""></td>
+        <td class="card-title">Средний золотой самородок<small>art_dark_forest_001</small></td>
+        <td>ingredient</td>
+        <td class="count">8</td>
+        <td class="instruction">По описанию из JSON: Средний золотой самородок.
+(ингредиент)
+Есля Вы сбросите эту карту обратно в свою колоду,
+то вы лечите себя на 30 карт столба здоровья.
+(одноразовое применение) -
+после применения эта карта замешивается в свою колоду обратно</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Тёмный лес|Чертежи|Красная колода" data-search="тёмный лес чертежи красная колода агрессивный бурый медведь beast art_trophy_002 по описанию из json: агессивный бурый медведь
+для того чтобы убить нужно кинуть кубик 3-и раза не менее
+3x или 2 раза he менее 5. каждое чачало вашего хода вы
+снимаете со своего столба здоровья по 10-карт вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_trophy_002_%D0%B0%D0%B3%D1%80%D0%B5%D1%81%D1%81%D0%B8%D0%B2%D0%BD%D1%8B%D0%B9_%D0%B1%D1%83%D1%80%D1%8B%D0%B9_%D0%BC%D0%B5%D0%B4%D0%B2%D0%B5%D0%B4%D1%8C_generated_frame_highres_text_beast.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_dark_forest.png" alt=""><img class="card-back" src="html-assets/back_blueprints.png" alt=""><img class="card-back" src="html-assets/back_red.png" alt=""></td>
+        <td class="card-title">Агрессивный бурый медведь<small>art_trophy_002</small></td>
+        <td>beast</td>
+        <td class="count">4</td>
+        <td class="instruction">По описанию из JSON: Агессивный бурый медведь
+Для того чтобы убить нужно кинуть кубик 3-и раза не менее
+3x или 2 раза He менее 5. Каждое чачало вашего хода вы
+снимаете со своего столба здоровья по 10-карт</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи деревянный молоток special art_dark_forest_020 по описанию из json: деревянный молоток. 
+когда кузнец применил эту карту при 
+изготовлении предмета.
+то кубик для изготовления чертежа
+он кидает два раза. то есть тот кубик цену очков
+которого он отдал на изготовления
+предмета в этом ходу он кидает
+еще раз и при выпаде подходящих
+очков на кубике согласно описанию чертежа,
+который сейчас изготовляется
+он применяет еще раз.
+тем самым ускоряет изготовления предметов. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_020_%D0%B4%D0%B5%D1%80%D0%B5%D0%B2%D1%8F%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%BA_generated_frame_highres_text_dark_fo.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Деревянный молоток<small>art_dark_forest_020</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Деревянный молоток. 
+Когда кузнец применил эту карту при 
+изготовлении предмета.
+То кубик для изготовления чертежа
+он кидает два раза. То есть тот кубик цену очков
+которого он отдал на изготовления
+предмета в этом ходу он кидает
+еще раз и при выпаде подходящих
+очков на кубике согласно описанию чертежа,
+который сейчас изготовляется
+он применяет еще раз.
+Тем самым ускоряет изготовления предметов.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи задание на молот иерихон special task_irikon по описанию из json: задание на молот иерихон.
+отправляйтесь на север восток
+и найдите таинственную опушку.
+победите феникса и заберите золотое перо.
+условие выполнения задания:
+нужно чтобы у кузнеца уже был в инвентаре
+этот чертеж а драться с фениксом можно
+кому угодно. после кузнец открывает чертеж
+и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_task_irikon_%D0%B7%D0%B0%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5_%D0%BD%D0%B0_%D0%BC%D0%BE%D0%BB%D0%BE%D1%82_%D0%B8%D0%B5%D1%80%D0%B8%D1%85%D0%BE%D0%BD_generated_frame_highres_text_dark_fore.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Задание на молот Иерихон<small>task_irikon</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Задание на молот Иерихон.
+Отправляйтесь на север восток
+и найдите таинственную опушку.
+Победите феникса и заберите золотое перо.
+Условие выполнения задания:
+нужно чтобы у кузнеца уже был в инвентаре
+этот чертеж а драться с фениксом можно
+кому угодно. После кузнец открывает чертеж
+и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи защита ил armor armor_il по описанию из json: защита ил.
+примените эту карту в любой драке.
+поглощает 25 карт урона вашего столба здоровья.
+эффект: врагу нельзя не как лечиться во время драки. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_armor_il_%D0%B7%D0%B0%D1%89%D0%B8%D1%82%D0%B0_%D0%B8%D0%BB_generated_frame_highres_text_dark_forest_dark_forest_044.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Защита Ил<small>armor_il</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Защита Ил.
+Примените эту карту в любой драке.
+Поглощает 25 карт урона вашего столба здоровья.
+Эффект: Врагу нельзя не как лечиться во время драки.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи иерихон weapon irikon по описанию из json: иерихон.
+примените эту карту в любой драке.
+атака по врагу — 35 карт со столба.
+без учета защиты врага. эффект:
+у вас в инвентаре должен быть
+целый сухой череп - 1 карта.
+после этого вы подходите в плотную
+к месту где убили вашего персонажа,
+выкладуете молот иерихон
+и целый сухой череп
+на игровое поле. киньте кубик на любое число.
+карта целого сухого черепа
+замешивается обратно в свою колоду
+и молот вы кладете обратно себе в инвентарь.
+ваш убитый персонаж воскрешает
+с полным столбом здоровья. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_irikon_%D0%B8%D0%B5%D1%80%D0%B8%D1%85%D0%BE%D0%BD_generated_frame_highres_text_dark_forest_dark_forest_024_sty.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Иерихон<small>irikon</small></td>
+        <td>weapon</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Иерихон.
+Примените эту карту в любой драке.
+Атака по врагу — 35 карт со столба.
+Без учета защиты врага. Эффект:
+у вас в инвентаре должен быть
+целый сухой череп - 1 карта.
+После этого вы подходите в плотную
+к месту где убили вашего персонажа,
+выкладуете молот иерихон
+и целый сухой череп
+на игровое поле. Киньте кубик на любое число.
+Карта целого сухого черепа
+замешивается обратно в свою колоду
+и молот вы кладете обратно себе в инвентарь.
+Ваш убитый персонаж воскрешает
+с полным столбом здоровья.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи кольцо возврата provocation return_ring по описанию из json: кольцо возврата.
+примените эту карту в драке с противникам:
+выложите эту карту рубашкой вверх
+и если противник атаковал вас первым
+то сколько по вам нанес противник
+урона столько противник нанес урона и себе. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_return_ring_%D0%BA%D0%BE%D0%BB%D1%8C%D1%86%D0%BE_%D0%B2%D0%BE%D0%B7%D0%B2%D1%80%D0%B0%D1%82%D0%B0_generated_frame_highres_text_dark_forest_dark_f.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Кольцо возврата<small>return_ring</small></td>
+        <td>provocation</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Кольцо возврата.
+Примените эту карту в драке с противникам:
+выложите эту карту рубашкой вверх
+и если противник атаковал Вас первым
+то сколько по Вам нанес противник
+урона столько противник нанес урона и себе.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи легкая кольчуга armor chainmail_light по описанию из json: легкая кольчуга.
+примените эту карту в любой драке.
+вы снимаете на -15 карт меньше
+от общего нанесенного по вам урона.
+защита от всех зверей:
+если вы находитесь в драке,
+то каждое начала своего хода вы
+снимаете только по 5 карт со своего столба здоровья
+вне зависимости от того на сколько вас атаковал эверь. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_chainmail_light_%D0%BB%D0%B5%D0%B3%D0%BA%D0%B0%D1%8F_%D0%BA%D0%BE%D0%BB%D1%8C%D1%87%D1%83%D0%B3%D0%B0_generated_frame_highres_text_dark_forest_da.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Легкая кольчуга<small>chainmail_light</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Легкая кольчуга.
+Примените эту карту в любой драке.
+Вы снимаете на -15 карт меньше
+от общего нанесенного по Вам урона.
+Защита от всех зверей:
+если вы находитесь в драке,
+то каждое начала своего хода вы
+снимаете только по 5 карт со своего столба здоровья
+вне зависимости от того на сколько вас атаковал эверь.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи ломщит armor shield_lom по описанию из json: ломщит.
+примените эту карту в любой драке.
+пюглощает 15 карт урона вашего столба здоровья.
+все что выше снимаете со столба здоровья за
+минусом поглощения. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_shield_lom_%D0%BB%D0%BE%D0%BC%D1%89%D0%B8%D1%82_generated_frame_highres_text_dark_forest_dark_forest_012_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Ломщит<small>shield_lom</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Ломщит.
+Примените эту карту в любой драке.
+Пюглощает 15 карт урона вашего столба здоровья.
+Все что выше снимаете со столба здоровья за
+минусом поглощения.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи меч лорп weapon sword_lorp по описанию из json: меч лорп. 
+примените эту карту в любой драке.
+атака по врагу - 15 карт со столба здоровья.
+без учета защиты врага.
+атака по зверям согласно их описанию. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_sword_lorp_%D0%BC%D0%B5%D1%87_%D0%BB%D0%BE%D1%80%D0%BF_generated_frame_highres_text_dark_forest_dark_forest_02.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Меч Лорп<small>sword_lorp</small></td>
+        <td>weapon</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Меч Лорп. 
+Примените эту карту в любой драке.
+Атака по врагу - 15 карт со столба здоровья.
+Без учета защиты врага.
+Атака по зверям согласно их описанию.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи меч сеч weapon sword_sech по описанию из json: меч сеч.
+примените эту карту в любой драке.
+атака по врагу - 15 карт со столба здоровья.
+без учета защиты врага.
+атака по зверям согласно их описанию. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_sword_sech_%D0%BC%D0%B5%D1%87_%D1%81%D0%B5%D1%87_generated_frame_highres_text_dark_forest_dark_forest_018.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Меч сеч<small>sword_sech</small></td>
+        <td>weapon</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Меч сеч.
+Примените эту карту в любой драке.
+Атака по врагу - 15 карт со столба здоровья.
+Без учета защиты врага.
+Атака по зверям согласно их описанию.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи небрежная кольчуга special art_dark_forest_004 по описанию из json: небрежная кольчуга.
+примените эту карту в любой драке.
+вы снимаете на -15 карт меньше
+от общего нанесенного по вам урона. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_004_%D0%BD%D0%B5%D0%B1%D1%80%D0%B5%D0%B6%D0%BD%D0%B0%D1%8F_%D0%BA%D0%BE%D0%BB%D1%8C%D1%87%D1%83%D0%B3%D0%B0_generated_frame_highres_text_dark_fo.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Небрежная кольчуга<small>art_dark_forest_004</small></td>
+        <td>special</td>
+        <td class="count">3</td>
+        <td class="instruction">По описанию из JSON: Небрежная кольчуга.
+Примените эту карту в любой драке.
+Вы снимаете на -15 карт меньше
+от общего нанесенного по Вам урона.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи ошейник приручения special art_dark_forest_030 по описанию из json: ошейник приручения.
+после того как вы применяете эту карту
+в драке со зверем вы можете положить
+этого зверя к себе в инвентарь
+и применить его в любой удобной
+для вас драке. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_030_%D0%BE%D1%88%D0%B5%D0%B9%D0%BD%D0%B8%D0%BA_%D0%BF%D1%80%D0%B8%D1%80%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D1%8F_generated_frame_highres_text_dark_fo.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Ошейник приручения<small>art_dark_forest_030</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Ошейник приручения.
+После того как вы применяете эту карту
+в драке со зверем вы можете положить
+этого зверя к себе в инвентарь
+и применить его в любой удобной
+для вас драке.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи панцирь special art_dark_forest_040 по описанию из json: панцырь.
+примените эту карту в любой драке поглощает
+45 карт урона с вашего столба здоровья.
+полностью блокирует любой урон зверя. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_040_%D0%BF%D0%B0%D0%BD%D1%86%D0%B8%D1%80%D1%8C_generated_frame_highres_text_dark_forest_dark_f.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Панцирь<small>art_dark_forest_040</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Панцырь.
+Примените эту карту в любой драке поглощает
+45 карт урона с вашего столба здоровья.
+Полностью блокирует любой урон зверя.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи секира красное солнце weapon axe_sun по описанию из json: секира красное солнце.
+атака по врагу - 50 карт со столба
+здоровья вне зависимости от защиты врага. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_axe_sun_%D1%81%D0%B5%D0%BA%D0%B8%D1%80%D0%B0_%D0%BA%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D0%B5_%D1%81%D0%BE%D0%BB%D0%BD%D1%86%D0%B5_generated_frame_highres_text_dark_forest_dark.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Секира красное солнце<small>axe_sun</small></td>
+        <td>weapon</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Секира красное солнце.
+Атака по врагу - 50 карт со столба
+здоровья вне зависимости от защиты врага.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи топормол weapon topormol по описанию из json: топормол.
+примените эту карту в любой драке.
+атака по врагу - 25 карт со столба здоровья.
+без учета защиты. атака по зверям:
+вне зависимости от того сколько выпадет
+на кубике с применение этой каты
+вы убиваете зверя с одного хода. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_topormol_%D1%82%D0%BE%D0%BF%D0%BE%D1%80%D0%BC%D0%BE%D0%BB_dark_forest_topormol_v1.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Топормол<small>topormol</small></td>
+        <td>weapon</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Топормол.
+Примените эту карту в любой драке.
+Атака по врагу - 25 карт со столба здоровья.
+Без учета защиты. Атака по зверям:
+вне зависимости от того сколько выпадет
+на кубике с применение этой каты
+вы убиваете зверя с одного хода.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи топоры близнецы special art_dark_forest_038 по описанию из json: топоры близнецы.
+примените эту карту в любой драке
+с противникам и каждое начало и конец
+вашего хода враг снимает со своего столба
+здоровья по 20 карт. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_038_%D1%82%D0%BE%D0%BF%D0%BE%D1%80%D1%8B_%D0%B1%D0%BB%D0%B8%D0%B7%D0%BD%D0%B5%D1%86%D1%8B_generated_frame_highres_text_dark_fores.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Топоры близнецы<small>art_dark_forest_038</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Топоры близнецы.
+Примените эту карту в любой драке
+с противникам и каждое начало и конец
+вашего хода враг снимает со своего столба
+здоровья по 20 карт.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на деревянный молоток blueprint art_dark_forest_019 по описанию из json: чертеж на деревянный молоток.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом
+поленья дерева - 1 карта
+или толстая ветка - 1 карта.
+необработанный рубин - 1 карта.
+пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 3. после кузнец открывает чертеж и
+достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_019_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%B4%D0%B5%D1%80%D0%B5%D0%B2%D1%8F%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%BA_generated_frame_highres_te.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на деревянный молоток<small>art_dark_forest_019</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на деревянный молоток.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом
+Поленья дерева - 1 карта
+или толстая ветка - 1 карта.
+Необработанный рубин - 1 карта.
+Пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 3. После кузнец открывает чертеж и
+достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на защиту ил blueprint art_dark_forest_043 по описанию из json: чертеж на защиту ил.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+железная руда высшего качества - 1 карта.
+средней золотой самородок —1 карта.
+пусть кузнец кинет кубик 2 раза не менее 3
+или 1 раз 4. после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_043_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%B7%D0%B0%D1%89%D0%B8%D1%82%D1%83_%D0%B8%D0%BB_generated_frame_highres_text_dark_f.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на защиту Ил<small>art_dark_forest_043</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на защиту Ил.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+Железная руда высшего качества - 1 карта.
+Средней золотой самородок —1 карта.
+Пусть кузнец кинет кубик 2 раза не менее 3
+или 1 раз 4. После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на красное солнце blueprint art_dark_forest_021 по описанию из json: чертеж на красное солнце.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+железная руда высшего качества - 1 карта
+или большой золотой самородок.
+пусть кузнец кинет кубик 2 раз не менее 4.
+после кузнец открывает
+чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_021_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BA%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D0%B5_%D1%81%D0%BE%D0%BB%D0%BD%D1%86%D0%B5_generated_frame_highres_text_d.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на красное солнце<small>art_dark_forest_021</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на красное солнце.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+Железная руда высшего качества - 1 карта
+или большой золотой самородок.
+Пусть кузнец кинет кубик 2 раз не менее 4.
+После кузнец открывает
+чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на легкую кольчугу blueprint art_dark_forest_005 по описанию из json: чертеж на легкую кольчугу.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше
+на основное игровое поле рядом с кузнецом.
+грязная или смешенная железная руда 2 карты
+или железная руда среднего качества 1 карта.
+пусть кузнец кинет кубик 2 раза
+не менее 3 или один раз не менее 5.
+после кузнец открывает чертеж
+и достает изделие. ???? вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_005_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BB%D0%B5%D0%B3%D0%BA%D1%83%D1%8E_%D0%BA%D0%BE%D0%BB%D1%8C%D1%87%D1%83%D0%B3%D1%83_generated_frame_highres_text_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на легкую кольчугу<small>art_dark_forest_005</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на легкую кольчугу.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше
+на основное игровое поле рядом с кузнецом.
+Грязная или смешенная железная руда 2 карты
+или железная руда среднего качества 1 карта.
+Пусть кузнец кинет кубик 2 раза
+не менее 3 или один раз не менее 5.
+После кузнец открывает чертеж
+и достает изделие. ????</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на ломщит blueprint art_dark_forest_011 по описанию из json: чертеж на ломщит.
+необходимые материалы для изготовления предмета:
+грязная или смещенная железная руда - 1 карта
+или поленья дерева - | карта.
+пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 3. после кузнец открывает чертеж и
+достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_011_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BB%D0%BE%D0%BC%D1%89%D0%B8%D1%82_generated_frame_highres_text_dark_fore.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на ломщит<small>art_dark_forest_011</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на ломщит.
+Необходимые материалы для изготовления предмета:
+грязная или смещенная железная руда - 1 карта
+или поленья дерева - | карта.
+Пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 3. После кузнец открывает чертеж и
+достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на меч лорп blueprint art_dark_forest_026 по описанию из json: чертеж на меч лорп.
+необходимые материалы для изготовления предмета:
+грязная или смешенная железная руда - 1 кара.
+пусть кузнец кинет кубик 1 раз не менее 3.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_026_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BC%D0%B5%D1%87_%D0%BB%D0%BE%D1%80%D0%BF_generated_frame_highres_text_dark_fo.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на меч лорп<small>art_dark_forest_026</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на меч лорп.
+Необходимые материалы для изготовления предмета:
+Грязная или смешенная железная руда - 1 кара.
+Пусть кузнец кинет кубик 1 раз не менее 3.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на меч сеч blueprint art_dark_forest_017 по описанию из json: чертеж на меч сёч.
+необходимые материалы для изготовления предмета:
+грязная или смешенная железная руда - 1 карта
+или железная руда среднего качества — 1 карта.
+пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 3. после кузнец открывает
+чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_017_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BC%D0%B5%D1%87_%D1%81%D0%B5%D1%87_generated_frame_highres_text_dark_for.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на меч сеч<small>art_dark_forest_017</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на меч сёч.
+Необходимые материалы для изготовления предмета:
+Грязная или смешенная железная руда - 1 карта
+или железная руда среднего качества — 1 карта.
+Пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 3. После кузнец открывает
+чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на небрежную кольчугу blueprint art_dark_forest_003 по описанию из json: чертеж ha небрежную кольчугу.
+необходимые материалы для изготовления
+предмета: грязная или смешенная
+железная руда 2 карты
+или железная руда среднего качества 1 карта.
+пусть кузнец кинет кубик 2 раза не менее 3-х.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_003_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BD%D0%B5%D0%B1%D1%80%D0%B5%D0%B6%D0%BD%D1%83%D1%8E_%D0%BA%D0%BE%D0%BB%D1%8C%D1%87%D1%83%D0%B3%D1%83_generated_frame_highres_te.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на небрежную кольчугу<small>art_dark_forest_003</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж Ha небрежную кольчугу.
+Необходимые материалы для изготовления
+предмета: грязная или смешенная
+железная руда 2 карты
+или железная руда среднего качества 1 карта.
+Пусть кузнец кинет кубик 2 раза не менее 3-х.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на ошейник blueprint art_dark_forest_029 по описанию из json: чертеж на ошейник.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше, на основное
+игровое поле рядом с кузнецом.
+железная руда высшего качества - 1 карта
+или железная руда среднего качества - 2 карты.
+пусть кузнец кинет кубик 2 раза не менее 3
+или 1 раз 4. после кузнец открывает чертеж и
+достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_029_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BE%D1%88%D0%B5%D0%B9%D0%BD%D0%B8%D0%BA_generated_frame_highres_text_dark_for.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на ошейник<small>art_dark_forest_029</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на ошейник.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше, на основное
+игровое поле рядом с кузнецом.
+Железная руда высшего качества - 1 карта
+или железная руда среднего качества - 2 карты.
+Пусть кузнец кинет кубик 2 раза не менее 3
+или 1 раз 4. После кузнец открывает чертеж и
+достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на панцирь blueprint art_dark_forest_039 по описанию из json: чертеж на панцырь.
+необходимые материалы для изготовления предмета
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+железная руда высшего качества 1 карта,
+железная руда среднего качества 1 карта.
+пусть кузнец кинет кубик 2 раза не менее 4
+после кузнец открывает чертеж и достает изделие.
+или средний золотой самородок 1 карта
+у помощника кузнеца и пусть помощник
+кинет кубик 1 раз не менее 5.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_039_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D0%BF%D0%B0%D0%BD%D1%86%D0%B8%D1%80%D1%8C_generated_frame_highres_text_dark_for.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на панцирь<small>art_dark_forest_039</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на панцырь.
+Необходимые материалы для изготовления предмета
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+Железная руда высшего качества 1 карта,
+железная руда среднего качества 1 карта.
+Пусть кузнец кинет кубик 2 раза не менее 4
+После кузнец открывает чертеж и достает изделие.
+Или средний золотой самородок 1 карта
+у помощника кузнеца и пусть ПОМОЩНИК
+кинет кубик 1 раз не менее 5.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на рецепт близнецы blueprint art_dark_forest_037 по описанию из json: чертеж на рецепт близнецы.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+железная руда высшего качества 2 карты
+или железная руда среднего качества 1 карта
+и зеленое перо. пусть кузнец кинет кубик 1 раз
+не менее 5.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_037_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%B1%D0%BB%D0%B8%D0%B7%D0%BD%D0%B5%D1%86%D1%8B_generated_frame_highres_text_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на рецепт близнецы<small>art_dark_forest_037</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на рецепт близнецы.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+Железная руда высшего качества 2 карты
+или железная руда среднего качества 1 карта
+и зеленое перо. Пусть кузнец кинет кубик 1 раз
+не менее 5.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на топормол blueprint art_dark_forest_013 по описанию из json: чертеж на топормол.
+необходимые материалы для изготовления предмета.
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+грязная или смешенная железная руда - 2 карты
+или железная руда среднего качества - 1карта.
+толстая ветка или гнущаяся палка - 1 карта.
+пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 4. после кузнец открывает чертеж и
+достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_013_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D1%82%D0%BE%D0%BF%D0%BE%D1%80%D0%BC%D0%BE%D0%BB_generated_frame_highres_text_dark_fo.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на топормол<small>art_dark_forest_013</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на топормол.
+Необходимые материалы для изготовления предмета.
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+Грязная или смешенная железная руда - 2 карты
+или железная руда среднего качества - 1карта.
+Толстая ветка или гнущаяся палка - 1 карта.
+Пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 4. После кузнец открывает чертеж и
+достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на шлем ттм blueprint art_dark_forest_041 по описанию из json: чертеж на шлем ttm.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше на
+основное игровое поле рядом с кузнецом.
+железная руда среднего качества — 2 карты.
+малый или средней золотой самородок - 1 карта.
+пусть кузнец кинет кубик 2 раза
+не менее 3 или 1 раз 5.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_041_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D1%88%D0%BB%D0%B5%D0%BC_%D1%82%D1%82%D0%BC_generated_frame_highres_text_dark_fo.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на шлем ТТМ<small>art_dark_forest_041</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на шлем TTM.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше на
+основное игровое поле рядом с кузнецом.
+Железная руда среднего качества — 2 карты.
+Малый или средней золотой самородок - 1 карта.
+Пусть кузнец кинет кубик 2 раза
+не менее 3 или 1 раз 5.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на щит др. blueprint art_dark_forest_009 по описанию из json: чертеж на щит др.
+необходимые материалы для изготовления предмета:
+смешенная или железная руда — 1 карта
+или кора дерева - 1 карта или
+поленья дерева - 1 карта.
+пусть кузнец кинет кубик 2 раза
+не менее 2 или 1 раз 4.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_009_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D1%89%D0%B8%D1%82_%D0%B4%D1%80_generated_frame_highres_text_dark_fore.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на щит др.<small>art_dark_forest_009</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на щит др.
+Необходимые материалы для изготовления предмета:
+смешенная или железная руда — 1 карта
+или кора дерева - 1 карта или
+поленья дерева - 1 карта.
+Пусть кузнец кинет кубик 2 раза
+не менее 2 или 1 раз 4.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на щит защита духа blueprint art_dark_forest_007 по описанию из json: чертеж на щит защита духа.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+железная руда высшего качества 2 карты.
+пусть кузнец кинет кубик 3 раза не менее 3-х.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_007_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D1%89%D0%B8%D1%82_%D0%B7%D0%B0%D1%89%D0%B8%D1%82%D0%B0_%D0%B4%D1%83%D1%85%D0%B0_generated_frame_highres_text_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на щит защита духа<small>art_dark_forest_007</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на щит защита духа.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше на основное
+игровое поле рядом с кузнецом.
+Железная руда высшего качества 2 карты.
+Пусть кузнец кинет кубик 3 раза не менее 3-х.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на щит калан blueprint art_dark_forest_015 по описанию из json: чертеж на щит калан.
+необходимые материалы для изготовления предмета:
+грязная или смещенная железная руда - 1 карта
+или кора дерева - 1 карта.
+пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 4. после кузнец открывает чертеж и
+достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_015_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D1%89%D0%B8%D1%82_%D0%BA%D0%B0%D0%BB%D0%B0%D0%BD_generated_frame_highres_text_dark_f.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на щит калан<small>art_dark_forest_015</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на щит калан.
+Необходимые материалы для изготовления предмета:
+грязная или смещенная железная руда - 1 карта
+или кора дерева - 1 карта.
+Пусть кузнец кинет кубик 2 раза не менее 2
+или 1 раз 4. После кузнец открывает чертеж и
+достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на щит луна blueprint art_dark_forest_033 по описанию из json: чертеж на щит луна.
+необходимые материалы для изготовления предмета:
+железная руда среднего качества 2
+карты или необработанный рубин 1 карта.
+пусть кузнец кинет кубик 2 раза
+не менее 2-х или один раз не менее 4-х.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_033_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D1%89%D0%B8%D1%82_%D0%BB%D1%83%D0%BD%D0%B0_generated_frame_highres_text_dark_fo.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на щит луна<small>art_dark_forest_033</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на щит луна.
+Необходимые материалы для изготовления предмета:
+Железная руда среднего качества 2
+карты или необработанный рубин 1 карта.
+Пусть кузнец кинет кубик 2 раза
+не менее 2-х или один раз не менее 4-х.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж на щит отмщение blueprint art_dark_forest_031 по описанию из json: чертеж на щит отмщение,
+необходимые материалы для изготовления
+предмета: положите палаток
+или лучше, на основное игровое поле
+рядом с кузнецом. железная руда
+высшего качества 2 карты
+или большой золотой самородок 1 карта.
+пусть кузнец кинет кубик 2 раза не менее 4-х или
+помощник кузнеца кинет кубик 1 раз не менее 5.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_031_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D0%BD%D0%B0_%D1%89%D0%B8%D1%82_%D0%BE%D1%82%D0%BC%D1%89%D0%B5%D0%BD%D0%B8%D0%B5_generated_frame_highres_text_dar.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж на щит отмщение<small>art_dark_forest_031</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж на щит отмщение,
+Необходимые материалы для изготовления
+предмета: положите палаток
+или лучше, на основное игровое поле
+рядом с кузнецом. Железная руда
+высшего качества 2 карты
+или большой золотой самородок 1 карта.
+Пусть кузнец кинет кубик 2 раза не менее 4-х или
+помощник кузнеца кинет кубик 1 раз не менее 5.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи чертеж шема blueprint art_dark_forest_035 по описанию из json: чертеж шема.
+необходимые материалы для изготовления предмета:
+положите палаток или лучше на
+основное игровое поле рядом с кузнецом.
+железная руда среднего качества 1 карта,
+малы или средний золотой самородок 1 карта.
+пусть кузнец кинет кубик 1 раз не менее 5.
+после кузнец открывает чертеж и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_035_%D1%87%D0%B5%D1%80%D1%82%D0%B5%D0%B6_%D1%88%D0%B5%D0%BC%D0%B0_generated_frame_highres_text_dark_forest_da.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Чертеж шема<small>art_dark_forest_035</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Чертеж шема.
+Необходимые материалы для изготовления предмета:
+положите палаток или лучше на
+основное игровое поле рядом с кузнецом.
+Железная руда среднего качества 1 карта,
+малы или средний золотой самородок 1 карта.
+Пусть кузнец кинет кубик 1 раз не менее 5.
+После кузнец открывает чертеж и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи шлем ттм armor helm_ttm по описанию из json: шлем ttm.
+примените эту карту в любой драке.
+поглощает 25 карт урона вашего
+столба здоровья. все что выше
+снимаете со столба здоровья за минусом
+поглощения. если вы используете эту карту
+в драке с врагом, то не враг не вы не можете
+сбежать с драки (не считая бусы телепортации).
+защита от зверей - 8 карт от общей атаки зверя. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_helm_ttm_%D1%88%D0%BB%D0%B5%D0%BC_%D1%82%D1%82%D0%BC_generated_frame_highres_text_dark_forest_dark_forest_042_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Шлем ТТМ<small>helm_ttm</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Шлем TTM.
+Примените эту карту в любой драке.
+Поглощает 25 карт урона вашего
+столба здоровья. Все что выше
+снимаете со столба здоровья за минусом
+поглощения. Если вы используете эту карту
+в драке с врагом, то не враг не вы не можете
+сбежать с драки (не считая бусы телепортации).
+Защита от зверей - 8 карт от общей атаки зверя.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи шлем шем armor helm_shem по описанию из json: шлем шем.
+примените эту карту в любой драке.
+вы снимаете на -20 карт меньше от общего
+нанесенного по вам урона.
+если вы применили в драке эту карту
+на вас нельзя применить заклинание. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_helm_shem_%D1%88%D0%BB%D0%B5%D0%BC_%D1%88%D0%B5%D0%BC_generated_frame_highres_text_dark_forest_dark_forest_036.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Шлем шем<small>helm_shem</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Шлем шем.
+Примените эту карту в любой драке.
+Вы снимаете на -20 карт меньше от общего
+нанесенного по Вам урона.
+Если вы применили в драке эту карту
+на Вас нельзя применить заклинание.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи щит др. armor shield_dr по описанию из json: щит др.
+примените эту карту в любой драке.
+поглощает 20 карт урона
+от вашего столба здоровья.
+все что выше вы снимаете со столба здоровья
+за минусом поглощения.
+защита от зверей - 5 карт
+от общего урона нанесенного по вам зверем. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_shield_dr_%D1%89%D0%B8%D1%82_%D0%B4%D1%80_generated_frame_highres_text_dark_forest_dark_forest_010_s.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Щит др.<small>shield_dr</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Щит др.
+Примените эту карту в любой драке.
+Поглощает 20 карт урона
+от вашего столба здоровья.
+Все что выше вы снимаете со столба здоровья
+за минусом поглощения.
+Защита от зверей - 5 карт
+от общего урона нанесенного по Вам зверем.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи щит защита духа special art_dark_forest_008 по описанию из json: щит защита духа.
+примените эту карту в любой драке и,
+если общий урон по вам больше 50,
+вы не получаете ни какого урона.
+при применении этого щита нельзя
+использовать оружие только заклинания.
+защиты от зверей нет. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_008_%D1%89%D0%B8%D1%82_%D0%B7%D0%B0%D1%89%D0%B8%D1%82%D0%B0_%D0%B4%D1%83%D1%85%D0%B0_generated_frame_highres_text_dark_fores.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Щит защита духа<small>art_dark_forest_008</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Щит защита духа.
+Примените эту карту в любой драке и,
+если общий урон по Вам больше 50,
+вы не получаете ни какого урона.
+При применении этого щита нельзя
+использовать оружие только заклинания.
+Защиты от зверей нет.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи щит калан armor shield_kalan по описанию из json: щит калан.
+примените эту карту в любой драке.
+поглощает 10 карт урона от
+вашего столба здоровья.
+все что выше снимаете со столба здоровья
+за минусом поглощения.
+если у зверя атака меньше чем 10,
+то вы поглощаете весь урон зверя. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_shield_kalan_%D1%89%D0%B8%D1%82_%D0%BA%D0%B0%D0%BB%D0%B0%D0%BD_generated_frame_highres_text_dark_forest_dark_forest.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Щит калан<small>shield_kalan</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Щит калан.
+Примените эту карту в любой драке.
+Поглощает 10 карт урона от
+вашего столба здоровья.
+Все что выше снимаете со столба здоровья
+за минусом поглощения.
+Если у зверя атака меньше чем 10,
+то вы поглощаете весь урон зверя.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи щит луна special art_dark_forest_034 по описанию из json: щит луна.
+если применить эту карту в драке со зверем
+дварфам или противникам.
+то весь нанесенный по вам урон
+делиться пополам. например, по вам нанесли атаку 10.
+с применением этой карты
+вы снимаете только 5 карт со своего столба здоровья. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_dark_forest_034_%D1%89%D0%B8%D1%82_%D0%BB%D1%83%D0%BD%D0%B0_generated_frame_highres_text_dark_forest_dark_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Щит луна<small>art_dark_forest_034</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Щит луна.
+Если применить эту карту в драке со зверем
+дварфам или противникам.
+То весь нанесенный по вам урон
+делиться пополам. Например, по вам нанесли атаку 10.
+С применением этой карты
+вы снимаете только 5 карт со своего столба здоровья.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Чертежи" data-search="чертежи щит отмщение armor shield_revenge по описанию из json: щит отмщение.
+примените эту карту в любой драке.
+вы снимаете на -25 карт меньше
+от общего нанесенного по вам урона.
+если у врага урон больше чем 25,
+тогда вы забираете у него одно любое
+оружие на все время драки.
+защита от зверей:
+-10 от общего нанесенного по вам урона. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_shield_revenge_%D1%89%D0%B8%D1%82_%D0%BE%D1%82%D0%BC%D1%89%D0%B5%D0%BD%D0%B8%D0%B5_generated_frame_highres_text_dark_forest_dark_f.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_blueprints.png" alt=""></td>
+        <td class="card-title">Щит отмщение<small>shield_revenge</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Щит отмщение.
+Примените эту карту в любой драке.
+Вы снимаете на -25 карт меньше
+от общего нанесенного по Вам урона.
+Если у врага урон больше чем 25,
+тогда вы забираете у него одно любое
+оружие на все время драки.
+Защита от зверей:
+-10 от общего нанесенного по Вам урона.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты бутыль дил special dil_bottle по описанию из json: бутыль дил.
+когда вы используете эту карту
+то к вашему общему урону
+добавляется + 30 до конца драки.
+после завершения драки вы кладете
+эту карту обратно себе в инвентарь.
+(можно применить только один раз в драке). вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_dil_bottle_%D0%B1%D1%83%D1%82%D1%8B%D0%BB%D1%8C_%D0%B4%D0%B8%D0%BB_generated_frame_highres_text_recipes_recipes_030_styl.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Бутыль дил<small>dil_bottle</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Бутыль дил.
+Когда вы используете эту карту
+то к вашему общему урону
+добавляется + 30 до конца драки.
+После завершения драки вы кладете
+эту карту обратно себе в инвентарь.
+(Можно применить только один раз в драке).</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты жест armor armor_zhest по описанию из json: жесто.
+защита от противянка - 15 карт от общего урона нанесенного по вам врагом
+защита от дварфов - 15 карт ст общего урона нанесенного по вам дварфом
+защита от зверей - 5 карт ст общего урона нанесенного по зам зверем.
+эффект вы можете положить эту карту на персонажа противника
+и тогда он не сможет вас атаковать,
+но к нему прибавиться броня согласно этой карте
+ho если заколдованный противник кинет
+суммарное количество кубиков не менее ?
+вы забираете эту карту обратно себе в инвентарь
+иуже не можете её использовать в этом драке вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_armor_zhest_%D0%B6%D0%B5%D1%81%D1%82_generated_frame_highres_text_recipes_recipes_002_square_v1.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Жест<small>armor_zhest</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Жесто.
+Защита от противянка - 15 карт от общего урона нанесенного по Вам врагом
+Защита от дварфов - 15 карт ст общего урона нанесенного по Вам дварфом
+Защита от зверей - 5 карт ст общего урона нанесенного по Зам зверем.
+Эффект Вы можете положить эту карту на персонажа противника
+и тогда он не сможет вас атаковать,
+но к нему прибавиться броня согласно этой карте
+Ho если заколдованный противник кинет
+суммарное количество кубиков не менее ?
+вы забираете эту карту обратно себе в инвентарь
+иуже не можете её использовать В этом драке</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты заклятие хозяин special art_recipes_026 по описанию из json: заклятья хозяин.
+(проклятье) 
+выложите эту карту на игровое поле
+и киньте кубик 1 раз не менее 4-х. ’
+тот персонаж противника, который
+находиться c вами в драке
+(если противников несколько,
+вы указываете на конкретного),
+вы завладеваете на один ход
+этим персонажам вместе с его оружиями
+и защитой. в тот момент, когда вы овладели
+противникам, им можно атаковать рядом стоящих
+противников или самого себя
+на то количество урона на которое у этого
+персонажа есть оружия + очки кубиков
+которые выпали у вас в этот ход.
+после этого вы кладете эту карту
+обратно себе в инвентарь.
+(можно применить только один раз в драке). вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_026_%D0%B7%D0%B0%D0%BA%D0%BB%D1%8F%D1%82%D0%B8%D0%B5_%D1%85%D0%BE%D0%B7%D1%8F%D0%B8%D0%BD_generated_frame_highres_text_recipes_recipe.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Заклятие хозяин<small>art_recipes_026</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Заклятья хозяин.
+(проклятье) 
+Выложите эту карту на игровое поле
+и киньте кубик 1 раз не менее 4-х. ’
+Тот персонаж противника, который
+находиться C вами в драке
+(если противников несколько,
+вы указываете на конкретного),
+вы завладеваете на один ход
+этим персонажам вместе с его оружиями
+и защитой. В тот момент, когда вы овладели
+противникам, им можно атаковать рядом стоящих
+противников или самого себя
+на то количество урона на которое у этого
+персонажа есть оружия + очки кубиков
+которые выпали у вас в этот ход.
+После этого вы кладете эту карту
+обратно себе в инвентарь.
+(Можно применить только один раз в драке).</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты каска-маска special art_recipes_004 по описанию из json: каска - маска.
+эту kacky нельзя применить не в какой драке
+ho когда вы передвигаетесь или собираете карты с колоды (с точки),
+вы можете положить на фишку игрового персонажа эту карту.
+рубашкой вверх в тем самым вы становитесь невидимым.
+противник или дварфы не могут сделать с этой картой нечего.
+чтобы выйти из невидимости просто положите эту карту обратно  в инвентарь. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_004_%D0%BA%D0%B0%D1%81%D0%BA%D0%B0_%D0%BC%D0%B0%D1%81%D0%BA%D0%B0_generated_frame_highres_text_recipes_recipes_00.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Каска-маска<small>art_recipes_004</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Каска - маска.
+Эту KACKY нельзя применить не в какой драке
+HO когда вы передвигаетесь или собираете карты с колоды (с точки),
+вы можете положить на фишку игрового персонажа эту карту.
+рубашкой вверх в тем самым вы становитесь невидимым.
+Противник или дварфы не могут сделать с этой картой нечего.
+Чтобы выйти из невидимости просто положите эту карту обратно  в инвентарь.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты кожаная рубашка armor leather_shirt по описанию из json: кожаная рубашка
+класс: помошник кузнеца, шаман.
+защите от врага: - 20 карт от общего
+количества урона врага по вам. защита от
+зверей:-1 5 карт от общего урона наносимого
+по вам. если урон у врага или зверя ниже
+поглощаемого, вы снимаете по 2-е карты в
+начале своего хода. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_leather_shirt_%D0%BA%D0%BE%D0%B6%D0%B0%D0%BD%D0%B0%D1%8F_%D1%80%D1%83%D0%B1%D0%B0%D1%88%D0%BA%D0%B0_generated_frame_highres_text_recipes_recipes_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Кожаная рубашка<small>leather_shirt</small></td>
+        <td>armor</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Кожаная рубашка
+Класс: помошник кузнеца, шаман.
+Защите от врага: - 20 карт от общего
+количества урона врага по вам. Защита от
+зверей:-1 5 карт от общего урона наносимого
+по вам. Если урон у врага или зверя ниже
+поглощаемого, вы снимаете по 2-е карты в
+начале своего хода.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты маска бубун special art_recipes_012 по описанию из json: маска бувун
+класс шаман
+примените маску находясь в драке или не
+в драке, на сколько вы выкините кубик на
+столько вы сможете выличить своего портнера
+по команде. например если вы кинули кубик
+на 4 и указали на воина. значит портнер
+добавляет +4 карты к своему столбу здоровья
+не дожидаясь начала своего хода. шаман не
+может лечить сам себя. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_012_%D0%BC%D0%B0%D1%81%D0%BA%D0%B0_%D0%B1%D1%83%D0%B1%D1%83%D0%BD_generated_frame_highres_text_recipes_recipes_01.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Маска бубун<small>art_recipes_012</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Маска бувун
+Класс шаман
+Примените маску находясь в драке или не
+в драке, на сколько вы выкините кубик на
+столько вы сможете выличить своего портнера
+по команде. Например если вы кинули кубик
+на 4 и указали на воина. Значит портнер
+добавляет +4 карты к своему столбу здоровья
+не дожидаясь начала своего хода. Шаман не
+может лечить сам себя.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты маска злая special art_recipes_018 по описанию из json: маска злай.
+класс использования: любой.
+примените эту маску в драке и весь ваш общий нанесённый
+урон по врагу, увеличивается на 25 карт. например: ваш
+общий уран составил 35 и если вы применили перед атакой
+маской значит ваш урон составил 60. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_018_%D0%BC%D0%B0%D1%81%D0%BA%D0%B0_%D0%B7%D0%BB%D0%B0%D1%8F_generated_frame_highres_text_recipes_recipes_018.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Маска злая<small>art_recipes_018</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Маска злай.
+Класс использования: любой.
+Примените эту маску в драке и весь ваш общий нанесённый
+урон по врагу, увеличивается на 25 карт. Например: ваш
+общий уран составил 35 и если вы применили перед атакой
+маской значит ваш урон составил 60.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты маска оху special art_recipes_014 по описанию из json: маска оху
+когда вы примените маску оху при
+приготовлении любого рецепта
+все показатели производства
+уменьшаются до 1-го. например: пусть
+шаман кинет кубик з-и раза не менее
+3-х. с приминенной маской: пусть
+шаман кинет кубик 1 раз не менее 1.
+можно применять через изделия, даже
+если вам не удолось его сатворить. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_014_%D0%BC%D0%B0%D1%81%D0%BA%D0%B0_%D0%BE%D1%85%D1%83_generated_frame_highres_text_recipes_recipes_014_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Маска оху<small>art_recipes_014</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Маска оху
+Когда вы примените маску оху при
+приготовлении любого рецепта
+все показатели производства
+уменьшаются до 1-го. Например: пусть
+шаман кинет кубик З-и раза не менее
+3-х. С приминенной маской: пусть
+шаман кинет кубик 1 раз не менее 1.
+Можно применять через изделия, даже
+если вам не удолось его сатворить.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты маска трехликого special art_recipes_010 по описанию из json: маска трехликого
+если шаман применил трехликого когда он атакует.
+весь его наносимый урон по врагу умножается
+на 3. если шаман применил трехликого когда ход
+врага и враг атакует его всё его количество атак
+переводится в ходы например: враг кинул кубик
+и выпала цыфра 4 и вместо атаки враг просто
+отходит на 4-и клетки назад. трехликого можно
+применить если у вас есть в руке 1-а карта целого
+сухого черепа. после приминения целый сухой
+череп замешиваеться обратно в свою колоду. для
+следующего приминения нужен целый сухой череп. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_010_%D0%BC%D0%B0%D1%81%D0%BA%D0%B0_%D1%82%D1%80%D0%B5%D1%85%D0%BB%D0%B8%D0%BA%D0%BE%D0%B3%D0%BE_generated_frame_highres_text_recipes_recip.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Маска трехликого<small>art_recipes_010</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Маска трехликого
+Если шаман применил трехликого когда он атакует.
+Весь его наносимый урон по врагу умножается
+на 3. Если шаман применил трехликого когда ход
+врага и враг атакует его всё его количество атак
+переводится в ходы Например: враг кинул кубик
+и выпала цыфра 4 и вместо атаки враг просто
+отходит на 4-и клетки назад. Трехликого можно
+применить если у вас есть в руке 1-а карта целого
+сухого черепа. После Приминения целый сухой
+череп замешиваеться обратно в свою колоду. Для
+следующего приминения нужен целый сухой череп.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты обряд трех special art_recipes_024 по описанию из json: обряд трех.
+(заклинание)
+примените эту карту в драке,
+в которой находиться
+не менее 3-х врагов (в драке могут
+находиться не только основной
+противник. но и дварфы) пример:
+в драке с вами в одном месте стоят 2 или более
+персонажа противника и 2 или
+более или 1 дварф но в сумме
+перед вами в драке не менее 3х врагов.
+то вы с этой картой наносите урон всем,
+кто стоит с вами в драке
+если вы ещё в этой драке
+примените сухой череп 1 карту
+или ритуальные кости 1 карту.
+весь ваш урон будет
+исчисляться десятками. например,
+вы кинули кубик на 3
+значит вы нанесли - 30 урона всем
+противникам. этот обряд не
+умножается на общий урон оружия,
+но складывается c ним. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_024_%D0%BE%D0%B1%D1%80%D1%8F%D0%B4_%D1%82%D1%80%D0%B5%D1%85_generated_frame_highres_text_recipes_recipes_024.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Обряд трех<small>art_recipes_024</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Обряд трех.
+(Заклинание)
+Примените эту карту в драке,
+в которой находиться
+не менее 3-х врагов (в драке могут
+находиться не только основной
+противник. но и дварфы) Пример:
+в драке с вами в одном месте стоят 2 или более
+персонажа противника и 2 или
+более или 1 дварф но в сумме
+перед вами в драке не менее 3х врагов.
+То вы с этой картой наносите урон всем,
+кто стоит с вами в драке
+Если вы ещё в этой драке
+примените сухой череп 1 карту
+или ритуальные кости 1 карту.
+Весь ваш урон будет
+исчисляться десятками. Например,
+Вы кинули кубик на 3
+значит вы нанесли - 30 урона всем
+противникам. Этот обряд не
+умножается на общий урон оружия,
+но складывается C ним.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты обычный посох special art_recipes_020 по описанию из json: обычный посох.
+если применить этот посох
+вмести с ковром шамана,
+то лечение от ковра которое вы
+решите отдать за цену
+кубика или кубиков, умножается на 2. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_020_%D0%BE%D0%B1%D1%8B%D1%87%D0%BD%D1%8B%D0%B9_%D0%BF%D0%BE%D1%81%D0%BE%D1%85_generated_frame_highres_text_recipes_recipes_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Обычный посох<small>art_recipes_020</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Обычный посох.
+Если применить этот посох
+вмести с ковром шамана,
+то лечение от ковра которое вы
+решите отдать за цену
+кубика или кубиков, умножается на 2.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты порча provocation porcha по описанию из json: порча.
+(проклятье)
+в драке с противникам выложите эту карту
+рубашкой вверх и если противник
+атаковал вас первым на 25 или больше.
+вы переворачиваете эту карту
+описанием вверх, а противник выкладывает
+обратно 1 карту с условием (ингредиент)
+с инвентаря всех персонажей
+обратно в соответствующую колоду. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_porcha_%D0%BF%D0%BE%D1%80%D1%87%D0%B0_generated_frame_highres_text_recipes_recipes_022_square_v1_car.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Порча<small>porcha</small></td>
+        <td>provocation</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Порча.
+(проклятье)
+В драке с противникам выложите эту карту
+рубашкой вверх и если противник
+атаковал Вас первым на 25 или больше.
+Вы переворачиваете эту карту
+описанием вверх, а противник выкладывает
+обратно 1 карту с условием (ингредиент)
+с инвентаря всех персонажей
+обратно в соответствующую колоду.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты посох тэрниа special art_recipes_021 по описанию из json: посох тэрина.
+примените в любое время эту карту
+и ковёр шамана, то лечение от ковра
+которое вы решите отдать за счет цену
+кубика или кубиков, умножается на 2.
+и все ваши персонажи которые стоят плотную
+(на соседних бордах) к вам, так же лечатся
+на такое количество очков. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_021_%D0%BF%D0%BE%D1%81%D0%BE%D1%85_%D1%82%D1%8D%D1%80%D0%BD%D0%B8%D0%B0_generated_frame_highres_text_recipes_recipes_0.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Посох тэрниа<small>art_recipes_021</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Посох тэрина.
+Примените в любое время эту карту
+и ковёр шамана, то лечение от ковра
+которое вы решите отдать за счет цену
+кубика или кубиков, умножается на 2.
+И все ваши персонажи которые стоят плотную
+(на соседних бордах) к Вам, так же лечатся
+на такое количество очков.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты разведка special art_recipes_008 по описанию из json: разведка.
+защита ot противника или дварфа - 15 карт
+от общего урона нанесенного по зам врагом.
+защита от зверей - 5 карт
+ot общего урона нанесенного по вам зверем
+если у персонажа есть в инвентаре эта карта,
+то все очки, которые игрок хочет потратить на
+передвижение умножаются на 2
+т.е. если игрок решил за цену кубика 4 пройти
+по основной игрой карте to он передвигается на 8. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_008_%D1%80%D0%B0%D0%B7%D0%B2%D0%B5%D0%B4%D0%BA%D0%B0_generated_frame_highres_text_recipes_recipes_008_s.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Разведка<small>art_recipes_008</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Разведка.
+Защита oT противника или дварфа - 15 карт
+от общего урона нанесенного по Зам врагом.
+Защита от зверей - 5 карт
+OT общего урона нанесенного по Вам зверем
+Если у персонажа есть в инвентаре эта карта,
+то все очки, которые игрок хочет потратить на
+передвижение умножаются на 2
+Т.е. если игрок решил за цену кубика 4 пройти
+по основной игрой карте TO он передвигается на 8.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на бубун blueprint art_recipes_011 по описанию из json: рецепт на бувун.
+необходимые материалы для изготовления предмета:
+кора дерева или поленья дерева 1 карта.
+пусть шаман выложит на игровое поле ковер шамана
+и кинет кубик 2 раза he менее 3-х.
+после этого шаман забирает кавер шамана
+обратно себе в инвентарь и открывает рецепт. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_011_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%B1%D1%83%D0%B1%D1%83%D0%BD_generated_frame_highres_text_recipes_recipe.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на бубун<small>art_recipes_011</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на бувун.
+Необходимые материалы для изготовления предмета:
+Кора дерева или поленья дерева 1 карта.
+Пусть шаман выложит на игровое поле ковер шамана
+и кинет кубик 2 раза He менее 3-х.
+После этого шаман забирает кавер шамана
+обратно себе в инвентарь и открывает рецепт.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на бутыль дил recipe recipe_dil_bottle по описанию из json: рецепт на бутыль дил.
+необходимые материалы для изготовления предмета:
+проросший корень или плетённый корень 1 карта.
+пусть шаман выложит на игровое поле ковер
+шамана и кинет кубик 2 раза не менее 2-х.
+после этого шаман забирает ковер шамана
+обратно себе в инвентарь и открывает рецепт. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_recipe_dil_bottle_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%B1%D1%83%D1%82%D1%8B%D0%BB%D1%8C_%D0%B4%D0%B8%D0%BB_generated_frame_highres_text_recipes.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на бутыль дил<small>recipe_dil_bottle</small></td>
+        <td>recipe</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на бутыль дил.
+Необходимые материалы для изготовления предмета:
+проросший корень или плетённый корень 1 карта.
+Пусть шаман выложит на игровое поле ковер
+шамана и кинет кубик 2 раза не менее 2-х.
+После этого шаман забирает ковер шамана
+обратно себе в инвентарь и открывает рецепт.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на жест recipe recipe_armor по описанию из json: рецепт на жесто.
+необходимые материалы для изготовления предмета:
+грязная или смешенная железная руда 1 карта,
+шкура убитого зверя 1 карта.
+пусть шаман кинет кубик 2 раза не менее 3-х.
+после шаман открывает рецепт и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_recipe_armor_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%B6%D0%B5%D1%81%D1%82_generated_frame_highres_text_recipes_recipes_00.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на жест<small>recipe_armor</small></td>
+        <td>recipe</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на жесто.
+Необходимые материалы для изготовления предмета:
+грязная или смешенная железная руда 1 карта,
+шкура убитого зверя 1 карта.
+Пусть шаман кинет кубик 2 раза не менее 3-х.
+После шаман открывает рецепт и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на заклятие хозяин blueprint art_recipes_025 по описанию из json: рецепт на заклятие хозяин.
+необходимые материалы для изготовления
+предмета: мухомор 1 карта,
+сухой череп 1 карта.
+пусть шаман кинет кубик 2 раза не менее 3.
+после шаман открывает рецепт и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_025_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%B7%D0%B0%D0%BA%D0%BB%D1%8F%D1%82%D0%B8%D0%B5_%D1%85%D0%BE%D0%B7%D1%8F%D0%B8%D0%BD_generated_frame_highres_text_reci.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на заклятие хозяин<small>art_recipes_025</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на заклятие хозяин.
+Необходимые материалы для изготовления
+предмета: Мухомор 1 карта,
+Сухой череп 1 карта.
+Пусть шаман кинет кубик 2 раза не менее 3.
+После шаман открывает рецепт и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на каска-маска blueprint art_recipes_003 по описанию из json: рецепт на каска-маска.
+необходимые материалы для изготовления предмета:
+поленья дерева или кора дерева 1 карта,
+красные ягоды 1 карта.
+пусть шаман кинет кубик 2 раза не менее 2-х.
+после шаман открывает рецепт и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_003_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BA%D0%B0%D1%81%D0%BA%D0%B0_%D0%BC%D0%B0%D1%81%D0%BA%D0%B0_generated_frame_highres_text_recipes_.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на каска-маска<small>art_recipes_003</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на каска-маска.
+Необходимые материалы для изготовления предмета:
+поленья дерева или кора дерева 1 карта,
+красные ягоды 1 карта.
+Пусть шаман кинет кубик 2 раза не менее 2-х.
+После шаман открывает рецепт и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на маску злая blueprint art_recipes_017 по описанию из json: рецепт на маску злай.
+необходимые материалы для изготовления предмета:
+целый сухой череп 1 карта.
+пусть шаман кинет кубик 2 раза не менее 2.
+после шаман открывает рецепт и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_017_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BC%D0%B0%D1%81%D0%BA%D1%83_%D0%B7%D0%BB%D0%B0%D1%8F_generated_frame_highres_text_recipes_r.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на маску злая<small>art_recipes_017</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на маску злай.
+Необходимые материалы для изготовления предмета:
+целый сухой череп 1 карта.
+Пусть шаман кинет кубик 2 раза не менее 2.
+После шаман открывает рецепт и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на маску оху blueprint art_recipes_013 по описанию из json: рецепт на маску oxy.
+необходимые материалы для изготовления предмета:
+кора дерева или поленья дерева 1 карта,
+дубовые желуди 1 карта.
+пусть шаман выложит на игровое поле ковер шамана
+и кинет кубик 2 раза не менее 2-х.
+после этого шаман забирает ковер шамана обратно
+себе в инвентарь и открывает рецепт. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_013_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BC%D0%B0%D1%81%D0%BA%D1%83_%D0%BE%D1%85%D1%83_generated_frame_highres_text_recipes_re.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на маску оху<small>art_recipes_013</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на маску Oxy.
+Необходимые материалы для изготовления предмета:
+кора дерева или поленья дерева 1 карта,
+дубовые желуди 1 карта.
+Пусть шаман выложит на игровое поле ковер шамана
+и кинет кубик 2 раза не менее 2-х.
+После этого шаман забирает ковер шамана обратно
+себе в инвентарь и открывает рецепт.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на маску трехликого recipe art_recipes_009 по описанию из json: рецепт на маску трехликого.
+необходимые материалы для изготовления:
+положите на основное игровое поле карту ковёр
+шамана, кора дерева или поленья дерева 1 карта,
+драгоценный камень 1 карта.
+пусть шаман кинет кубик 1 раз не менее 6.
+после этого шаман забирает кавер шамана
+обратно себе в инвентарь и открывает рецепт. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_009_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BC%D0%B0%D1%81%D0%BA%D1%83_%D1%82%D1%80%D0%B5%D1%85%D0%BB%D0%B8%D0%BA%D0%BE%D0%B3%D0%BE_generated_frame_highres_text_rec.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на маску трехликого<small>art_recipes_009</small></td>
+        <td>recipe</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на маску трехликого.
+Необходимые материалы для изготовления:
+Положите на основное игровое поле карту ковёр
+шамана, кора дерева или поленья дерева 1 карта,
+драгоценный камень 1 карта.
+Пусть шаман кинет кубик 1 раз не менее 6.
+После этого шаман забирает кавер шамана
+обратно себе в инвентарь и открывает рецепт.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на обряд blueprint art_recipes_023 по описанию из json: рецепт на обряд.
+необходимые материалы для изготовления предмета:
+полянка мухоморов 1 карта,
+ритуальные кости 1 карта.
+пусть шаман кинет кубик 2 раза не менее 2-х
+или один раз не менее 5.
+после шаман открывает рецепт и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_023_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BE%D0%B1%D1%80%D1%8F%D0%B4_generated_frame_highres_text_recipes_recipe.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на обряд<small>art_recipes_023</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на обряд.
+Необходимые материалы для изготовления предмета:
+полянка мухоморов 1 карта,
+ритуальные кости 1 карта.
+Пусть шаман кинет кубик 2 раза не менее 2-х
+или один раз не менее 5.
+После шаман открывает рецепт и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на обычный посох blueprint art_recipes_019 по описанию из json: рецепт на обычный посох.
+необходимые материалы для изготовления предмета:
+гнущаяся палка или толстая ветка 1 карта,
+кожаный лоскут 1 карта.
+пусть шаман кинет кубик 2 раза не менее 2-х.
+после шаман открывает рецепт и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_019_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BE%D0%B1%D1%8B%D1%87%D0%BD%D1%8B%D0%B9_%D0%BF%D0%BE%D1%81%D0%BE%D1%85_generated_frame_highres_text_recipe.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на обычный посох<small>art_recipes_019</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на обычный посох.
+Необходимые материалы для изготовления предмета:
+Гнущаяся палка или толстая ветка 1 карта,
+кожаный лоскут 1 карта.
+Пусть шаман кинет кубик 2 раза не менее 2-х.
+После шаман открывает рецепт и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на одежду разведчика blueprint art_recipes_007 по описанию из json: рецепт на одеяние разведчика.
+необходимые материалы для изготовления предмета:
+грязная или смешенная железная руда 2 карты
+или железная руда среднего качества - 1 карта,
+шкура убитого барана 1 карта.
+пусть шаман кинет кубик 2 раза не менее 4-х.
+после шаман открывает рецепт и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_007_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D0%BE%D0%B4%D0%B5%D0%B6%D0%B4%D1%83_%D1%80%D0%B0%D0%B7%D0%B2%D0%B5%D0%B4%D1%87%D0%B8%D0%BA%D0%B0_generated_frame_highres_text_re.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на одежду разведчика<small>art_recipes_007</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на одеяние разведчика.
+Необходимые материалы для изготовления предмета:
+грязная или смешенная железная руда 2 карты
+или железная руда среднего качества - 1 карта,
+шкура убитого барана 1 карта.
+Пусть шаман кинет кубик 2 раза не менее 4-х.
+После шаман открывает рецепт и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты рецепт на рубашку из кожи blueprint art_recipes_005 по описанию из json: рецепт на рубашку из кожи.
+необходимые материалы для изготовления предмета:
+любая очищенная кожа 2 карты,
+клубок сплетенной нити из шерсти барана 1 карта.
+пусть шаман кинет кубик 2 раза не менее 3-х.
+после шаман открывает рецепт и достает изделие. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_recipes_005_%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82_%D0%BD%D0%B0_%D1%80%D1%83%D0%B1%D0%B0%D1%88%D0%BA%D1%83_%D0%B8%D0%B7_%D0%BA%D0%BE%D0%B6%D0%B8_generated_frame_highres_text_reci.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Рецепт на рубашку из кожи<small>art_recipes_005</small></td>
+        <td>blueprint</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Рецепт на рубашку из кожи.
+Необходимые материалы для изготовления предмета:
+любая очищенная кожа 2 карты,
+клубок сплетенной нити из шерсти барана 1 карта.
+Пусть шаман кинет кубик 2 раза не менее 3-х.
+После шаман открывает рецепт и достает изделие.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Рецепты" data-search="рецепты шкура ритуалов special ritual_hide по описанию из json: шкура ритуалов.
+примднение этой карты дает возможность
+зарядить бусы телепортации
+‚необходимые действия для заряда:
+пусть шаману передадут бусы,
+которые необходимо зарядить
+пусть шаман выложит на игровое поле карту бусы или котел рубашкой вверх,
+а шкуру ритуалов описание вверх и кинет кубик 1 раз не менее 4-х.
+после этого шаман переворачивает бусы телепортации описанием вверх
+или котел и забирает вместе со шкурой себе в инвентарь.
+теперь шаман может передать согласно правилам
+передачи карт персонажам эту карту вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_ritual_hide_%D1%88%D0%BA%D1%83%D1%80%D0%B0_%D1%80%D0%B8%D1%82%D1%83%D0%B0%D0%BB%D0%BE%D0%B2_generated_frame_highres_text_recipes_recipes_027.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_recipes.png" alt=""></td>
+        <td class="card-title">Шкура ритуалов<small>ritual_hide</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Шкура ритуалов.
+Примднение этой карты дает возможность
+зарядить бусы телепортации
+‚необходимые действия для заряда:
+пусть шаману передадут бусы,
+которые необходимо Зарядить
+Пусть шаман выложит на игровое поле карту бусы или котел рубашкой вверх,
+а шкуру ритуалов описание вверх и кинет кубик 1 раз не менее 4-х.
+После этого шаман переворачивает бусы телепортации описанием вверх
+или котел и забирает вместе со шкурой себе в инвентарь.
+Теперь шаман может передать согласно правилам
+передачи карт персонажам эту карту</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Таинственная опушка" data-search="таинственная опушка жаба ворчун special art_fairy_glade_005 по описанию из json: жава варчун
+(заклимамие)
+эту карту может применить мюбой персонаж
+когда вы находитесь в драке с любым
+вы можете применить эту карту положив на самого зверя на все время драки  тем самым вы превращаете зверя в лягушку,
+и зверь не может вас атаковать
+вы просто убиваете его согласно олисанию. если применить эту карту в драке с дварфом
+и так же положить её на карту дварфа
+дварф не может вас атаковать
+пока oh не кинет суммарное количество очков с двух кубиков не менее 7
+после этого вы забираете карту обратно себе в инвентарь.
+(можно применить несколько раз в любой драке)
+если применить эту карту в драке с противником,
+то вы так же кладете её на люфого персонажа
+в тот момент. когда заклятье лежит
+на персонаже оружие его не работает.
+он ме может вас атаковать, но вот защита
+противника работает тах же, как и без заклятья.
+противник не может вас атаковать пока он не кинет суммарное
+количество очков с двух кубиков не менее 7
+после этого вы забираете карту обратно себе в инвентарь
+(можно применить несколько раз в пюбой драке) вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_fairy_glade_005_%D0%B6%D0%B0%D0%B1%D0%B0_%D0%B2%D0%BE%D1%80%D1%87%D1%83%D0%BD_generated_frame_highres_text_fairy_glade_fa.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_fairy_glade.png" alt=""></td>
+        <td class="card-title">Жаба ворчун<small>art_fairy_glade_005</small></td>
+        <td>special</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Жава варчун
+(Заклимамие)
+Эту карту может применить мюбой персонаж
+Когда Вы находитесь в драке с любым
+вы можете применить эту карту положив на самого зверя на все время драки  Тем самым Вы превращаете зверя в лягушку,
+и зверь не может вас атаковать
+Вы просто убиваете его согласно олисанию. Если применить эту карту в драке с Дварфом
+и так же положить её на карту дварфа
+дварф не может Вас атаковать
+пока OH не кинет суммарное количество очков с двух кубиков не менее 7
+После этого вы забираете карту обратно себе в инвентарь.
+(Можно применить несколько раз в любой драке)
+Если применить эту карту в драке с противником,
+то Вы так же кладете её на люфого персонажа
+В тот момент. когда заклятье лежит
+на персонаже оружие его не работает.
+он ме может вас атаковать, но вот защита
+противника работает тах же, как и без заклятья.
+Противник не может Вас атаковать пока он не кинет суммарное
+количество очков с двух кубиков не менее 7
+После этого вы забираете карту обратно себе в инвентарь
+(Можно применить несколько раз в пюбой драке)</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Таинственная опушка" data-search="таинственная опушка золотое перо к кузнецу противника special art_fairy_glade_003 маяк: носитель виден всем и не телепортируется. доставьте перо на камень кузнеца врага; работает так же, как золотое перо к своему кузнецу, только цель доставки - кузнец противника. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_fairy_glade_003_%D0%B7%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%B5_%D0%BF%D0%B5%D1%80%D0%BE_%D0%BA_%D0%BA%D1%83%D0%B7%D0%BD%D0%B5%D1%86%D1%83_%D0%BF%D1%80%D0%BE%D1%82%D0%B8%D0%B2%D0%BD%D0%B8%D0%BA%D0%B0_generated_frame_highr.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_fairy_glade.png" alt=""></td>
+        <td class="card-title">Золотое перо к кузнецу противника<small>art_fairy_glade_003</small></td>
+        <td>special</td>
+        <td class="count">1</td>
+        <td class="instruction">Маяк: носитель виден всем и не телепортируется. Доставьте перо на камень кузнеца врага; работает так же, как золотое перо к своему кузнецу, только цель доставки - кузнец противника.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Таинственная опушка" data-search="таинственная опушка золотое перо к своему кузнецу special gold_feather_own маяк. носитель виден всем и не может телепортироваться. доставьте перо на свой камень кузнеца для победы или используйте в крафте ирикона. вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_gold_feather_own_%D0%B7%D0%BE%D0%BB%D0%BE%D1%82%D0%BE%D0%B5_%D0%BF%D0%B5%D1%80%D0%BE_%D0%BA_%D1%81%D0%B2%D0%BE%D0%B5%D0%BC%D1%83_%D0%BA%D1%83%D0%B7%D0%BD%D0%B5%D1%86%D1%83_generated_frame_highres_text.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_fairy_glade.png" alt=""></td>
+        <td class="card-title">Золотое перо к своему кузнецу<small>gold_feather_own</small></td>
+        <td>special</td>
+        <td class="count">1</td>
+        <td class="instruction">Маяк. Носитель виден всем и не может телепортироваться. Доставьте перо на свой камень кузнеца для победы или используйте в крафте Ирикона.</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Таинственная опушка" data-search="таинственная опушка редкий самоцвет ingredient art_fairy_glade_001 по описанию из json: редкий самоцвет.
+если применить эту карту при изготовлении
+любого чертежа или рецепта,
+то с помощью этой карты можно
+без изготовления и ингредиентов,
+сразу открыть одно любое изделие.
+после применения этой карты
+она замешивается обратно в свою колоду.
+(одноразовое применение). вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_fairy_glade_001_%D1%80%D0%B5%D0%B4%D0%BA%D0%B8%D0%B9_%D1%81%D0%B0%D0%BC%D0%BE%D1%86%D0%B2%D0%B5%D1%82_generated_frame_highres_text_fairy_glad.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_fairy_glade.png" alt=""></td>
+        <td class="card-title">Редкий самоцвет<small>art_fairy_glade_001</small></td>
+        <td>ingredient</td>
+        <td class="count">2</td>
+        <td class="instruction">По описанию из JSON: Редкий самоцвет.
+Если применить эту карту при изготовлении
+любого чертежа или рецепта,
+то с помощью этой карты можно
+без изготовления и ингредиентов,
+сразу открыть одно любое изделие.
+После применения этой карты
+она замешивается обратно в свою колоду.
+(одноразовое применение).</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr>
+      <tr data-decks="Таинственная опушка" data-search="таинственная опушка феникс beast phoenix_1 феникс. на сказочной опушке начинается схватка. победите кубиком 6: золотое перо появится для доставки к своему камню кузнеца. вопросов нет. игровой механизм феникса не меняем.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_phoenix_1_%D1%84%D0%B5%D0%BD%D0%B8%D0%BA%D1%81_generated_frame_highres_text_fairy_glade_fairy_glade_002_s.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_fairy_glade.png" alt=""></td>
+        <td class="card-title">Феникс<small>phoenix_1</small></td>
+        <td>beast</td>
+        <td class="count">2</td>
+        <td class="instruction">Феникс. На Сказочной опушке начинается схватка. Победите кубиком 6: Золотое перо появится для доставки к своему камню кузнеца.</td>
+        <td class="questions">Вопросов нет. Игровой механизм Феникса не меняем.</td>
+      </tr>
+      <tr data-decks="Бараны" data-search="бараны ветка куста special art_forest_016 по описанию из json: ветка куста. не применима
+не к чему вопросов нет.">
+        <td class="image-cell image-stack"><img class="card-face" src="html-assets/face_art_forest_016_%D0%B2%D0%B5%D1%82%D0%BA%D0%B0_%D0%BA%D1%83%D1%81%D1%82%D0%B0_generated_frame_highres_text_forest_forest_016_s.png" alt=""></td>
+        <td class="image-cell image-stack"><img class="card-back" src="html-assets/back_sheep.png" alt=""></td>
+        <td class="card-title">Ветка куста<small>art_forest_016</small></td>
+        <td>special</td>
+        <td class="count">8</td>
+        <td class="instruction">По описанию из JSON: Ветка куста. Не Применима
+не к чему</td>
+        <td class="questions">Вопросов нет.</td>
+      </tr></tbody>
+      </table>
+    </div>
+  </main>
+  <script>
+    const search = document.getElementById('search');
+    const tabs = [...document.querySelectorAll('.deck-tab')];
+    const rows = [...document.querySelectorAll('tbody tr')];
+    const cards = [...document.querySelectorAll('.summary-card')];
+    let deck = '';
+
+    function applyFilter() {
+      const q = search.value.trim().toLowerCase();
+      let visible = 0;
+      for (const row of rows) {
+        const rowDecks = (row.dataset.decks || '').split('|');
+        const okDeck = !deck || rowDecks.includes(deck);
+        const okSearch = !q || row.dataset.search.includes(q);
+        row.classList.toggle('hidden', !(okDeck && okSearch));
+        if (okDeck && okSearch) visible += Number(row.querySelector('.count').textContent || 0);
+      }
+      for (const card of cards) card.classList.toggle('hidden', !!deck && card.dataset.deck !== deck);
+      document.title = visible ? 'Таблица колод - ' + visible + ' карт' : 'Таблица колод';
+    }
+
+    tabs.forEach((button) => {
+      button.addEventListener('click', () => {
+        deck = button.dataset.deck;
+        tabs.forEach((tab) => tab.classList.toggle('active', tab === button));
+        applyFilter();
+      });
+    });
+    search.addEventListener('input', applyFilter);
+  </script>
+</body>
+</html>

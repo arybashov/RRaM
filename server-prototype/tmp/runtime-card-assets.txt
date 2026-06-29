@@ -47,7 +47,6 @@ prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-
 prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-022-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-023-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-024-style-v1-card-highres-text.png
-prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-025-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-026-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-027-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/dark-forest/dark-forest-028-style-v1-card-highres-text.png
@@ -84,6 +83,7 @@ prototype-web/assets/cards/generated-frame-highres-text/forest/forest-009-style-
 prototype-web/assets/cards/generated-frame-highres-text/forest/forest-010-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/forest/forest-011-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/forest/forest-012-style-v1-card-highres-text.png
+prototype-web/assets/cards/generated-frame-highres-text/forest/forest-016-style-v2-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/lake/lake-001-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/lake/lake-002-style-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/lake/lake-003-style-v1-card-highres-text.png
@@ -125,3 +125,5 @@ prototype-web/assets/cards/generated-frame-highres-text/recipes/recipes-024-squa
 prototype-web/assets/cards/generated-frame-highres-text/recipes/recipes-025-square-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/recipes/recipes-026-square-v1-card-highres-text.png
 prototype-web/assets/cards/generated-frame-highres-text/recipes/recipes-027-square-v1-card-highres-text.png
+prototype-web/assets/cards/generated-frame-highres-text/recipes/recipes-029-style-v1-card-highres-text.png
+prototype-web/assets/cards/generated-frame-highres-text/recipes/recipes-030-style-v1-card-highres-text.png

@@ -136,7 +136,6 @@
 | Секира красное солнце | есть | `red/axe-sun-v1.png` |
 | Задание на молот Иерихон | есть | `red/task-irikon-v1.png` |
 | Иерихон | есть | `red/irikon-v1.png` |
-| Чертеж Иерихон | есть | `blueprints/blueprint-irikon-v1.png` |
 | Чертеж на меч лорп | есть | `dark-forest/blueprint-sword-lorp-v1.png` |
 | Меч Лорп | есть | `dark-forest/sword-lorp-v1.png` |
 | Кольцо возврата | есть | `dark-forest/return-ring-v1.png` |

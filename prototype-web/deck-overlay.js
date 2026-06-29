@@ -42,6 +42,7 @@ const PDF_PAGE_PREFIX = './assets/card-sheets/cards-page-';
 const PROJECT_STORAGE_KEY = 'rram.deckOverlay.project.v1';
 const TESSERACT_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
 const PROJECT_FILE_NAME = 'rram-deck-overlay-project.json';
+const REMOVED_FACE_CARD_IDS = new Set(['boar_hide', 'wolf_hide']);
 
 const stage = document.getElementById('stage');
 const connectionLayer = document.getElementById('connectionLayer');
@@ -56,6 +57,7 @@ const exportBtn = document.getElementById('exportBtn');
 const clearBtn = document.getElementById('clearBtn');
 const connectBtn = document.getElementById('connectBtn');
 const unlinkBtn = document.getElementById('unlinkBtn');
+const deckSeparatorBtn = document.getElementById('deckSeparatorBtn');
 const textBoxBtn = document.getElementById('textBoxBtn');
 const recognizeTextBtn = document.getElementById('recognizeTextBtn');
 const attachTextBtn = document.getElementById('attachTextBtn');
@@ -68,16 +70,21 @@ const zoomInput = document.getElementById('zoomInput');
 const cardSizeInput = document.getElementById('cardSizeInput');
 const selectionInfo = document.getElementById('selectionInfo');
 
+const cardKeyAliases = new Map();
+
 let cards = normalizeRegistry(window.CARD_ART_REGISTRY || []);
 let placed = [];
 let links = [];
 let textBoxes = [];
+let deckSeparators = [];
 let recentSelection = [];
 let selectedId = null;
 let selectedTextId = null;
+let selectedSeparatorId = null;
 let nextId = 1;
 let nextLinkId = 1;
 let nextTextId = 1;
+let nextSeparatorId = 1;
 let stageSize = { width: 900, height: 620 };
 let backgroundDataUrl = '';
 let pdfPage = 1;
@@ -86,9 +93,10 @@ let ocrEnginePromise = null;
 let projectFileHandle = null;
 
 function normalizeRegistry(registry) {
-  const seen = new Set();
-  return registry
+  const byFace = new Map();
+  const entries = registry
     .filter(card => card && card.id && card.art)
+    .filter(card => !REMOVED_FACE_CARD_IDS.has(card.gameId || card.id))
     .map(card => ({
       id: card.gameId || card.id,
       registryId: card.id,
@@ -99,13 +107,44 @@ function normalizeRegistry(registry) {
       art: card.art,
       copies: Number.isFinite(Number(card.copies)) ? Number(card.copies) : 0,
       inGame: Boolean(card.inGame),
-    }))
-    .filter(card => {
-      const key = `${card.id}:${card.art}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+      desc: readable(card.desc || ''),
+    }));
+  cardKeyAliases.clear();
+  for (const card of entries) {
+    const key = cardFaceKey(card);
+    card.cardKey = key;
+    registerCardKeyAlias(card.registryId, key);
+    registerCardKeyAlias(card.id, key);
+    registerCardKeyAlias(card.name, key);
+    const current = byFace.get(key);
+    if (!current || isBetterPaletteCard(card, current)) {
+      byFace.set(key, card);
+    }
+  }
+  return [...byFace.values()];
+}
+
+function isBetterPaletteCard(candidate, current) {
+  if (candidate.inGame !== current.inGame) return candidate.inGame;
+  if (candidate.copies !== current.copies) return candidate.copies > current.copies;
+  return false;
+}
+
+function cardFaceKey(card) {
+  return `name:${String(card?.name || '').trim().toLocaleLowerCase('ru-RU')}`;
+}
+
+function registerCardKeyAlias(value, key) {
+  const text = String(value || '').trim();
+  if (!text || !key) return;
+  cardKeyAliases.set(text, key);
+  cardKeyAliases.set(`name:${text.toLocaleLowerCase('ru-RU')}`, key);
+}
+
+function canonicalCardKey(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return cardKeyAliases.get(text) || cardKeyAliases.get(`name:${text.toLocaleLowerCase('ru-RU')}`) || text;
 }
 
 function readable(value) {
@@ -145,7 +184,7 @@ function init() {
 }
 
 function renderDeckFilter() {
-  const decks = [...new Set(cards.map(card => card.deck))];
+  const decks = [...new Set([...deckKeys(), ...cards.map(card => card.deck)])];
   deckFilter.innerHTML = '<option value="">Все колоды</option>' + decks
     .sort((a, b) => (DECK_LABELS[a] || a).localeCompare(DECK_LABELS[b] || b, 'ru'))
     .map(deck => `<option value="${escapeAttr(deck)}">${escapeHtml(DECK_LABELS[deck] || deck)}</option>`)
@@ -170,13 +209,19 @@ function renderPalette() {
     return `${card.name} ${card.id} ${card.source}`.toLowerCase().includes(q);
   });
   const usage = cardUsageCounts();
+  const descriptions = cardDescriptionCounts();
 
-  cardList.innerHTML = filtered.map(card => `
-    <article class="palette-card" data-card-id="${escapeAttr(card.id)}" data-registry-id="${escapeAttr(card.registryId)}">
+  cardList.innerHTML = filtered.map(card => renderPaletteCard(card, usage, descriptions)).join('');
+}
+
+function renderPaletteCard(card, usage, descriptions) {
+  return `
+    <article class="palette-card" data-card-id="${escapeAttr(card.id)}" data-registry-id="${escapeAttr(card.registryId)}" data-card-key="${escapeAttr(card.cardKey)}">
       <img src="${escapeAttr(imgSrc(card.art))}" alt="" loading="lazy" />
       <div>
         <div class="palette-name">${escapeHtml(card.name)}</div>
-        <div class="palette-meta">${escapeHtml(DECK_LABELS[card.deck] || card.deck)} · ${escapeHtml(card.type)} · ${card.copies || 0} шт. <span class="palette-used">использовано: ${usage.get(card.registryId) || 0}</span>${card.inGame ? '' : ' · не подключена'}</div>
+        <div class="palette-meta">${escapeHtml(DECK_LABELS[card.deck] || card.deck)} · ${escapeHtml(card.type)} · ${card.copies || 0} шт. <span class="palette-used">использовано: ${usage.get(card.cardKey) || 0}</span>${card.inGame ? '' : ' · не подключена'}</div>
+        <div class="${escapeAttr(descriptionClass(descriptions.get(card.cardKey)))}">${escapeHtml(descriptionText(descriptions.get(card.cardKey)))}</div>
         <div class="palette-actions">
           <button type="button" data-add="front">Лицо</button>
           <button type="button" data-add="back">Рубашка</button>
@@ -184,7 +229,7 @@ function renderPalette() {
         </div>
       </div>
     </article>
-  `).join('');
+  `;
 }
 
 function cardUsageCounts() {
@@ -194,6 +239,46 @@ function cardUsageCounts() {
     acc.set(key, (acc.get(key) || 0) + 1);
     return acc;
   }, new Map());
+}
+
+function cardDescriptionCounts() {
+  const initial = cards.reduce((acc, card) => {
+    if (!String(card.desc || '').trim()) return acc;
+    const key = card.cardKey || canonicalCardKey(card.id);
+    const entry = acc.get(key) || { total: 0, filled: 0 };
+    entry.total += 1;
+    entry.filled += 1;
+    acc.set(key, entry);
+    return acc;
+  }, new Map());
+
+  return textBoxes.reduce((acc, box) => {
+    const key = textBoxDescriptionKey(box);
+    if (!key) return acc;
+    const entry = acc.get(key) || { total: 0, filled: 0 };
+    entry.total += 1;
+    if (String(box.text || '').trim()) entry.filled += 1;
+    acc.set(key, entry);
+    return acc;
+  }, initial);
+}
+
+function textBoxDescriptionKey(box) {
+  if (!box) return '';
+  if (box.cardKey) return canonicalCardKey(box.cardKey);
+  const card = placed.find(item => item.uid === box.cardUid);
+  return cardDescriptionKey(card);
+}
+
+function descriptionText(entry) {
+  if (!entry?.total) return 'описания нет';
+  if (!entry.filled) return 'рамка описания';
+  return entry.filled > 1 ? `описания: ${entry.filled}` : 'описание есть';
+}
+
+function descriptionClass(entry) {
+  const state = entry?.filled ? 'filled' : entry?.total ? 'empty' : 'missing';
+  return `palette-description is-${state}`;
 }
 
 function basePlacedItem(deck, name, face, art) {
@@ -218,6 +303,7 @@ function addCard(card, face = 'front', x = 40, y = 40) {
     ...basePlacedItem(card.deck, card.name, face, face === 'back' ? BACK_BY_DECK[card.deck] : card.art),
     cardId: card.id,
     registryId: card.registryId,
+    cardKey: card.cardKey,
     x,
     y,
   };
@@ -244,6 +330,8 @@ function itemImageSrc(item) {
 function renderPlaced() {
   stage.querySelectorAll('.placed-card').forEach(node => node.remove());
   stage.querySelectorAll('.text-box').forEach(node => node.remove());
+  stage.querySelectorAll('.page-deck-separator').forEach(node => node.remove());
+  renderPageDeckSeparators();
   for (const item of visibleItems()) {
     const node = document.createElement('div');
     node.className = `placed-card${item.uid === selectedId ? ' selected' : ''}`;
@@ -270,12 +358,31 @@ function renderPlaced() {
   renderPaletteUsage();
 }
 
+function renderPageDeckSeparators() {
+  for (const separator of deckSeparators.filter(item => item.page === pdfPage)) {
+    const node = document.createElement('div');
+    node.className = `page-deck-separator${separator.uid === selectedSeparatorId ? ' selected' : ''}`;
+    node.dataset.uid = separator.uid;
+    node.style.top = `${separator.y}px`;
+    node.innerHTML = `<span>${escapeHtml(separator.label)}</span>`;
+    stage.appendChild(node);
+  }
+}
+
 function renderPaletteUsage() {
   const usage = cardUsageCounts();
   cardList.querySelectorAll('.palette-card').forEach(node => {
     const used = node.querySelector('.palette-used');
     if (!used) return;
-    used.textContent = `использовано: ${usage.get(node.dataset.registryId) || 0}`;
+    used.textContent = `использовано: ${usage.get(node.dataset.cardKey || canonicalCardKey(node.dataset.registryId)) || 0}`;
+  });
+  const descriptions = cardDescriptionCounts();
+  cardList.querySelectorAll('.palette-card').forEach(node => {
+    const description = node.querySelector('.palette-description');
+    if (!description) return;
+    const entry = descriptions.get(node.dataset.cardKey || canonicalCardKey(node.dataset.registryId));
+    description.textContent = descriptionText(entry);
+    description.className = descriptionClass(entry);
   });
 }
 
@@ -286,12 +393,16 @@ function updateSelectionClasses() {
   stage.querySelectorAll('.text-box').forEach(node => {
     node.classList.toggle('selected', node.dataset.uid === selectedTextId);
   });
+  stage.querySelectorAll('.page-deck-separator').forEach(node => {
+    node.classList.toggle('selected', node.dataset.uid === selectedSeparatorId);
+  });
   updateSelectionInfo();
 }
 
 function selectCard(uid, shouldRender = true) {
   selectedId = uid;
   selectedTextId = null;
+  selectedSeparatorId = null;
   recentSelection = [uid, ...recentSelection.filter(id => id !== uid)].slice(0, 2);
   if (shouldRender) renderPlaced();
   else updateSelectionClasses();
@@ -300,6 +411,15 @@ function selectCard(uid, shouldRender = true) {
 function selectTextBox(uid, shouldRender = true) {
   selectedTextId = uid;
   selectedId = null;
+  selectedSeparatorId = null;
+  if (shouldRender) renderPlaced();
+  else updateSelectionClasses();
+}
+
+function selectDeckSeparator(uid, shouldRender = true) {
+  selectedSeparatorId = uid;
+  selectedId = null;
+  selectedTextId = null;
   if (shouldRender) renderPlaced();
   else updateSelectionClasses();
 }
@@ -307,9 +427,12 @@ function selectTextBox(uid, shouldRender = true) {
 function updateSelectionInfo() {
   const item = placed.find(card => card.uid === selectedId);
   const textBox = textBoxes.find(box => box.uid === selectedTextId);
+  const separator = deckSeparators.find(item => item.uid === selectedSeparatorId);
   const relation = links.find(link => link.from === selectedId || link.to === selectedId);
   selectionInfo.textContent = textBox
     ? `Текст · стр. ${textBox.page}${textBox.cardKey || textBox.cardUid ? ' · прицеплен к карте' : ''}`
+    : separator
+    ? `Разделитель · ${separator.label} · стр. ${separator.page}`
     : item
     ? `${item.name} · стр. ${item.page}${relation ? ' · связана' : ''}`
     : 'Карта не выбрана';
@@ -485,6 +608,40 @@ function createTextBox(x, y, w, h, text = '') {
   return box;
 }
 
+function defaultSeparatorLabel() {
+  const selectedCard = placed.find(card => card.uid === selectedId && card.page === pdfPage);
+  const deck = deckFilter.value || selectedCard?.deck || '';
+  return deck ? (DECK_LABELS[deck] || deck) : 'Разделитель';
+}
+
+function visibleSeparatorY() {
+  const scroller = document.getElementById('stageScroller');
+  const scale = Number(zoomInput.value) / 100;
+  const scrollTop = scroller ? scroller.scrollTop / scale : 0;
+  const offset = scroller ? Math.min(140, scroller.clientHeight * 0.22 / scale) : 80;
+  return Math.max(8, Math.min(stageSize.height - 24, Math.round(scrollTop + offset)));
+}
+
+function createDeckSeparator() {
+  const separator = {
+    uid: `s${nextSeparatorId++}`,
+    page: pdfPage,
+    y: visibleSeparatorY(),
+    label: defaultSeparatorLabel(),
+  };
+  deckSeparators.push(separator);
+  selectDeckSeparator(separator.uid);
+}
+
+function editDeckSeparatorLabel(separator) {
+  if (!separator) return;
+  const label = window.prompt('Название разделителя', separator.label || defaultSeparatorLabel());
+  const trimmed = String(label || '').trim();
+  if (!trimmed) return;
+  separator.label = trimmed;
+  renderPlaced();
+}
+
 function selectedLink() {
   if (!selectedId) return null;
   return links.find(link => link.from === selectedId || link.to === selectedId) || null;
@@ -495,7 +652,12 @@ function isFaceCard(item) {
 }
 
 function cardDescriptionKey(item) {
-  return isFaceCard(item) ? String(item.registryId || item.cardId || item.name || '') : '';
+  if (!isFaceCard(item)) return '';
+  return canonicalCardKey(item.cardKey)
+    || canonicalCardKey(item.registryId)
+    || canonicalCardKey(item.cardId)
+    || canonicalCardKey(item.name)
+    || String(item.registryId || item.cardId || item.name || '');
 }
 
 function cardsMatchingTextBox(box) {
@@ -716,6 +878,7 @@ function projectData() {
     placed,
     links,
     textBoxes,
+    deckSeparators,
   };
 }
 
@@ -725,6 +888,9 @@ function applyProjectData(data) {
   pdfPage = Number(data.pdfPage || pdfPage);
   placed = Array.isArray(data.placed) ? data.placed.map(item => ({ page: 1, ...item })) : [];
   links = Array.isArray(data.links) ? data.links.map((link, index) => ({ uid: `l${index + 1}`, ...link })) : [];
+  deckSeparators = Array.isArray(data.deckSeparators)
+    ? data.deckSeparators.map((item, index) => ({ uid: `s${index + 1}`, page: 1, y: 80, label: '', ...item }))
+    : [];
   textBoxes = Array.isArray(data.textBoxes)
     ? data.textBoxes.map(item => {
       const box = { page: 1, text: '', cardUid: null, cardKey: '', ...item };
@@ -733,17 +899,20 @@ function applyProjectData(data) {
         const card = placed.find(placedItem => placedItem.uid === box.cardUid);
         box.cardKey = cardDescriptionKey(card);
       }
+      if (box.cardKey) box.cardKey = canonicalCardKey(box.cardKey);
       if (box.cardKey) box.cardUid = null;
       delete box.linkId;
       return box;
     })
     : [];
-  textBoxes = textBoxes.filter((box, index, list) => !box.cardKey || list.findIndex(item => item.cardKey === box.cardKey) === index);
+  textBoxes = textBoxes.filter((box, index, list) => !box.cardKey || list.findIndex(item => textBoxDescriptionKey(item) === textBoxDescriptionKey(box)) === index);
   nextId = placed.reduce((max, item) => Math.max(max, Number(String(item.uid).replace(/\D/g, '')) || 0), 0) + 1;
   nextLinkId = links.reduce((max, item) => Math.max(max, Number(String(item.uid).replace(/\D/g, '')) || 0), 0) + 1;
   nextTextId = textBoxes.reduce((max, item) => Math.max(max, Number(String(item.uid).replace(/\D/g, '')) || 0), 0) + 1;
+  nextSeparatorId = deckSeparators.reduce((max, item) => Math.max(max, Number(String(item.uid).replace(/\D/g, '')) || 0), 0) + 1;
   selectedId = placed[0]?.uid || null;
   selectedTextId = null;
+  selectedSeparatorId = null;
   recentSelection = selectedId ? [selectedId] : [];
   if (backgroundDataUrl) {
     setStageBackground(backgroundDataUrl, stageSize.width, stageSize.height);
@@ -826,9 +995,11 @@ function clearLayout() {
   placed = [];
   links = [];
   textBoxes = [];
+  deckSeparators = [];
   recentSelection = [];
   selectedId = null;
   selectedTextId = null;
+  selectedSeparatorId = null;
   localStorage.removeItem(PROJECT_STORAGE_KEY);
   renderPlaced();
 }
@@ -952,6 +1123,37 @@ function startPaletteDrag(event, data) {
 }
 
 stage.addEventListener('pointerdown', (event) => {
+  const separatorNode = event.target.closest('.page-deck-separator');
+  if (separatorNode) {
+    event.preventDefault();
+    selectDeckSeparator(separatorNode.dataset.uid, false);
+    const separator = deckSeparators.find(item => item.uid === selectedSeparatorId);
+    if (!separator) return;
+    const scale = Number(zoomInput.value) / 100;
+    const start = {
+      pointerId: event.pointerId,
+      y: event.clientY,
+      separatorY: separator.y,
+    };
+    separatorNode.setPointerCapture(event.pointerId);
+    const move = (moveEvent) => {
+      if (moveEvent.pointerId !== start.pointerId) return;
+      separator.y = Math.max(8, Math.round(start.separatorY + (moveEvent.clientY - start.y) / scale));
+      separatorNode.style.top = `${separator.y}px`;
+    };
+    const up = (upEvent) => {
+      if (upEvent.pointerId !== start.pointerId) return;
+      separatorNode.releasePointerCapture(upEvent.pointerId);
+      separatorNode.removeEventListener('pointermove', move);
+      separatorNode.removeEventListener('pointerup', up);
+      separatorNode.removeEventListener('pointercancel', up);
+    };
+    separatorNode.addEventListener('pointermove', move);
+    separatorNode.addEventListener('pointerup', up);
+    separatorNode.addEventListener('pointercancel', up);
+    return;
+  }
+
   const textNode = event.target.closest('.text-box');
   if (textNode) {
     selectTextBox(textNode.dataset.uid, false);
@@ -1114,6 +1316,12 @@ function stagePointFromEvent(event, centerCard = true) {
 }
 
 stage.addEventListener('dblclick', (event) => {
+  const separatorNode = event.target.closest('.page-deck-separator');
+  if (separatorNode) {
+    const separator = deckSeparators.find(item => item.uid === separatorNode.dataset.uid);
+    editDeckSeparatorLabel(separator);
+    return;
+  }
   const node = event.target.closest('.placed-card');
   if (!node) return;
   const item = placed.find(card => card.uid === node.dataset.uid);
@@ -1124,6 +1332,12 @@ stage.addEventListener('dblclick', (event) => {
 });
 
 function deleteSelected() {
+  if (selectedSeparatorId) {
+    deckSeparators = deckSeparators.filter(item => item.uid !== selectedSeparatorId);
+    selectedSeparatorId = null;
+    renderPlaced();
+    return;
+  }
   if (selectedTextId) {
     textBoxes = textBoxes.filter(box => box.uid !== selectedTextId);
     selectedTextId = textBoxes.at(-1)?.uid || null;
@@ -1149,6 +1363,10 @@ function deleteSelected() {
 }
 
 document.addEventListener('keydown', (event) => {
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedSeparatorId) {
+    deleteSelected();
+    return;
+  }
   if ((event.key === 'Delete' || event.key === 'Backspace') && selectedTextId) {
     if (document.activeElement?.tagName === 'TEXTAREA') return;
     deleteSelected();
@@ -1180,6 +1398,7 @@ exportBtn.addEventListener('click', exportLayout);
 clearBtn.addEventListener('click', clearLayout);
 connectBtn.addEventListener('click', connectSelected);
 unlinkBtn.addEventListener('click', unlinkSelected);
+deckSeparatorBtn.addEventListener('click', createDeckSeparator);
 deleteSelectedBtn.addEventListener('click', deleteSelected);
 textBoxBtn.addEventListener('click', () => {
   textBoxMode = !textBoxMode;
@@ -1199,7 +1418,10 @@ stage.addEventListener('input', (event) => {
   if (!(event.target instanceof HTMLTextAreaElement)) return;
   const node = event.target.closest('.text-box');
   const box = textBoxes.find(item => item.uid === node?.dataset.uid);
-  if (box) box.text = event.target.value;
+  if (box) {
+    box.text = event.target.value;
+    renderPaletteUsage();
+  }
 });
 
 function escapeHtml(value) {

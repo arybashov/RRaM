@@ -7,7 +7,7 @@
 // Не правьте вручную по отдельности — бампайте все разом:
 //   node server-prototype/scripts/bump-version.mjs <новая-версия>
 // Деплой роняет себя, если версии разъехались (scripts/check-version.mjs).
-export const BUILD_VERSION = '20260627-22';
+export const BUILD_VERSION = '20260627-26';
 
 export const ROLES = ['K', 'P', 'V', 'O', 'S'];
 
@@ -134,6 +134,14 @@ export const CRAFT_RECIPES = Object.freeze({
     materials: [['yarn'], SHAMAN_CARPET_MATERIALS],
     dice: { count: 1, min: 3 },
   },
+  art_lake_007: {
+    role: 'S',
+    via: 'recipe_sprouted_root',
+    result: 'art_lake_007',
+    materials: [['shaman_carpet']],
+    keepMaterials: ['shaman_carpet'],
+    dice: { count: 1, min: 3 },
+  },
   // Shaman recipes from the recipes deck.
   armor_zhest: {
     role: 'S',
@@ -149,12 +157,12 @@ export const CRAFT_RECIPES = Object.freeze({
     materials: [['amanita_glade'], ['lake_frog']],
     dice: { count: 2, min: 2 },
   },
-  // Irikon quest craft: blueprint + task + golden feather.
+  // Irikon quest craft: task + golden feather.
   irikon: {
     role: 'K',
-    via: 'blueprint_irikon',
+    via: 'task_irikon',
     result: 'irikon',
-    materials: [['task_irikon'], GOLD_FEATHER_CARDS],
+    materials: [GOLD_FEATHER_CARDS],
     dice: { count: 2, min: 3 },
   },
   shield_revenge: {
@@ -171,9 +179,9 @@ export const CRAFT_RECIPES = Object.freeze({
     via: 'art_dark_forest_013',
     result: 'topormol',
     options: [
-      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']], dice: { count: 2, min: 2 } },
+      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse'], ['art_forest_012', 'art_forest_007']], dice: { count: 2, min: 2 } },
       { role: 'K', materials: [['art_mixed_001'], ['art_forest_012', 'art_forest_007']], dice: { count: 2, min: 2 } },
-      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse']], dice: { count: 1, min: 4 } },
+      { role: 'K', materials: [['ore_medium', 'ore_coarse'], ['ore_medium', 'ore_coarse'], ['art_forest_012', 'art_forest_007']], dice: { count: 1, min: 4 } },
       { role: 'K', materials: [['art_mixed_001'], ['art_forest_012', 'art_forest_007']], dice: { count: 1, min: 4 } },
     ],
   },
@@ -329,6 +337,14 @@ export const CRAFT_RECIPES = Object.freeze({
   art_recipes_016: {
     role: 'S', via: 'art_recipes_015', result: 'art_recipes_016',
     materials: [['shaman_carpet'], ['art_lake_007']],
+    dice: { count: 2, min: 2 },
+  },
+  dil_bottle: {
+    role: 'S',
+    via: 'recipe_dil_bottle',
+    result: 'dil_bottle',
+    materials: [['shaman_carpet'], ['art_lake_007']],
+    keepMaterials: ['shaman_carpet'],
     dice: { count: 2, min: 2 },
   },
   art_recipes_018: {
@@ -572,9 +588,6 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'ritual_hide',   deck: 'recipes',     type: 'special',     copies: 1, name: 'Шкура ритуалов',
     desc: 'Шаман выкладывает лицом вверх. Кубик 4+ перезаряжает использованные Бусы телепортации, после попытки Шкура ритуалов переворачивается рубашкой вверх.' },
 
-  // --- Чертежи (только кузнец) ---
-  { id: 'blueprint_irikon', deck: 'blueprints', type: 'blueprint', copies: 1, name: 'Чертёж Ирикон' },
-
   // --- Таинственная опушка ---
   { id: 'phoenix_1',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к своему кузнецу)' },
   { id: 'phoenix_2',     deck: 'fairy_glade', type: 'beast',       copies: 1, name: 'Феникс (перо к кузнецу врага)' },
@@ -598,6 +611,7 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_forest_007", deck: "forest", type: "special", copies: 1, name: "Гнущаяся палка" },
   { id: "art_forest_011", deck: "forest", type: "ingredient", copies: 1, name: "Железная руда высшего качества" },
   { id: "art_forest_012", deck: "forest", type: "special", copies: 1, name: "Толстая ветка" },
+  { id: "art_forest_016", deck: "forest", type: "special", copies: 1, name: "Ветка куста", desc: "Не применима ни к чему." },
   { id: "art_lake_001", deck: "lake", type: "ingredient", copies: 1, name: "Мраморный самоцвет" },
   { id: "art_lake_002", deck: "lake", type: "ingredient", copies: 1, name: "Мутный изумруд" },
   { id: "art_lake_003", deck: "lake", type: "special", copies: 1, name: "Драгоценный камень" },
@@ -614,7 +628,8 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_dark_forest_008", deck: "dark_forest", type: "armor", copies: 0, name: "Щит защита духа" },
   { id: "art_dark_forest_009", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на щит др." },
   { id: "art_dark_forest_011", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на ломщит" },
-  { id: "art_dark_forest_013", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на топормол" },
+  { id: "art_dark_forest_013", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на топормол",
+    desc: "Положите чертеж на основное игровое поле рядом с Кузнецом. Грязная или смешанная железная руда - 2 карты или железная руда среднего качества - 1 карта. Толстая ветка или гнущаяся палка - 1 карта. Кузнец кидает: 2 раза 2+ или 1 раз 4+." },
   { id: "art_dark_forest_015", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на щит калан" },
   { id: "art_dark_forest_017", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на меч сеч" },
   { id: "art_dark_forest_019", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на деревянный молоток" },
@@ -633,6 +648,7 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_dark_forest_040", deck: "dark_forest", type: "armor", copies: 0, name: "Панцирь" },
   { id: "art_dark_forest_041", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на шлем ТТМ" },
   { id: "art_dark_forest_043", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на защиту Ил" },
+  { id: "recipe_sprouted_root", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на проросший корень" },
   { id: "art_recipes_003", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на каска-маска" },
   { id: "art_recipes_004", deck: "recipes", type: "armor", copies: 0, name: "Каска-маска" },
   { id: "art_recipes_005", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на рубашку из кожи" },
@@ -644,8 +660,12 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_recipes_012", deck: "recipes", type: "special", copies: 0, name: "Маска бубун" },
   { id: "art_recipes_013", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на маску оху" },
   { id: "art_recipes_014", deck: "recipes", type: "special", copies: 0, name: "Маска оху" },
-  { id: "art_recipes_015", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на бутыль дип" },
-  { id: "art_recipes_016", deck: "recipes", type: "special", copies: 0, name: "Бутыль дип" },
+  { id: "art_recipes_015", deck: "forest", type: "recipe", copies: 1, name: "Рецепт на малый лечебный бутыль" },
+  { id: "art_recipes_016", deck: "forest", type: "special", copies: 0, name: "Малый лечебный бутыль" },
+  { id: "recipe_dil_bottle", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на бутыль дил",
+    desc: "Материалы: Проросший корень или плетённый корень — 1 карта. Шаман выкладывает Ковёр шамана на игровое поле и кидает 2 кубика: 2+. После успеха Ковёр возвращается в инвентарь, рецепт открывает Бутыль дил." },
+  { id: "dil_bottle", deck: "recipes", type: "special", copies: 0, name: "Бутыль дил",
+    desc: "Когда вы используете эту карту, к вашему общему урону добавляется +30 до конца драки. После завершения драки карта возвращается в инвентарь. Можно применить только один раз в драке." },
   { id: "art_recipes_017", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на маску злая" },
   { id: "art_recipes_018", deck: "recipes", type: "special", copies: 0, name: "Маска злая" },
   { id: "art_recipes_019", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на обычный посох" },

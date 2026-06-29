@@ -1996,12 +1996,14 @@ function recipeOptions(recipe) {
     return recipe.options.map((option) => ({
       role: option.role ?? recipe.role,
       materials: option.materials ?? recipe.materials ?? [],
+      keepMaterials: option.keepMaterials ?? recipe.keepMaterials ?? [],
       dice: option.dice ?? recipe.dice ?? null,
     }));
   }
   return [{
     role: recipe.role,
     materials: recipe.materials ?? [],
+    keepMaterials: recipe.keepMaterials ?? [],
     dice: recipe.dice ?? null,
   }];
 }
@@ -2099,7 +2101,12 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
     }
   }
   // Израсходовать материалы + чертёж/рецепт (удаляем с конца, чтобы не сбить индексы).
-  const removeIdx = [...consumedIdx, character.inventory.indexOf(recipe.via)].sort((a, b) => b - a);
+  const keepMaterials = new Set(matchedOption.keepMaterials ?? []);
+  const materialRemoveIdx = consumedIdx.filter((i) => !keepMaterials.has(character.inventory[i]));
+  const returnedMaterials = consumedIdx
+    .filter((i) => keepMaterials.has(character.inventory[i]))
+    .map((i) => character.inventory[i]);
+  const removeIdx = [...materialRemoveIdx, character.inventory.indexOf(recipe.via)].sort((a, b) => b - a);
   const discarded = [];
   for (const i of removeIdx) {
     discarded.push(...character.inventory.splice(i, 1));
@@ -2110,7 +2117,7 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
   if (!character.crafted.includes(recipe.result)) {
     character.crafted.push(recipe.result);
   }
-  return { crafted: { characterId, item, result: recipe.result, materials: discarded } };
+  return { crafted: { characterId, item, result: recipe.result, materials: discarded, returnedMaterials } };
 }
 
 // Стряхнуть DoT-ловушку (Полянка/Дикие ягоды). Режим split, тратит один кубик.

@@ -53,10 +53,10 @@ function startsWithBlueprint(name) {
 test('card catalog totals are stable', () => {
   assert.equal(BASE_CARD_CATALOG.length, 11);
   assert.equal(copies(BASE_CARD_CATALOG), 11);
-  assert.equal(CARD_CATALOG.length, 121);
-  assert.equal(copies(CARD_CATALOG), 121);
-  assert.equal(allCards.length, 132);
-  assert.equal(copies(allCards), 132);
+  assert.equal(CARD_CATALOG.length, 124);
+  assert.equal(copies(CARD_CATALOG), 123);
+  assert.equal(allCards.length, 135);
+  assert.equal(copies(allCards), 134);
 });
 
 test('card ids are unique across base and draw catalogs', () => {
@@ -72,13 +72,13 @@ test('draw deck card counts are stable', () => {
         .map((deck) => [deck, { unique: byDeck(deck).length, copies: copies(byDeck(deck)) }]),
     ),
     {
-      blueprints: { unique: 20, copies: 20 },
+      blueprints: { unique: 19, copies: 19 },
       dark_forest: { unique: 25, copies: 14 },
       fairy_glade: { unique: 6, copies: 4 },
-      forest: { unique: 15, copies: 24 },
+      forest: { unique: 18, copies: 26 },
       lake: { unique: 7, copies: 7 },
       mixed: { unique: 4, copies: 20 },
-      recipes: { unique: 27, copies: 15 },
+      recipes: { unique: 28, copies: 16 },
       red: { unique: 10, copies: 10 },
       sheep: { unique: 4, copies: 7 },
       trophy: { unique: 3, copies: 0 },
@@ -90,13 +90,13 @@ test('recipes and blueprints are classified by their visible titles', () => {
   const recipeTitleCards = allCards.filter((card) => startsWithRecipe(card.name));
   const blueprintTitleCards = allCards.filter((card) => startsWithBlueprint(card.name));
 
-  assert.equal(recipeTitleCards.length, 14);
-  assert.equal(copies(recipeTitleCards), 16);
+  assert.equal(recipeTitleCards.length, 16);
+  assert.equal(copies(recipeTitleCards), 18);
   assert.ok(recipeTitleCards.every((card) => card.type === 'recipe'));
-  assert.ok(recipeTitleCards.filter((card) => CARD_CATALOG.includes(card)).every((card) => card.deck === 'recipes'));
+  assert.ok(recipeTitleCards.filter((card) => CARD_CATALOG.includes(card)).every((card) => ['forest', 'recipes'].includes(card.deck)));
 
-  assert.equal(blueprintTitleCards.length, 22);
-  assert.equal(copies(blueprintTitleCards), 22);
+  assert.equal(blueprintTitleCards.length, 21);
+  assert.equal(copies(blueprintTitleCards), 21);
   assert.ok(blueprintTitleCards.every((card) => card.type === 'blueprint'));
   assert.ok(blueprintTitleCards.filter((card) => CARD_CATALOG.includes(card)).every((card) => card.deck === 'blueprints'));
 
@@ -107,7 +107,7 @@ test('recipes and blueprints are classified by their visible titles', () => {
 
 test('all blueprint cards have one copy', () => {
   const blueprints = allCards.filter((card) => card.type === 'blueprint');
-  assert.equal(blueprints.length, 22);
+  assert.equal(blueprints.length, 21);
   assert.ok(blueprints.every((card) => card.copies === 1));
 });
 
@@ -218,7 +218,6 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       art_dark_forest_039: 1,
       art_dark_forest_041: 1,
       art_dark_forest_043: 1,
-      blueprint_irikon: 1,
     },
     dark_forest: {
       art_dark_forest_001: 1,
@@ -243,6 +242,8 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       art_forest_007: 1,
       art_forest_011: 1,
       art_forest_012: 1,
+      art_forest_016: 1,
+      art_recipes_015: 1,
       bark: 3,
       boar_forest: 2,
       gold_nugget: 2,
@@ -265,13 +266,14 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       ore_medium: 8,
     },
     recipes: {
+      recipe_sprouted_root: 1,
       art_recipes_003: 1,
       art_recipes_005: 1,
       art_recipes_007: 1,
       art_recipes_009: 1,
       art_recipes_011: 1,
       art_recipes_013: 1,
-      art_recipes_015: 1,
+      recipe_dil_bottle: 1,
       art_recipes_017: 1,
       art_recipes_019: 1,
       art_recipes_025: 1,
