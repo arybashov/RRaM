@@ -462,13 +462,14 @@ export const ARMOR_CARDS = Object.freeze({
 // Условные эффекты §16 (по зверю/дварфу, удвоение неиспользованных кубиков) пока
 // не моделируются — берётся базовый урон по игроку.
 export const WEAPON_CARDS = Object.freeze({
+  hammer:     { damage: 15, piercing: false, role: 'K', name: 'Молоток' },
   irikon:     { damage: IRIKON_DAMAGE, piercing: true, role: 'K', name: 'Молот Иерихон' },
   topormol:   { damage: 25, piercing: true, name: 'Топормол' },
   sword_sech: { damage: 15, piercing: true, name: 'Меч Сеч' },
   sword_lorp: { damage: 15, piercing: true, name: 'Меч Лорп' },
   axe_sun:    { damage: 50, piercing: true, name: 'Секира Красное солнце' },
   art_dark_forest_038: { damage: 15, piercing: true, name: 'Топоры близнецы' },
-  art_dark_forest_020: { damage: 10, piercing: false, name: 'Деревянный молоток' },
+  art_dark_forest_020: { damage: 25, piercing: false, name: 'Деревянный молоток' },
   art_recipes_020: { damage: 10, piercing: false, name: 'Обычный посох' },
   art_recipes_021: { damage: 15, piercing: false, name: 'Посох тэрниа' },
 });
@@ -503,8 +504,8 @@ export const DECKS = Object.freeze({
 
 export const CARD_CATALOG = Object.freeze([
   // --- Смешанный грунт ---
-  { id: 'ore_medium',    deck: 'mixed',       type: 'ingredient',  copies: 8, name: 'Смешанная железная руда' },
-  { id: 'ore_coarse',    deck: 'mixed',       type: 'provocation', copies: 6, name: 'Грубая смешанная железная руда' },
+  { id: 'ore_medium',    deck: 'mixed',       type: 'ingredient',  copies: 8, name: 'Грязная смешанная железная руда' },
+  { id: 'ore_coarse',    deck: 'mixed',       type: 'ingredient',  copies: 6, name: 'Грязная смешанная железная руда' },
 
   // --- Лес ---
   { id: 'boar_forest',   deck: 'forest',      type: 'beast',       copies: 2, name: 'Дикий кабан' },
@@ -572,8 +573,8 @@ export const CARD_CATALOG = Object.freeze([
   { id: 'hide_red',      deck: 'red',         type: 'ingredient',  copies: 0, name: 'Очищенная шкура зверя' },
   { id: 'raw_hide_red',  deck: 'red',         type: 'ingredient',  copies: 0, name: 'Шкура убитого зверя' },
   { id: 'axe_sun',       deck: 'red',         type: 'weapon',      copies: 1, name: 'Секира Красное солнце' },
-  { id: 'task_irikon',   deck: 'red',         type: 'special',     copies: 1, name: 'Задание на молот Ирикон' },
-  { id: 'irikon',        deck: 'red',         type: 'weapon',      copies: 0, name: 'Ирикон' },
+  { id: 'task_irikon',   deck: 'blueprints',  type: 'special',     copies: 0, name: 'Задание на молот Ирикон' },
+  { id: 'irikon',        deck: 'blueprints',  type: 'weapon',      copies: 0, name: 'Ирикон' },
 
   // --- Озеро ---
   { id: 'lake_frog',     deck: 'lake',        type: 'special',     copies: 1, name: 'Озёрная лягушка' },
@@ -612,13 +613,14 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_forest_011", deck: "forest", type: "ingredient", copies: 1, name: "Железная руда высшего качества" },
   { id: "art_forest_012", deck: "forest", type: "special", copies: 1, name: "Толстая ветка" },
   { id: "art_forest_016", deck: "forest", type: "special", copies: 1, name: "Ветка куста", desc: "Не применима ни к чему." },
-  { id: "art_lake_001", deck: "lake", type: "ingredient", copies: 1, name: "Мраморный самоцвет" },
+  { id: "art_lake_001", deck: "lake", type: "ingredient", copies: 1, name: "Мраморный самоцвет",
+    desc: "Если положить эту карту в драке, весь ваш урон умножается на 2 до конца текущей драки, даже если в нее подключились новые враги. Можно использовать каждый 4-й раз сброса кубиков." },
   { id: "art_lake_002", deck: "lake", type: "ingredient", copies: 1, name: "Мутный изумруд" },
   { id: "art_lake_003", deck: "lake", type: "special", copies: 1, name: "Драгоценный камень" },
   { id: "art_lake_004", deck: "lake", type: "ingredient", copies: 1, name: "Крапленый аметист" },
   { id: "art_lake_007", deck: "lake", type: "ingredient", copies: 1, name: "Проросший корень" },
   { id: "art_trophy_001", deck: "red", type: "beast", copies: 1, name: "Бурый медведь" },
-  { id: "art_trophy_002", deck: "red", type: "beast", copies: 1, name: "Агрессивный бурый медведь" },
+  { id: "art_trophy_002", deck: "dark_forest", type: "beast", copies: 1, name: "Агрессивный бурый медведь" },
   { id: "art_dark_forest_001", deck: "dark_forest", type: "ingredient", copies: 1, name: "Средний золотой самородок" },
   { id: "art_dark_forest_002", deck: "dark_forest", type: "ingredient", copies: 1, name: "Большой золотой самородок" },
   { id: "art_dark_forest_003", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на небрежную кольчугу" },
@@ -633,7 +635,7 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_dark_forest_015", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на щит калан" },
   { id: "art_dark_forest_017", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на меч сеч" },
   { id: "art_dark_forest_019", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на деревянный молоток" },
-  { id: "art_dark_forest_020", deck: "dark_forest", type: "weapon", copies: 0, name: "Деревянный молоток" },
+  { id: "art_dark_forest_020", deck: "blueprints", type: "weapon", copies: 0, name: "Деревянный молоток" },
   { id: "art_dark_forest_021", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на красное солнце" },
   { id: "art_dark_forest_026", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на меч лорп" },
   { id: "art_dark_forest_029", deck: "blueprints", type: "blueprint", copies: 1, name: "Чертеж на ошейник" },
@@ -662,6 +664,8 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_recipes_014", deck: "recipes", type: "special", copies: 0, name: "Маска оху" },
   { id: "art_recipes_015", deck: "forest", type: "recipe", copies: 1, name: "Рецепт на малый лечебный бутыль" },
   { id: "art_recipes_016", deck: "forest", type: "special", copies: 0, name: "Малый лечебный бутыль" },
+  { id: "shaman_cauldron", deck: "forest", type: "special", copies: 0, name: "Котел шамана",
+    desc: "Вы можете спрятаться в этом котле, положив эту карту на основное игровое поле на фишку персонажа." },
   { id: "recipe_dil_bottle", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на бутыль дил",
     desc: "Материалы: Проросший корень или плетённый корень — 1 карта. Шаман выкладывает Ковёр шамана на игровое поле и кидает 2 кубика: 2+. После успеха Ковёр возвращается в инвентарь, рецепт открывает Бутыль дил." },
   { id: "dil_bottle", deck: "recipes", type: "special", copies: 0, name: "Бутыль дил",

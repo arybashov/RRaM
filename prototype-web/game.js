@@ -271,8 +271,8 @@ const CARD_USAGE_DESCRIPTIONS = Object.freeze({
 });
 
 const CARD_CATALOG_META = Object.freeze({
-  ore_medium: { deck: "mixed", type: "ingredient", copies: 8, name: "Смешанная железная руда" },
-  ore_coarse: { deck: "mixed", type: "provocation", copies: 6, name: "Грубая смешанная железная руда" },
+  ore_medium: { deck: "mixed", type: "ingredient", copies: 8, name: "Грязная смешанная железная руда" },
+  ore_coarse: { deck: "mixed", type: "ingredient", copies: 6, name: "Грязная смешанная железная руда" },
   boar_forest: { deck: "forest", type: "beast", copies: 2, name: "Дикий кабан" },
   beast_hide: { deck: "forest", type: "ingredient", copies: 0, name: "Очищенная шкура зверя" },
   raw_hide: { deck: "forest", type: "ingredient", copies: 0, name: "Шкура убитого зверя" },
@@ -314,7 +314,7 @@ const CARD_CATALOG_META = Object.freeze({
   wolf: { deck: "red", type: "beast", copies: 2, name: "Серый волк" },
   beast_bear: { deck: "red", type: "beast", copies: 2, name: "Мистический зверь-медведь" },
   art_trophy_001: { deck: "red", type: "beast", copies: 1, name: "Бурый медведь" },
-  art_trophy_002: { deck: "red", type: "beast", copies: 1, name: "Агрессивный бурый медведь" },
+  art_trophy_002: { deck: "dark_forest", type: "beast", copies: 1, name: "Агрессивный бурый медведь" },
   hide_red: { deck: "red", type: "ingredient", copies: 0, name: "Очищенная шкура зверя" },
   raw_hide_red: { deck: "red", type: "ingredient", copies: 0, name: "Шкура убитого зверя" },
   axe_sun: { deck: "red", type: "weapon", copies: 1, name: "Секира Красное солнце" },
@@ -491,7 +491,7 @@ const CARD_BACK_ART_BY_DECK = Object.freeze({
 
 const CARD_BACK_DECK_BY_ID = Object.freeze({
   art_trophy_001: 'red',
-  art_trophy_002: 'red',
+  art_trophy_002: 'dark_forest',
 });
 
 const CARD_DECK_BY_ID = Object.freeze({
@@ -516,7 +516,7 @@ const CARD_DECK_BY_ID = Object.freeze({
   wolf: 'red',
   beast_bear: 'red',
   art_trophy_001: 'red',
-  art_trophy_002: 'red',
+  art_trophy_002: 'dark_forest',
   hide_red: 'red',
   boar_hide: 'trophy',
   wolf_hide: 'trophy',
@@ -559,6 +559,15 @@ function cardBackArt(cardId) {
 function cardBackArtByDeck(deck) {
   const art = CARD_BACK_ART_BY_DECK[deck] ?? CARD_BACK_ART_BY_DECK.unknown;
   return `./assets/cards/${art}.png?v=${APP_VERSION}`;
+}
+
+function cardBackArtForCard(card) {
+  if (card && typeof card === 'object') {
+    const deck = card.sourceBack ?? card.sourceDeck ?? null;
+    if (deck) return cardBackArtByDeck(deck);
+    return cardBackArt(card.id ?? card.gameId);
+  }
+  return cardBackArt(card);
 }
 
 const CARD_REGISTRY_GAME_ID_OVERRIDES = Object.freeze({
@@ -612,6 +621,10 @@ function cardRegistryFaceArt(cardId) {
   return cardRegistryFaceArtById.get(cardId) ?? null;
 }
 
+function preferredCardFaceArt(cardId) {
+  return cardRegistryFaceArt(cardId) ?? CARD_FACE_ART[cardId] ?? null;
+}
+
 function cardRegistryDeck(cardId) {
   if (!cardId) return null;
   ensureCardRegistryMaps();
@@ -625,8 +638,7 @@ function cardFaceArtUrl(art) {
 function cardFaceArt(card) {
   const cardId = typeof card === 'string' ? card : card?.id;
   return (typeof card === 'object' ? card?.art : null)
-    ?? CARD_FACE_ART[cardId]
-    ?? cardRegistryFaceArt(cardId);
+    ?? preferredCardFaceArt(cardId);
 }
 
 function featherMarkerUrl() {
@@ -729,6 +741,7 @@ let settingsEl = null;
 let matchResultEl = null;
 let encyclopediaEl = null;
 let serverCardCatalog = null;
+let serverDeckCardCounts = null;
 let settingsReturnTo = 'lobby';
 let reconnectTimer = null;
 let cardBoxEl = null;        // оверлей «ящик» с картами команды
@@ -1234,6 +1247,9 @@ function handleMsg({ type, payload }) {
       if (Array.isArray(payload?.cardCatalog)) {
         serverCardCatalog = payload.cardCatalog;
       }
+      if (payload?.deckCardCounts && typeof payload.deckCardCounts === 'object') {
+        serverDeckCardCounts = payload.deckCardCounts;
+      }
       if (payload?.craftRecipes) {
         setCraftRecipesFromServer(payload.craftRecipes);
       }
@@ -1536,7 +1552,10 @@ function syncTerrainCards() {
         characterId: entry.characterId,
         cardIndex: entry.cardIndex,
         faceDown: entry.faceDown,
+        upsideDown: Boolean(entry.upsideDown),
         cardId: entry.card?.id,
+        sourceDeck: entry.sourceDeck ?? entry.card?.sourceDeck ?? null,
+        sourceBack: entry.sourceBack ?? entry.card?.sourceBack ?? null,
         x: entry.x,
         y: entry.y,
         cardData: entry.card,
@@ -2194,7 +2213,7 @@ function buildEncyclopediaCardEntries() {
     .filter(card => !usedGameIds.has(card.id))
     .map((card, index) => ({
       ...card,
-      art: CARD_FACE_ART[card.id] ?? cardRegistryFaceArt(card.id) ?? null,
+      art: preferredCardFaceArt(card.id),
       gameId: card.id,
       inGame: true,
       encyclopediaNumber: registryEntries.length + index + 1,
@@ -2249,6 +2268,7 @@ function renderEncyclopediaCardGroups(cardEntries) {
 
   const deckGroups = [
     { title: 'Смешанный грунт', deck: 'mixed' },
+    { title: 'Лесная тропа', deck: 'forest_trail' },
     { title: 'Колода Лес', deck: 'forest' },
     { title: 'Тёмный лес', deck: 'dark_forest' },
     { title: 'Бараны', deck: 'sheep' },
@@ -2258,14 +2278,18 @@ function renderEncyclopediaCardGroups(cardEntries) {
     { title: 'Красная колода', deck: 'red' },
     { title: 'Таинственная опушка', deck: 'fairy_glade' },
   ].map(group => {
-    const ids = catalog
-      .filter(card => card.deck === group.deck && Number(card.copies) > 0)
-      .map(card => card.id);
+    const deckCounts = deckCardCountsFor(group.deck);
+    const ids = deckCounts
+      ? Object.keys(deckCounts)
+      : catalog
+        .filter(card => card.deck === group.deck && Number(card.copies) > 0)
+        .map(card => card.id);
     const cards = ids.map(id => {
       const catalogCard = catalog.find(card => card.id === id);
       return encyclopediaEntryForCard(id, byId, {
         deck: group.deck,
-        copies: catalogCard?.copies,
+        copies: deckCardCount(group.deck, id) ?? catalogCard?.copies,
+        backDeck: group.deck,
       });
     }).filter(Boolean);
     const total = cards.reduce((sum, card) => sum + (Number(card.copies) || 0), 0);
@@ -2286,7 +2310,7 @@ function encyclopediaEntryForCard(cardId, byId, overrides = {}) {
     id: cardId,
     gameId: cardId,
     inGame: true,
-    art: base.art ?? CARD_FACE_ART[cardId] ?? cardRegistryFaceArt(cardId) ?? null,
+    art: base.art ?? preferredCardFaceArt(cardId),
     ...overrides,
   };
 }
@@ -2307,7 +2331,7 @@ function renderEncyclopediaCard(card) {
   const role = card.role && card.role !== '*' ? ` · ${escapeHtml(card.role)}` : '';
   const copiesLabel = copies === 0 ? 'трофей/событие' : copies === null ? 'не в игровой колоде' : `${copies} шт.`;
   const grantId = card.gameId ?? card.id;
-  const backId = card.gameId ?? card.id;
+  const backArt = card.backDeck ? cardBackArtByDeck(card.backDeck) : cardBackArt(card.gameId ?? card.id);
   const numberLabel = Number.isFinite(card.encyclopediaNumber)
     ? `№${String(card.encyclopediaNumber).padStart(3, '0')}`
     : '№---';
@@ -2317,7 +2341,7 @@ function renderEncyclopediaCard(card) {
   return `<article class="encyclopedia-card card-${cardClassToken(meta.type)} deck-${cardClassToken(meta.deck)}">`
     + `<button class="encyclopedia-card-toggle" type="button" aria-label="Перевернуть ${escapeHtml(meta.name)}">`
     +   `<span class="encyclopedia-face encyclopedia-face-front">${renderCardFace({ ...meta, art: card.art }, 'gallery')}</span>`
-    +   `<span class="encyclopedia-face encyclopedia-face-back"><img src="${cardBackArt(backId)}" alt="" draggable="false" /></span>`
+    +   `<span class="encyclopedia-face encyclopedia-face-back"><img src="${backArt}" alt="" draggable="false" /></span>`
     + `</button>`
     + `<div class="encyclopedia-card-body">`
     +   `<div class="encyclopedia-card-number">${escapeHtml(numberLabel)}</div>`
@@ -2333,8 +2357,8 @@ function renderEncyclopediaCard(card) {
 function renderCookbookRecipe([item, recipe]) {
   const options = recipeOptions(recipe);
   const role = [...new Set(options.map(option => ROLE_NAMES[option.role] ?? option.role))].join(' / ');
-  const via = getCardName(recipe.via);
-  const result = getCardName(recipe.result);
+  const via = cardLabel(recipe.via);
+  const result = cardLabel(recipe.result);
   const materialText = recipeMaterialsText(recipe);
   const dice = recipeDiceText(recipe);
   return `<article class="cookbook-recipe">`
@@ -2513,7 +2537,7 @@ function hasInventoryCard(char, cardId) {
 }
 
 function slotLabel(slot) {
-  return slot.map(cardLabel).join(' или ');
+  return [...new Set(slot.map(cardLabel))].join(' или ');
 }
 
 function recipeOptions(recipe) {
@@ -5086,6 +5110,15 @@ const CARD_DECK_LABELS = {
   unknown: 'карта',
 };
 
+function deckCardCountsFor(deck) {
+  return serverDeckCardCounts?.[deck] ?? null;
+}
+
+function deckCardCount(deck, cardId) {
+  const count = deckCardCountsFor(deck)?.[cardId];
+  return Number.isFinite(count) ? count : null;
+}
+
 function cardVisualMeta(card) {
   const id = card?.id ?? '';
   const serverCard = serverCardMeta(id) ?? {};
@@ -5153,7 +5186,7 @@ function renderCard(c, i = 0, forceOpen = false, ownerCharacterId = null) {
   const faceOwnerId = ownerCharacterId ?? selected?.id ?? null;
   const manuallyFaceDown = faceOwnerId && Number.isInteger(i) && faceDownCards.has(`${faceOwnerId}:${i}`);
   const showBack = c.exhausted || c.hidden || manuallyFaceDown;
-  const faceArt = showBack ? cardBackArt(c.id) : cardFaceArtUrl(art);
+  const faceArt = showBack ? cardBackArtForCard(c) : cardFaceArtUrl(art);
   const desc = hasDesc && open ? `<div class="card-desc">${escapeHtml(cardDesc)}</div>` : '';
   const face = faceArt
     ? `<img class="inventory-card-art" src="${faceArt}" alt="${escapeHtml(visualMeta.name)}" draggable="false" />`
@@ -5667,7 +5700,7 @@ function renderCbxCard(c, charId, i) {
   const visualMeta = cardVisualMeta(c);
   const art = cardFaceArt(c);
   const faceDown = faceDownCards.has(`${charId}:${i}`);
-  const imageSrc = (c.exhausted || faceDown) ? cardBackArt(c.id) : cardFaceArtUrl(art);
+  const imageSrc = (c.exhausted || faceDown) ? cardBackArtForCard(c) : cardFaceArtUrl(art);
   const face = imageSrc
     ? `<img class="cbx-card-art" src="${imageSrc}" alt="" draggable="false" />`
     : renderGeneratedCardArt(c, 'cbx');
@@ -6009,10 +6042,15 @@ function renderCombatBoardElements(fogCircles) {
     const rect = placeTerrainCard({ x: tc.x, y: tc.y }, w, h, terrainAvoidCenters, placedTerrainRects);
     const { x, y } = rect;
     placedTerrainRects.push(rect);
-    const terrainCardData = { ...(tc.cardData ?? {}), id: cardId ?? tc.cardData?.id };
+    const terrainCardData = {
+      ...(tc.cardData ?? {}),
+      id: cardId ?? tc.cardData?.id,
+      sourceDeck: tc.sourceDeck ?? tc.cardData?.sourceDeck ?? null,
+      sourceBack: tc.sourceBack ?? tc.cardData?.sourceBack ?? null,
+    };
     const art = cardFaceArt(cardId) ?? cardFaceArt(terrainCardData);
     const imageHref = tc.faceDown
-      ? cardBackArt(cardId)
+      ? cardBackArtForCard(terrainCardData)
       : cardFaceArtUrl(art);
 
     // Анимация переворота: запускаем, если сторона карты сменилась с прошлого рендера
@@ -6041,6 +6079,9 @@ function renderCombatBoardElements(fogCircles) {
       img.setAttribute('width', w.toFixed(2));
       img.setAttribute('height', h.toFixed(2));
       img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      if (!tc.faceDown && tc.upsideDown) {
+        img.setAttribute('transform', `rotate(180 ${(x + w / 2).toFixed(2)} ${(y + h / 2).toFixed(2)})`);
+      }
       gEl.appendChild(img);
     } else {
       const fallback = document.createElementNS(svgNS, 'foreignObject');
@@ -6049,6 +6090,9 @@ function renderCombatBoardElements(fogCircles) {
       fallback.setAttribute('width', w.toFixed(2));
       fallback.setAttribute('height', h.toFixed(2));
       fallback.setAttribute('requiredExtensions', 'http://www.w3.org/1999/xhtml');
+      if (!tc.faceDown && tc.upsideDown) {
+        fallback.setAttribute('transform', `rotate(180 ${(x + w / 2).toFixed(2)} ${(y + h / 2).toFixed(2)})`);
+      }
       appendGeneratedCardArt(fallback, tc.cardData ?? { id: cardId }, 'terrain');
       gEl.appendChild(fallback);
     }
@@ -7057,6 +7101,9 @@ function buildEventOverlay() {
           <button class="event-icon-btn event-flip-btn" id="eventFlipBtn" aria-label="Рубашкой вверх" title="Рубашкой вверх" disabled>
             <img src="./assets/ui/card-actions/card-flip-v5.png?v=${APP_VERSION}" alt="" draggable="false" />
           </button>
+          <button class="event-icon-btn event-upside-btn" id="eventUpsideBtn" aria-label="Вверх ногами" title="Вверх ногами" disabled>
+            <img src="./assets/ui/card-actions/card-flip-v5.png?v=${APP_VERSION}" alt="" draggable="false" />
+          </button>
           <button class="event-icon-btn event-transfer-btn" id="eventTransferBtn" aria-label="Карты команды" title="Карты команды" disabled>
             <img src="./assets/ui/card-actions/card-team-v5.png?v=${APP_VERSION}" alt="" draggable="false" />
           </button>
@@ -7170,12 +7217,14 @@ function confirmDiscardCard(card) {
 
 function setOpenCardActions(actions = {}) {
   const flipBtn = eventOverlayEl.querySelector('#eventFlipBtn');
+  const upsideBtn = eventOverlayEl.querySelector('#eventUpsideBtn');
   const transferBtn = eventOverlayEl.querySelector('#eventTransferBtn');
   const returnBtn = eventOverlayEl.querySelector('#eventReturnBtn');
   const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
   const okBtn = eventOverlayEl.querySelector('#eventOkBtn');
 
   setCardActionButton(flipBtn, Boolean(actions.flip), actions.flip, actions.flipLabel ?? 'Рубашкой вверх');
+  setCardActionButton(upsideBtn, Boolean(actions.upsideDown), actions.upsideDown, actions.upsideDownLabel ?? 'Вверх ногами');
   setCardActionButton(transferBtn, Boolean(actions.transfer), actions.transfer, 'Карты команды');
   setCardActionButton(returnBtn, Boolean(actions.returnToInventory), actions.returnToInventory, 'Вернуть в инвентарь');
   setCardActionButton(deleteBtn, Boolean(actions.discard), actions.discard, 'Удалить карту');
@@ -7191,6 +7240,7 @@ class GameCard {
     terrainId = null,
     ownerId = null,
     faceDown = false,
+    upsideDown = false,
     hidden = false,
   } = {}) {
     this.card = card;
@@ -7200,6 +7250,7 @@ class GameCard {
     this.terrainId = terrainId;
     this.ownerId = ownerId;
     this.faceDown = faceDown;
+    this.upsideDown = upsideDown;
     this.hidden = hidden;
   }
 
@@ -7219,6 +7270,7 @@ class GameCard {
       terrainId,
       ownerId: terrainCard.ownerId,
       faceDown: Boolean(terrainCard.faceDown),
+      upsideDown: Boolean(terrainCard.upsideDown),
       hidden: Boolean(terrainCard.faceDown),
     });
   }
@@ -7271,6 +7323,13 @@ class GameCard {
             }
           : null,
       flipLabel: (canUseTerrainActions ? this.faceDown : handFaceDown) ? 'Лицом вверх' : 'Рубашкой вверх',
+      upsideDown: canUseTerrainActions && !this.faceDown
+        ? () => {
+            wsSend('action:terrainFlip', { id: this.terrainId, upsideDown: !this.upsideDown });
+            hideEventOverlay();
+          }
+        : null,
+      upsideDownLabel: this.upsideDown ? 'Обычным положением' : 'Вверх ногами',
       transfer: (this.isOwn && this.location !== 'preview' && !isSpectator())
         ? () => {
             hideEventOverlay();
@@ -7303,6 +7362,7 @@ function showGameCard(gameCard, { closeLabel = 'Закрыть', dim = false } =
     display.innerHTML = renderCard(gameCard.renderCard, gameCard.renderIndex, true, gameCard.characterId);
     const cardEl = display.querySelector('.card');
     if (cardEl && dim) cardEl.style.opacity = '0.7';
+    if (cardEl && gameCard.upsideDown && !gameCard.faceDown) cardEl.classList.add('card-upside-down');
     setOpenCardActions({
       ...gameCard.actions(render),
       closeLabel,
@@ -7335,7 +7395,7 @@ function showCardReveal(card) {
   const front = professionDrawEl.querySelector('#profdrawFront');
   const hint = professionDrawEl.querySelector('#profdrawHint');
 
-  back.src = cardBackArt(card.id);
+  back.src = cardBackArtForCard(card);
   front.innerHTML = renderCard(card, 999, true);
   cardEl.classList.remove('is-flipped', 'is-leaving');
   hint.textContent = 'Нажмите карту, чтобы перевернуть';
@@ -7371,6 +7431,7 @@ function showFoundCard(card, isDiscarded = false, overrideTitle = null) {
   const title = eventOverlayEl.querySelector('#eventTitle');
   const display = eventOverlayEl.querySelector('#eventCardDisplay');
   const flipBtn = eventOverlayEl.querySelector('#eventFlipBtn');
+  const upsideBtn = eventOverlayEl.querySelector('#eventUpsideBtn');
   const transferBtn = eventOverlayEl.querySelector('#eventTransferBtn');
   const returnBtn = eventOverlayEl.querySelector('#eventReturnBtn');
   const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
@@ -7382,6 +7443,7 @@ function showFoundCard(card, isDiscarded = false, overrideTitle = null) {
   
   display.innerHTML = renderCard(card, 999, true); // true = forceOpen
   setOpenCardActions({ closeLabel: 'Принять' });
+  setCardActionButton(upsideBtn, false, null, 'Вверх ногами');
   const cardEl = display.querySelector('.card');
   if (cardEl) {
     if (isDiscarded) cardEl.style.opacity = '0.7';
@@ -7395,6 +7457,7 @@ function showOakAcornsChoice(choice) {
   const title = eventOverlayEl.querySelector('#eventTitle');
   const display = eventOverlayEl.querySelector('#eventCardDisplay');
   const flipBtn = eventOverlayEl.querySelector('#eventFlipBtn');
+  const upsideBtn = eventOverlayEl.querySelector('#eventUpsideBtn');
   const transferBtn = eventOverlayEl.querySelector('#eventTransferBtn');
   const returnBtn = eventOverlayEl.querySelector('#eventReturnBtn');
   const deleteBtn = eventOverlayEl.querySelector('#eventDeleteBtn');
@@ -7404,6 +7467,7 @@ function showOakAcornsChoice(choice) {
   title.classList.remove('hidden');
   title.style.color = 'var(--gold)';
   setCardActionButton(flipBtn, false, null, 'Рубашкой вверх');
+  setCardActionButton(upsideBtn, false, null, 'Вверх ногами');
   setCardActionButton(transferBtn, false, null, 'Карты команды');
   setCardActionButton(returnBtn, false, null, 'Вернуть в инвентарь');
   setCardActionButton(deleteBtn, false, null, 'Удалить карту');
@@ -7583,7 +7647,10 @@ function logRemoteActionResult(result) {
   }
   if (result.terrainFlipped) {
     const flipped = result.terrainFlipped;
-    lines.push(`${flipped.name}: ${flipped.faceDown ? 'рубашкой вверх' : 'лицом вверх'}.`);
+    const orientation = flipped.faceDown
+      ? 'рубашкой вверх'
+      : (flipped.upsideDown ? 'лицом вверх, вверх ногами' : 'лицом вверх');
+    lines.push(`${flipped.name}: ${orientation}.`);
   }
   if (result.debugGranted) {
     const granted = result.debugGranted;
@@ -7889,7 +7956,9 @@ function handleActionResult(result) {
 
   if (result.terrainFlipped) {
     const flipped = result.terrainFlipped;
-    const state = flipped.faceDown ? 'неактивна, рубашкой вверх' : 'активна, лицом вверх';
+    const state = flipped.faceDown
+      ? 'неактивна, рубашкой вверх'
+      : (flipped.upsideDown ? 'активна, лицом вверх, вверх ногами' : 'активна, лицом вверх');
     showToast(`${flipped.name}: ${state}`, 'info');
     addLog(`${flipped.name}: ${state}.`, { type: 'my' });
   }

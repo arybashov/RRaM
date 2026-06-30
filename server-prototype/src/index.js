@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createStore } from './game-state.js';
 import { ClientCommand, ServerEvent, GAME_COMMANDS } from './protocol.js';
 import { runBotTurn } from './bot.js';
+import { DECK_CARD_COUNTS } from './rules.js';
 import { registerAdmin } from './admin.js';
 import { registerAuth, getAuthUserFromRequest } from './auth.js';
 import { createAuthStore } from './auth-store.js';
@@ -42,21 +43,6 @@ app.get('/health', async () => ({
   service: 'rram-server-prototype',
 }));
 
-app.get('/*', async (req, reply) => {
-  if (!existsSync(WEB_ROOT)) {
-    return reply.code(404).send('Not found');
-  }
-  const url = new URL(req.raw.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
-  const cleanPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
-  const filePath = resolve(WEB_ROOT, `.${cleanPath}`);
-  if (!isPathInside(filePath, WEB_ROOT) || !existsSync(filePath)) {
-    return reply.code(404).send('Not found');
-  }
-  return reply
-    .type(mimeFor(filePath))
-    .send(createReadStream(filePath));
-});
-
 app.get('/ws', { websocket: true }, (socket, req) => {
   const connectionId = randomUUID();
   const now = Date.now();
@@ -84,6 +70,7 @@ app.get('/ws', { websocket: true }, (socket, req) => {
     localActionJournal: DEBUG_COMMANDS_ENABLED,
     authUser,
     cardCatalog: [...CARD_CATALOG, ...BASE_CARD_CATALOG],
+    deckCardCounts: DECK_CARD_COUNTS,
     craftRecipes: CRAFT_RECIPES,
   });
 
@@ -102,6 +89,21 @@ app.get('/ws', { websocket: true }, (socket, req) => {
     // Уход игрока мог освободить/удалить публичную комнату — обновим списки.
     broadcastLobby();
   });
+});
+
+app.get('/*', async (req, reply) => {
+  if (!existsSync(WEB_ROOT)) {
+    return reply.code(404).send('Not found');
+  }
+  const url = new URL(req.raw.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+  const cleanPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
+  const filePath = resolve(WEB_ROOT, `.${cleanPath}`);
+  if (!isPathInside(filePath, WEB_ROOT) || !existsSync(filePath)) {
+    return reply.code(404).send('Not found');
+  }
+  return reply
+    .type(mimeFor(filePath))
+    .send(createReadStream(filePath));
 });
 
 await app.listen({ port: PORT, host: HOST });

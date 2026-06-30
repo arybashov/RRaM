@@ -53,10 +53,10 @@ function startsWithBlueprint(name) {
 test('card catalog totals are stable', () => {
   assert.equal(BASE_CARD_CATALOG.length, 11);
   assert.equal(copies(BASE_CARD_CATALOG), 11);
-  assert.equal(CARD_CATALOG.length, 124);
-  assert.equal(copies(CARD_CATALOG), 123);
-  assert.equal(allCards.length, 135);
-  assert.equal(copies(allCards), 134);
+  assert.equal(CARD_CATALOG.length, 125);
+  assert.equal(copies(CARD_CATALOG), 122);
+  assert.equal(allCards.length, 136);
+  assert.equal(copies(allCards), 133);
 });
 
 test('card ids are unique across base and draw catalogs', () => {
@@ -72,14 +72,14 @@ test('draw deck card counts are stable', () => {
         .map((deck) => [deck, { unique: byDeck(deck).length, copies: copies(byDeck(deck)) }]),
     ),
     {
-      blueprints: { unique: 19, copies: 19 },
-      dark_forest: { unique: 25, copies: 14 },
+      blueprints: { unique: 22, copies: 19 },
+      dark_forest: { unique: 25, copies: 15 },
       fairy_glade: { unique: 6, copies: 4 },
-      forest: { unique: 18, copies: 26 },
+      forest: { unique: 19, copies: 26 },
       lake: { unique: 7, copies: 7 },
       mixed: { unique: 4, copies: 20 },
       recipes: { unique: 28, copies: 16 },
-      red: { unique: 10, copies: 10 },
+      red: { unique: 7, copies: 8 },
       sheep: { unique: 4, copies: 7 },
       trophy: { unique: 3, copies: 0 },
     },
@@ -222,6 +222,7 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
     dark_forest: {
       art_dark_forest_001: 1,
       art_dark_forest_002: 1,
+      art_trophy_002: 1,
       black_berries: 2,
       dead_ore: 6,
       red_berries: 2,
@@ -283,11 +284,9 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
     },
     red: {
       art_trophy_001: 1,
-      art_trophy_002: 1,
       axe_sun: 1,
       beast_bear: 2,
       boar_red: 2,
-      task_irikon: 1,
       wolf: 2,
     },
     sheep: {
@@ -306,22 +305,184 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
   }
 });
 
-test('long gameplay audit: created games build full shuffled decks from the catalog', () => {
-  const drawDecks = ['mixed', 'forest', 'dark_forest', 'sheep', 'lake', 'recipes', 'blueprints'];
-  const expectedDrawDecks = Object.fromEntries(
-    drawDecks.map((deck) => [
-      deck,
-      countIds(byDeck(deck).flatMap((card) => Array.from({ length: card.copies }, () => card.id))),
-    ]),
-  );
-  const expectedRedDeck = countIds(
-    CARD_CATALOG
-      .filter((card) => card.deck === 'red' && card.id !== 'irikon')
-      .flatMap((card) => Array.from(
-        { length: card.id === 'beast_bear' ? Math.max(card.copies, 4) : card.copies },
-        () => card.id,
-      )),
-  );
+test('long gameplay audit: created games build decks from the JSON separator inventory', () => {
+  const expectedDrawDecks = {
+    mixed: {
+      amanita: 6,
+      art_mixed_001: 13,
+      art_mixed_003: 3,
+      boar_forest: 6,
+      gold_nugget: 6,
+      hide_red: 6,
+      ore_coarse: 14,
+      raw_hide: 6,
+    },
+    forest_trail: {
+      amanita: 4,
+      amanita_glade: 1,
+      art_forest_003: 6,
+      art_forest_005: 3,
+      art_forest_007: 3,
+      art_forest_011: 3,
+      art_forest_012: 2,
+      art_mixed_001: 4,
+      bark: 4,
+      black_berries: 3,
+      boar_forest: 5,
+      gold_nugget: 2,
+      hide_red: 5,
+      owl_night: 5,
+      raw_hide: 5,
+      red_berries: 2,
+    },
+    forest: {
+      amanita: 2,
+      art_dark_forest_001: 3,
+      art_dark_forest_002: 3,
+      art_forest_003: 2,
+      art_forest_011: 2,
+      art_lake_007: 2,
+      art_mixed_001: 2,
+      art_mixed_003: 2,
+      art_recipes_016: 3,
+      bark: 4,
+      black_berries: 2,
+      hide_red: 3,
+      owl_common: 2,
+      owl_night: 1,
+      raw_hide: 3,
+      recipe_sprouted_root: 2,
+      shaman_cauldron: 2,
+      wolf: 3,
+    },
+    dark_forest: {
+      amanita: 1,
+      art_dark_forest_001: 5,
+      art_dark_forest_002: 6,
+      art_forest_003: 2,
+      art_forest_005: 2,
+      art_forest_007: 4,
+      art_forest_011: 7,
+      art_mixed_001: 7,
+      art_trophy_002: 2,
+      bark: 3,
+      bear_hide: 2,
+      hide_red: 2,
+      ore_medium: 7,
+      owl_night: 1,
+      red_berries: 1,
+    },
+    sheep: {
+      art_forest_016: 8,
+      sheep_hide_c: 8,
+      sheep_hide_r: 8,
+      sheep_ram: 8,
+      sheep_wool: 8,
+      yarn: 8,
+    },
+    lake: {
+      art_lake_001: 3,
+      art_lake_002: 3,
+      art_lake_003: 3,
+      art_lake_004: 3,
+      art_lake_007: 3,
+      art_trophy_001: 2,
+      bear_hide: 2,
+      hide_red: 2,
+      lake_frog: 2,
+      raw_ruby: 3,
+    },
+    recipes: {
+      armor_zhest: 2,
+      art_recipes_003: 2,
+      art_recipes_004: 2,
+      art_recipes_005: 2,
+      art_recipes_007: 2,
+      art_recipes_008: 2,
+      art_recipes_009: 2,
+      art_recipes_010: 2,
+      art_recipes_011: 2,
+      art_recipes_012: 2,
+      art_recipes_013: 2,
+      art_recipes_014: 2,
+      art_recipes_017: 2,
+      art_recipes_018: 2,
+      art_recipes_019: 2,
+      art_recipes_020: 2,
+      art_recipes_021: 2,
+      art_recipes_024: 2,
+      art_recipes_025: 2,
+      art_recipes_026: 2,
+      dil_bottle: 2,
+      leather_shirt: 2,
+      porcha: 2,
+      recipe_armor: 2,
+      recipe_dil_bottle: 2,
+      recipe_obrud: 2,
+      ritual_hide: 2,
+    },
+    blueprints: {
+      armor_il: 2,
+      art_dark_forest_003: 2,
+      art_dark_forest_004: 3,
+      art_dark_forest_005: 2,
+      art_dark_forest_007: 2,
+      art_dark_forest_008: 2,
+      art_dark_forest_009: 2,
+      art_dark_forest_011: 2,
+      art_dark_forest_013: 2,
+      art_dark_forest_015: 2,
+      art_dark_forest_017: 2,
+      art_dark_forest_019: 2,
+      art_dark_forest_020: 2,
+      art_dark_forest_021: 2,
+      art_dark_forest_026: 2,
+      art_dark_forest_029: 2,
+      art_dark_forest_030: 2,
+      art_dark_forest_031: 2,
+      art_dark_forest_033: 2,
+      art_dark_forest_034: 2,
+      art_dark_forest_035: 2,
+      art_dark_forest_037: 2,
+      art_dark_forest_038: 2,
+      art_dark_forest_039: 2,
+      art_dark_forest_040: 2,
+      art_dark_forest_041: 2,
+      art_dark_forest_043: 2,
+      axe_sun: 2,
+      chainmail_light: 2,
+      helm_shem: 2,
+      helm_ttm: 2,
+      irikon: 2,
+      return_ring: 2,
+      shield_dr: 2,
+      shield_kalan: 2,
+      shield_lom: 2,
+      shield_revenge: 2,
+      sword_lorp: 2,
+      sword_sech: 2,
+      task_irikon: 2,
+      topormol: 2,
+    },
+  };
+  const expectedRedDeck = {
+    art_trophy_001: 2,
+    art_trophy_002: 2,
+    bear_hide: 4,
+    boar_red: 2,
+    hide_red: 7,
+    raw_hide_red: 3,
+    wolf: 1,
+  };
+  const expectedFairyDeck = {
+    art_fairy_glade_001: 2,
+    art_fairy_glade_005: 2,
+    art_mixed_003: 4,
+    gold_feather_enemy: 1,
+    gold_feather_own: 1,
+    phoenix_1: 2,
+  };
+  const drawDecks = Object.keys(expectedDrawDecks);
 
   for (let run = 0; run < 25; run += 1) {
     const game = createGame(makePlayers());
@@ -331,5 +492,7 @@ test('long gameplay audit: created games build full shuffled decks from the cata
     }
     assert.deepEqual(countIds(game.redDeck), expectedRedDeck, `run ${run} red event deck`);
     assert.equal(game.redDeck.includes('irikon'), false, `run ${run} red deck excludes irikon`);
+    assert.equal(game.redDeck.includes('task_irikon'), false, `run ${run} red deck excludes task_irikon`);
+    assert.deepEqual(countIds(game.fairyDeck), expectedFairyDeck, `run ${run} fairy event deck`);
   }
 });

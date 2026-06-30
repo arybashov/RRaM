@@ -432,7 +432,15 @@ function normalizePersistedRoom(room) {
 
 // id карты → представление для клиента. Неизвестный id (легаси) показываем как есть.
 // Карта-результат крафта показывается открытой, если персонаж её скрафтил.
-function cardView(id, character) {
+function sourceView(source) {
+  if (!source || typeof source !== 'object') return { sourceDeck: null, sourceBack: null };
+  const sourceDeck = source.sourceDeck ?? source.deck ?? null;
+  const sourceBack = source.sourceBack ?? source.backDeck ?? sourceDeck;
+  return { sourceDeck, sourceBack };
+}
+
+function cardView(id, character, source = null) {
+  const sourceInfo = sourceView(source);
   const card = CARD_BY_ID[id];
   if (!card) return {
     id,
@@ -442,6 +450,7 @@ function cardView(id, character) {
     desc: '',
     exhausted: character?.exhaustedCards?.includes(id) ?? false,
     visibleToOpponent: false,
+    ...sourceInfo,
   };
   const locked = (card.locked ?? false) && !character?.crafted?.includes(id);
   return {
@@ -452,6 +461,7 @@ function cardView(id, character) {
     desc: card.desc ?? '',
     exhausted: character?.exhaustedCards?.includes(id) ?? false,
     visibleToOpponent: card.public === true && !locked,
+    ...sourceInfo,
   };
 }
 
@@ -475,12 +485,14 @@ function beastFightView(beastFight) {
 
 function frogSpellView(frogSpell) {
   if (!frogSpell) return null;
+  const sourceInfo = sourceView(frogSpell.source);
   return {
     cardId: frogSpell.cardId,
     name: frogSpell.name ?? CARD_BY_ID[frogSpell.cardId]?.name ?? frogSpell.cardId,
     casterId: frogSpell.casterId ?? null,
     ownerId: frogSpell.ownerId ?? null,
     dischargeTotal: frogSpell.dischargeTotal ?? 8,
+    ...sourceInfo,
   };
 }
 
@@ -513,6 +525,7 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
     deckCounts: {
       mixed: game.deck.length,
       ...Object.fromEntries(Object.entries(game.decks ?? {}).map(([deck, cards]) => [deck, cards.length])),
+      fairy_glade: game.fairyDeck?.length ?? 0,
       red: game.redDeck?.length ?? 0,
     },
     redDeckCount: game.redDeck?.length ?? 0,
@@ -526,12 +539,14 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
         characterId: entry.characterId,
         cardIndex: entry.cardIndex,
         faceDown: Boolean(entry.faceDown),
+        upsideDown: Boolean(entry.upsideDown),
+        ...sourceView(entry.source),
         x: entry.x,
         y: entry.y,
         card: hiddenFromViewer
           ? { id: null, name: 'Закрытая карта', type: 'hidden', desc: '', hidden: true }
-          : cardView(entry.cardId, character),
-        };
+          : cardView(entry.cardId, character, entry.source),
+      };
       }),
     dwarves: dwarfStateView(game.dwarves, visible),
     turn: {
@@ -557,6 +572,7 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
     },
     characters: game.characters.map((c) => {
       const beacon = c.inventory?.some((id) => GOLD_FEATHER_CARDS.includes(id)) ?? false;
+      const inventorySources = Array.isArray(c.inventorySources) ? c.inventorySources : [];
       // Враг вне радиуса тумана — позицию скрываем (фишка не рисуется)
       const fogged = visible
         && c.owner !== forPlayerId
@@ -580,11 +596,11 @@ export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllIn
         // Полный инвентарь — только владельцу. Отдельные открытые карты
         // видны сопернику без раскрытия остальной руки.
         inventory: c.owner === forPlayerId || revealAllInventories
-          ? c.inventory.map((id) => cardView(id, c))
+          ? c.inventory.map((id, index) => cardView(id, c, inventorySources[index]))
           : undefined,
         publicCards: c.owner !== forPlayerId
           ? c.inventory
-              .map((id) => cardView(id, c))
+              .map((id, index) => cardView(id, c, inventorySources[index]))
               .filter((card) => card.visibleToOpponent)
           : [],
       };

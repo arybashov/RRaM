@@ -42,6 +42,8 @@ const LABEL_TO_DECK = {
   "Красная колода": "red",
   "Трофеи": "trophy",
 };
+const DECK_TO_LABEL = Object.fromEntries(Object.entries(LABEL_TO_DECK).map(([label, deck]) => [deck, label]));
+const ITEM_DECK_LABEL_OVERRIDE_IDS = new Set(["art_trophy_002"]);
 
 function readable(value) {
   if (value == null) return "";
@@ -326,6 +328,10 @@ function buildData(project, registry, gameData) {
 
   const rowsByKey = new Map();
   for (const { item, section } of itemSections) {
+    const itemId = item.cardId || item.registryId || "";
+    const useItemDeckLabel = ITEM_DECK_LABEL_OVERRIDE_IDS.has(itemId) && item.deck;
+    const deckLabel = useItemDeckLabel ? (DECK_TO_LABEL[item.deck] || item.deck) : section.label;
+    const deckKey = useItemDeckLabel ? item.deck : (section.deckKey || item.deck || "");
     const name = readable(item.name || "");
     const cardKey = canonKey(item.cardKey, name);
     const reg = registryById.get(item.registryId) || registryById.get(item.cardId) || registryByName.get(cardKey) || {};
@@ -335,7 +341,7 @@ function buildData(project, registry, gameData) {
       deckLabels: new Set(),
       deckKeys: new Set(),
       countsByDeck: new Map(),
-      deckKey: section.deckKey || item.deck || "",
+      deckKey,
       name,
       type: readable(reg.type || gameMeta.type || item.type || ""),
       count: 0,
@@ -349,9 +355,9 @@ function buildData(project, registry, gameData) {
       itemDecks: [],
     };
     row.count += 1;
-    row.deckLabels.add(section.label);
-    if (section.deckKey) row.deckKeys.add(section.deckKey);
-    row.countsByDeck.set(section.label, (row.countsByDeck.get(section.label) || 0) + 1);
+    row.deckLabels.add(deckLabel);
+    if (deckKey) row.deckKeys.add(deckKey);
+    row.countsByDeck.set(deckLabel, (row.countsByDeck.get(deckLabel) || 0) + 1);
     const projectDesc = projectDescByKey.get(cardKey) || "";
     const desc = projectDesc || fallbackDescByKey.get(cardKey) || readable(reg.desc || gameMeta.desc || "");
     if (desc) row.descriptions.add(desc);

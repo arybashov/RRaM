@@ -5,7 +5,7 @@
     "height": 1760
   },
   "backgroundDataUrl": "",
-  "pdfPage": 106,
+  "pdfPage": 3,
   "placed": [
     {
       "page": 1,
@@ -7383,7 +7383,7 @@
       "cardId": "art_trophy_002",
       "registryId": "art_trophy_002",
       "name": "Агрессивный бурый медведь",
-      "deck": "red",
+      "deck": "dark_forest",
       "art": "generated-frame-highres-text/beasts-hides/beasts-hides-002-style-v1-card-highres-text",
       "face": "front",
       "x": 626,
@@ -7470,7 +7470,7 @@
       "cardId": "art_trophy_002",
       "registryId": "art_trophy_002",
       "name": "Агрессивный бурый медведь",
-      "deck": "red",
+      "deck": "dark_forest",
       "art": "generated-frame-highres-text/beasts-hides/beasts-hides-002-style-v1-card-highres-text",
       "face": "front",
       "x": 640,
@@ -7488,8 +7488,8 @@
       "deck": "base",
       "art": "backs/base-cards",
       "face": "back",
-      "x": 1119,
-      "y": 244,
+      "x": 70,
+      "y": 613,
       "w": 92
     },
     {
@@ -13802,6 +13802,7 @@
       "cardKey": "name:чертеж на дубину"
     },
     {
+      "page": 33,
       "uid": "c1039",
       "kind": "card",
       "cardId": "art_forest_012",
@@ -13810,7 +13811,6 @@
       "deck": "forest",
       "art": "generated-frame-highres-text/forest/forest-012-style-v1-card-highres-text",
       "face": "front",
-      "page": 33,
       "x": 1177,
       "y": 1248,
       "w": 92,
@@ -17592,7 +17592,7 @@
     {
       "uid": "s9",
       "page": 61,
-      "y": 20,
+      "y": 412,
       "label": "Чертежи"
     },
     {

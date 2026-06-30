@@ -53,6 +53,7 @@ const FIREWOOD_BEAST_DAMAGE_REDUCTION = 5;
 const FIREWOOD_PLAYER_DAMAGE_MULTIPLIER = 2;
 const OAK_ACORNS_CARD = 'art_forest_003';
 const OAK_ACORNS_COOLDOWN_ROLLS = 4;
+const SMITH_CRAFT_TOOLS = Object.freeze(['irikon', 'art_dark_forest_020', 'hammer']);
 // Дварфы выходят из ворот после 5-го полного круга основных игроков.
 const DWARF_ENTRY_TURN = 5;
 const DWARF_UNITS = Object.freeze([
@@ -91,6 +92,7 @@ export function createGame(players) {
         position: startCell(side, role),
         hp: CHARACTER_HP,
         inventory: [...(BASE_CARDS[role] ?? [])],
+        inventorySources: (BASE_CARDS[role] ?? []).map(() => cardSource('base')),
         exhaustedCards: [],
         combatOpponentId: null,
         beastFight: null, // { cardId, successes } — схватка со зверем с красной клетки
@@ -114,6 +116,7 @@ export function createGame(players) {
     deck: buildDeck(),
     decks: buildDecks(),
     redDeck: buildRedDeck(),
+    fairyDeck: buildFairyDeck(),
     discard: [],
     terrainCards: [],
     dwarves: createDwarfState(),
@@ -230,7 +233,7 @@ function debugGrantCard(game, playerId, { characterId, cardId } = {}) {
   if (!card) {
     throw new Error('Неизвестная карта для отладочной выдачи.');
   }
-  character.inventory.push(cardId);
+  addInventoryCard(character, cardId, sourceForCardId(cardId));
   if (card.locked && !character.crafted?.includes(cardId)) {
     character.crafted ??= [];
     character.crafted.push(cardId);
@@ -392,6 +395,25 @@ function isDrawEncounterBeast(cardId) {
   return CARD_BY_ID[cardId]?.type === 'beast' && cardId !== 'sheep_ram';
 }
 
+const PROFESSION_ONLY_DECKS = new Set(['recipes']);
+
+function isCellDrawDeck(deck) {
+  return Boolean(deck && deck !== 'fairy_glade' && !PROFESSION_ONLY_DECKS.has(deck));
+}
+
+function canDrawCardFromCellDeck(deckName, cardId) {
+  if (deckName === 'blueprints') return CARD_BY_ID[cardId]?.type !== 'blueprint';
+  return true;
+}
+
+function cellDrawIndexes(pile, deckName, count) {
+  const indexes = [];
+  for (let index = 0; index < pile.length && indexes.length < count; index += 1) {
+    if (canDrawCardFromCellDeck(deckName, pile[index])) indexes.push(index);
+  }
+  return indexes;
+}
+
 function drawCardsFromCurrentCell(game, playerId, character) {
   if (!isDrawCell(character.position)) {
     throw new Error('Взять карту можно только на точке ресурса.');
@@ -415,10 +437,14 @@ function drawCardsFromCurrentCell(game, playerId, character) {
   const drawDeckName = drawDeckForCell(character.position);
   const drawPile = drawPileForDeck(game, drawDeckName);
   const drawCount = 1 + bonusToolCount;
-  if (drawPile.length < drawCount) {
+  const previewIndexes = cellDrawIndexes(drawPile, drawDeckName, drawCount);
+  if (previewIndexes.length < drawCount) {
     throw new Error('Колода пуста.');
   }
-  const preview = drawPile.slice(0, drawCount);
+  if (character.inventory.length >= INVENTORY_LIMIT) {
+    throw new Error('Инвентарь персонажа полон.');
+  }
+  const preview = previewIndexes.map((index) => drawPile[index]);
   const firstBeastIndex = preview.findIndex(isDrawEncounterBeast);
   const revealedPreview = firstBeastIndex >= 0 ? preview.slice(0, firstBeastIndex + 1) : preview;
   const inventoryDrawCount = revealedPreview.filter((cardId) => !isDrawEncounterBeast(cardId)).length;
@@ -428,18 +454,20 @@ function drawCardsFromCurrentCell(game, playerId, character) {
       : `Для действия нужно ${inventoryDrawCount} свободных места в инвентаре.`);
   }
 
-  const cardIds = drawPile.splice(0, revealedPreview.length);
+  const cardIndexes = previewIndexes.slice(0, revealedPreview.length);
+  const cardIds = cardIndexes.map((index) => drawPile[index]);
+  [...cardIndexes].sort((a, b) => b - a).forEach((index) => drawPile.splice(index, 1));
   let beastCardId = null;
   const inventoryCardIds = [];
   for (const cardId of cardIds) {
     if (isDrawEncounterBeast(cardId)) {
       beastCardId = cardId;
-      character.beastFight = { cardId, successes: 0, cellId: character.position };
+      character.beastFight = beastFightState(cardId, character.position, cardSource(drawDeckName));
       break;
     }
     inventoryCardIds.push(cardId);
   }
-  character.inventory.push(...inventoryCardIds);
+  addInventoryCards(character, inventoryCardIds, cardSource(drawDeckName));
   for (const card of placedTools) card.faceDown = true;
 
   const cards = cardIds.map((cardId) => {
@@ -524,7 +552,7 @@ function drawProfession(game, playerId, { characterId, dieIndex } = {}) {
   }
 
   const cardId = pile.shift();
-  character.inventory.push(cardId);
+  addInventoryCard(character, cardId, cardSource(deckName));
   markCharacterDrawnThisTurn(game, character.id);
   lockMovement(game);
   spendDie(game, dieIndex);
@@ -587,9 +615,11 @@ function transfer(game, playerId, { fromId, toId, dieIndex, cardIndex } = {}) {
 
   const count = Math.min(limit, from.inventory.length, capacity);
   const cards = from.inventory.slice(0, count);
+  const sources = ensureInventorySources(from).slice(0, count);
   assertCardTransferAllowed(from, to, cards);
   from.inventory.splice(0, count);
-  to.inventory.push(...cards);
+  from.inventorySources.splice(0, count);
+  addInventoryCards(to, cards, sources);
   moveExhaustedCards(from, to, cards);
   lockMovement(game);
   spendDie(game, dieIndex);
@@ -605,8 +635,8 @@ function discardCard(game, playerId, { characterId, cardIndex } = {}) {
   if (NON_DISCARDABLE_CARDS.has(character.inventory[cardIndex])) {
     throw new Error('Эту базовую карту нельзя удалить.');
   }
-  const [cardId] = character.inventory.splice(cardIndex, 1);
-  game.discard.push(cardId);
+  const { cardId, source } = removeInventoryCard(character, cardIndex);
+  addDiscardCard(game, cardId, source);
   const exhaustedIndex = character.exhaustedCards?.indexOf(cardId) ?? -1;
   if (exhaustedIndex !== -1) {
     character.exhaustedCards.splice(exhaustedIndex, 1);
@@ -632,10 +662,10 @@ function moveOneCard(game, playerId, fromId, toId, cardIndex) {
   }
   const card = from.inventory[cardIndex];
   assertCardTransferAllowed(from, to, [card]);
-  from.inventory.splice(cardIndex, 1);
-  to.inventory.push(card);
-  moveExhaustedCards(from, to, [card]);
-  return card;
+  const { cardId, source } = removeInventoryCard(from, cardIndex);
+  addInventoryCard(to, cardId, source);
+  moveExhaustedCards(from, to, [cardId]);
+  return cardId;
 }
 
 function assertCardTransferAllowed(from, to, cardIds) {
@@ -682,14 +712,15 @@ function checkFeatherVictory(game, character) {
 }
 
 function isDrawCell(cellId) {
-  if (cellTerrain(cellId) === 'resource') return true;
   const deck = cellDeck(cellId);
-  return Boolean(deck && deck !== 'fairy_glade');
+  if (PROFESSION_ONLY_DECKS.has(deck)) return false;
+  if (cellTerrain(cellId) === 'resource') return true;
+  return isCellDrawDeck(deck);
 }
 
 function drawDeckForCell(cellId) {
   const deck = cellDeck(cellId);
-  if (deck && deck !== 'fairy_glade') return deck;
+  if (isCellDrawDeck(deck)) return deck;
   return 'mixed';
 }
 
@@ -787,6 +818,14 @@ function moveExhaustedCards(from, to, cardIds) {
       to.crafted.push(cardId);
     }
   }
+}
+
+function activeTerrainCardsForCharacter(game, character, cardId) {
+  return (game.terrainCards ?? []).filter((card) =>
+    card.ownerId === character.owner
+    && card.characterId === character.id
+    && card.cardId === cardId
+    && !card.faceDown);
 }
 
 export function availableMoveTargets(game, playerId, characterId, dieIndex) {
@@ -974,7 +1013,7 @@ function move(game, playerId, {
   if (escapedCombat) clearCombat(game, character);
   if (escapedBeast) {
     if (character.beastFight?.fromInventory) {
-      character.inventory.push(character.beastFight.cardId);
+      addInventoryCard(character, character.beastFight.cardId, character.beastFight.source);
     }
     character.beastFight = null; // движение — побег от зверя
   }
@@ -1040,17 +1079,18 @@ function drawRedEvent(game, character) {
     game.redDeck = buildRedDeck();
   }
   cardId = game.redDeck.shift();
+  const source = cardSource('red');
   const card = CARD_BY_ID[cardId];
   const beast = card?.type === 'beast';
   let acquired = false;
   let discarded = false;
   if (beast) {
-    character.beastFight = { cardId, successes: 0, cellId: character.position };
+    character.beastFight = beastFightState(cardId, character.position, source);
   } else if (character.inventory.length < INVENTORY_LIMIT) {
-    character.inventory.push(cardId);
+    addInventoryCard(character, cardId, source);
     acquired = true;
   } else {
-    game.discard.push(cardId);
+    addDiscardCard(game, cardId, source);
     discarded = true;
   }
   return {
@@ -1081,12 +1121,12 @@ function drawFairyEvent(game, character) {
   let acquired = false;
   let discarded = false;
   if (beast) {
-    character.beastFight = { cardId, successes: 0, cellId: character.position };
+    character.beastFight = beastFightState(cardId, character.position, cardSource('fairy_glade'));
   } else if (character.inventory.length < INVENTORY_LIMIT) {
-    character.inventory.push(cardId);
+    addInventoryCard(character, cardId, cardSource('fairy_glade'));
     acquired = true;
   } else {
-    game.discard.push(cardId);
+    addDiscardCard(game, cardId, cardSource('fairy_glade'));
     discarded = true;
   }
   return {
@@ -1114,13 +1154,8 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
     if (ramIndex === -1) {
       throw new Error('Персонаж не сражается со зверем.');
     }
-    character.inventory.splice(ramIndex, 1);
-    character.beastFight = {
-      cardId: 'sheep_ram',
-      successes: 0,
-      cellId: character.position,
-      fromInventory: true,
-    };
+    const ram = removeInventoryCard(character, ramIndex);
+    character.beastFight = beastFightState(ram.cardId, character.position, ram.source, { fromInventory: true });
   }
   const beast = BEASTS[character.beastFight.cardId];
   if (!beast) {
@@ -1173,16 +1208,16 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
   let hide = null;
   let trophy = null;
   if (killed) {
-    const { cardId } = character.beastFight;
+    const { cardId, source } = character.beastFight;
     character.beastFight = null;
     // С убитого зверя падает «Шкура убитого зверя» (сырая), сама туша — в сброс.
-    game.discard.push(cardId);
+    addDiscardCard(game, cardId, source);
     hide = BEAST_HIDE_DROP[cardId] ?? null;
     if (hide) {
       if (character.inventory.length < INVENTORY_LIMIT) {
-        character.inventory.push(hide);
+        addInventoryCard(character, hide);
       } else {
-        game.discard.push(hide); // нет места — шкура уходит в сброс
+        addDiscardCard(game, hide); // нет места — шкура уходит в сброс
         hide = null;
       }
     }
@@ -1190,9 +1225,9 @@ function fightBeast(game, playerId, { characterId, dieIndex } = {}) {
     trophy = BEAST_TROPHY_DROP[cardId] ?? null;
     if (trophy) {
       if (character.inventory.length < INVENTORY_LIMIT) {
-        character.inventory.push(trophy);
+        addInventoryCard(character, trophy);
       } else {
-        game.discard.push(trophy); // нет места — трофей уходит в сброс
+        addDiscardCard(game, trophy); // нет места — трофей уходит в сброс
         trophy = null;
       }
     }
@@ -1265,7 +1300,7 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
   if (escapedCombat) clearCombat(game, character);
   if (escapedBeast) {
     if (character.beastFight?.fromInventory) {
-      character.inventory.push(character.beastFight.cardId);
+      addInventoryCard(character, character.beastFight.cardId, character.beastFight.source);
     }
     character.beastFight = null;
   }
@@ -1287,7 +1322,7 @@ function teleport(game, playerId, { characterId, toCell, dieIndex } = {}) {
   };
 }
 
-function terrainPlace(game, playerId, { id, characterId, cardIndex, x, y, faceDown = false } = {}) {
+function terrainPlace(game, playerId, { id, characterId, cardIndex, x, y, faceDown = false, upsideDown = false } = {}) {
   assertActive(game, playerId);
   const character = ownCharacter(game, playerId, characterId);
   const cardId = character.inventory[cardIndex];
@@ -1303,14 +1338,16 @@ function terrainPlace(game, playerId, { id, characterId, cardIndex, x, y, faceDo
   if (game.terrainCards.some((card) => card.id === id)) {
     throw new Error('Карта уже выложена на террейн.');
   }
-  character.inventory.splice(cardIndex, 1);
+  const removed = removeInventoryCard(character, cardIndex);
   game.terrainCards.push({
     id,
     ownerId: playerId,
     characterId,
     cardIndex,
     cardId,
+    source: removed.source,
     faceDown: faceDown === true,
+    upsideDown: faceDown === true ? false : upsideDown === true,
     x,
     y,
   });
@@ -1320,8 +1357,108 @@ function terrainPlace(game, playerId, { id, characterId, cardIndex, x, y, faceDo
       cardId,
       name: CARD_BY_ID[cardId]?.name ?? cardId,
       faceDown: faceDown === true,
+      upsideDown: faceDown === true ? false : upsideDown === true,
     },
   };
+}
+
+function cardSource(sourceDeck = null, sourceBack = null) {
+  const deck = sourceDeck ?? null;
+  const back = sourceBack ?? deck;
+  return deck || back ? { sourceDeck: deck, sourceBack: back } : null;
+}
+
+function sourceForCardId(cardId) {
+  return cardSource(CARD_BY_ID[cardId]?.deck ?? null);
+}
+
+function beastFightState(cardId, cellId, source = null, extra = {}) {
+  const state = {
+    cardId,
+    successes: 0,
+    cellId,
+    ...extra,
+  };
+  Object.defineProperty(state, 'source', {
+    value: normalizeCardSource(source) ?? sourceForCardId(cardId),
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+  return state;
+}
+
+function normalizeCardSource(source) {
+  if (!source || typeof source !== 'object') return null;
+  return cardSource(source.sourceDeck ?? source.deck ?? null, source.sourceBack ?? source.backDeck ?? source.sourceDeck ?? source.deck ?? null);
+}
+
+function ensureInventorySources(character) {
+  if (!Array.isArray(character.inventorySources)) {
+    character.inventorySources = Array.from({ length: character.inventory?.length ?? 0 }, () => null);
+  }
+  while (character.inventorySources.length < character.inventory.length) {
+    character.inventorySources.push(null);
+  }
+  if (character.inventorySources.length > character.inventory.length) {
+    character.inventorySources.length = character.inventory.length;
+  }
+  return character.inventorySources;
+}
+
+function inventorySourceAt(character, index) {
+  const sources = ensureInventorySources(character);
+  return normalizeCardSource(sources[index]);
+}
+
+function addInventoryCard(character, cardId, source = null, index = null) {
+  const sources = ensureInventorySources(character);
+  const normalizedSource = normalizeCardSource(source) ?? sourceForCardId(cardId);
+  if (Number.isInteger(index)) {
+    const insertAt = Math.max(0, Math.min(index, character.inventory.length));
+    character.inventory.splice(insertAt, 0, cardId);
+    sources.splice(insertAt, 0, normalizedSource);
+    return;
+  }
+  character.inventory.push(cardId);
+  sources.push(normalizedSource);
+}
+
+function addInventoryCards(character, cardIds, sourceOrSources = null) {
+  cardIds.forEach((cardId, index) => {
+    const source = Array.isArray(sourceOrSources) ? sourceOrSources[index] : sourceOrSources;
+    addInventoryCard(character, cardId, source);
+  });
+}
+
+function removeInventoryCard(character, index) {
+  const sources = ensureInventorySources(character);
+  const [cardId] = character.inventory.splice(index, 1);
+  const [source] = sources.splice(index, 1);
+  return { cardId, source: normalizeCardSource(source) ?? sourceForCardId(cardId) };
+}
+
+function addDiscardCard(game, cardId, source = null) {
+  game.discard.push(cardId);
+  game.discardSources ??= [];
+  game.discardSources.push(normalizeCardSource(source) ?? sourceForCardId(cardId));
+}
+
+function addDiscardCards(game, entries) {
+  for (const entry of entries) {
+    if (typeof entry === 'string') addDiscardCard(game, entry);
+    else addDiscardCard(game, entry.cardId, entry.source);
+  }
+}
+
+function removeAllInventoryCards(character) {
+  const sources = ensureInventorySources(character);
+  const cards = character.inventory.splice(0);
+  const removedSources = sources.splice(0, cards.length);
+  return cards.map((cardId, index) => ({
+    cardId,
+    source: normalizeCardSource(removedSources[index]) ?? sourceForCardId(cardId),
+  }));
 }
 
 function terrainRemove(game, playerId, { id } = {}) {
@@ -1334,7 +1471,7 @@ function terrainRemove(game, playerId, { id } = {}) {
   const [terrainCard] = game.terrainCards.splice(index, 1);
   const character = ownCharacter(game, playerId, terrainCard.characterId);
   const insertAt = Math.min(terrainCard.cardIndex, character.inventory.length);
-  character.inventory.splice(insertAt, 0, terrainCard.cardId);
+  addInventoryCard(character, terrainCard.cardId, terrainCard.source, insertAt);
   return {
     terrainRemoved: {
       id,
@@ -1355,7 +1492,7 @@ function terrainDiscard(game, playerId, { id } = {}) {
     throw new Error('Эту базовую карту нельзя удалить.');
   }
   const [terrainCard] = game.terrainCards.splice(index, 1);
-  game.discard.push(terrainCard.cardId);
+  addDiscardCard(game, terrainCard.cardId, terrainCard.source);
   return {
     discardedCard: {
       characterId: terrainCard.characterId,
@@ -1365,20 +1502,29 @@ function terrainDiscard(game, playerId, { id } = {}) {
   };
 }
 
-function terrainFlip(game, playerId, { id, faceDown } = {}) {
+function terrainFlip(game, playerId, { id, faceDown, upsideDown } = {}) {
   assertActive(game, playerId);
   const terrainCard = game.terrainCards.find((card) => card.id === id);
   if (!terrainCard) throw new Error('Карта на террейне не найдена.');
   if (terrainCard.ownerId !== playerId) {
     throw new Error('Переворачивать карту может только владелец.');
   }
-  terrainCard.faceDown = typeof faceDown === 'boolean'
+  const nextFaceDown = typeof faceDown === 'boolean'
     ? faceDown
-    : !terrainCard.faceDown;
+    : typeof upsideDown === 'boolean'
+      ? terrainCard.faceDown
+      : !terrainCard.faceDown;
+  terrainCard.faceDown = nextFaceDown;
+  if (terrainCard.faceDown) {
+    terrainCard.upsideDown = false;
+  } else if (typeof upsideDown === 'boolean') {
+    terrainCard.upsideDown = upsideDown;
+  }
   return {
     terrainFlipped: {
       id,
       faceDown: terrainCard.faceDown,
+      upsideDown: Boolean(terrainCard.upsideDown),
       cardId: terrainCard.cardId,
       name: CARD_BY_ID[terrainCard.cardId]?.name ?? terrainCard.cardId,
     },
@@ -1476,7 +1622,9 @@ function processHide(game, playerId, { characterId, dieIndex, cardIndex } = {}) 
   if (success) {
     cleaned = RAW_HIDE_TO_CLEAN[rawId];
     produced = Array.isArray(cleaned) ? cleaned : [cleaned];
-    character.inventory.splice(rawIndex, 1, ...produced);
+    const rawSource = inventorySourceAt(character, rawIndex);
+    removeInventoryCard(character, rawIndex);
+    produced.forEach((cardId, offset) => addInventoryCard(character, cardId, rawSource, rawIndex + offset));
   }
   return {
     hideProcessed: {
@@ -1503,12 +1651,12 @@ function useGoldNugget(game, playerId, { characterId, cardIndex, terrainCardId }
   }
   const before = character.hp;
   character.hp = Math.min(CHARACTER_HP, character.hp + 20);
-  const cardId = spendUsableCard(game, character, source);
-  game.discard.push(cardId);
+  const spent = spendUsableCard(game, character, source);
+  addDiscardCard(game, spent.cardId, spent.source);
   return {
     goldNuggetUsed: {
       characterId,
-      cardId,
+      cardId: spent.cardId,
       source: source.source,
       healed: character.hp - before,
       hp: character.hp,
@@ -1540,14 +1688,14 @@ function useDeadOre(game, playerId, { characterId, cardIndex, terrainCardId, dec
     throw new Error('Выбранная колода пуста.');
   }
   const spent = spendUsableCard(game, character, source);
-  game.discard.push(spent);
+  addDiscardCard(game, spent.cardId, spent.source);
   const cardId = pile.shift();
-  character.inventory.push(cardId);
+  addInventoryCard(character, cardId, cardSource(deck));
   const card = CARD_BY_ID[cardId];
   return {
     deadOreUsed: {
       characterId,
-      spent,
+      spent: spent.cardId,
       source: source.source,
       deck,
       card: cardId,
@@ -1590,10 +1738,11 @@ function useOakAcorns(game, playerId, { characterId, cardIndex, terrainCardId, c
 
   const deck = drawDeckForCell(character.position);
   const pile = drawPileForDeck(game, deck);
-  if (pile.length < 2) {
+  const previewIndexes = cellDrawIndexes(pile, deck, 2);
+  if (previewIndexes.length < 2) {
     throw new Error('В колоде должно быть хотя бы две карты для выбора Дубовыми желудями.');
   }
-  const previewIds = pile.slice(0, 2);
+  const previewIds = previewIndexes.map((index) => pile[index]);
   const cards = previewIds.map((cardId) => {
     const card = CARD_BY_ID[cardId];
     return { card: cardId, name: card?.name, type: card?.type, desc: card?.desc };
@@ -1618,11 +1767,12 @@ function useOakAcorns(game, playerId, { characterId, cardIndex, terrainCardId, c
     throw new Error('Инвентарь персонажа полон.');
   }
 
-  const drawnIds = pile.splice(0, 2);
+  const drawnIds = previewIndexes.map((index) => pile[index]);
+  [...previewIndexes].sort((a, b) => b - a).forEach((index) => pile.splice(index, 1));
   const chosenId = drawnIds[choiceIndex];
   const discardedId = drawnIds[choiceIndex === 0 ? 1 : 0];
-  character.inventory.push(chosenId);
-  game.discard.push(discardedId);
+  addInventoryCard(character, chosenId, cardSource(deck));
+  addDiscardCard(game, discardedId, cardSource(deck));
   character.oakAcornsReadyRoll = currentRoll + OAK_ACORNS_COOLDOWN_ROLLS;
 
   const chosen = CARD_BY_ID[chosenId];
@@ -1697,9 +1847,10 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, ta
   if (caster.beastFight && (!targetId || targetId === caster.id)) {
     const spent = spendUsableCard(game, caster, source);
     const beastId = caster.beastFight.cardId;
+    const beastSource = caster.beastFight.source;
     const beastCard = CARD_BY_ID[beastId];
     caster.beastFight = null;
-    game.discard.push(beastId);
+    addDiscardCard(game, beastId, beastSource);
 
     const returned = returnLakeFrogCard(game, caster.id, spent);
     const hide = addRewardCard(game, caster, BEAST_HIDE_DROP[beastId] ?? null);
@@ -1709,8 +1860,8 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, ta
         mode: 'beast',
         casterId: caster.id,
         targetId: caster.id,
-        cardId: spent,
-        name: CARD_BY_ID[spent]?.name ?? config.selfName,
+        cardId: spent.cardId,
+        name: CARD_BY_ID[spent.cardId]?.name ?? config.selfName,
         source: source.source,
         beastId,
         beastName: beastCard?.name ?? beastId,
@@ -1734,11 +1885,12 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, ta
     }
     const spent = spendUsableCard(game, caster, source);
     dwarfTarget.frogSpell = {
-      cardId: spent,
+      cardId: spent.cardId,
+      source: spent.source,
       casterId: caster.id,
       ownerId: playerId,
       dischargeTotal: config.dischargeTotal,
-      name: CARD_BY_ID[spent]?.name ?? config.selfName,
+      name: CARD_BY_ID[spent.cardId]?.name ?? config.selfName,
     };
     return {
       lakeFrogUsed: {
@@ -1746,7 +1898,7 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, ta
         casterId: caster.id,
         targetId: dwarfTarget.id,
         targetName: dwarfTarget.name ?? 'Дварф',
-        cardId: spent,
+        cardId: spent.cardId,
         source: source.source,
         name: dwarfTarget.frogSpell.name,
         dischargeTotal: dwarfTarget.frogSpell.dischargeTotal,
@@ -1767,18 +1919,19 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, ta
 
   const spent = spendUsableCard(game, caster, source);
   target.frogSpell = {
-    cardId: spent,
+    cardId: spent.cardId,
+    source: spent.source,
     casterId: caster.id,
     ownerId: playerId,
     dischargeTotal: config.dischargeTotal,
-    name: CARD_BY_ID[spent]?.name ?? config.selfName,
+    name: CARD_BY_ID[spent.cardId]?.name ?? config.selfName,
   };
   return {
     lakeFrogUsed: {
       mode: 'player',
       casterId: caster.id,
       targetId: target.id,
-      cardId: spent,
+      cardId: spent.cardId,
       source: source.source,
       targetRole: target.role,
       name: target.frogSpell.name,
@@ -1790,20 +1943,22 @@ function useLakeFrog(game, playerId, { characterId, cardIndex, terrainCardId, ta
 function addRewardCard(game, character, cardId) {
   if (!cardId) return null;
   if (character.inventory.length < INVENTORY_LIMIT) {
-    character.inventory.push(cardId);
+    addInventoryCard(character, cardId);
     return cardId;
   }
-  game.discard.push(cardId);
+  addDiscardCard(game, cardId);
   return null;
 }
 
-function returnLakeFrogCard(game, casterId, cardId = 'lake_frog') {
+function returnLakeFrogCard(game, casterId, cardEntry = 'lake_frog') {
+  const cardId = typeof cardEntry === 'string' ? cardEntry : cardEntry?.cardId ?? 'lake_frog';
+  const source = typeof cardEntry === 'string' ? sourceForCardId(cardId) : cardEntry?.source;
   const caster = game.characters.find((character) => character.id === casterId && character.hp > 0);
   if (caster && caster.inventory.length < INVENTORY_LIMIT) {
-    caster.inventory.push(cardId);
+    addInventoryCard(caster, cardId, source);
     return { casterId: caster.id, discarded: false };
   }
-  game.discard.push(cardId);
+  addDiscardCard(game, cardId, source);
   return { casterId: casterId ?? null, discarded: true };
 }
 
@@ -1811,7 +1966,7 @@ function releaseLakeFrogSpell(game, target) {
   const spell = target?.frogSpell;
   if (!spell) return null;
   target.frogSpell = null;
-  const returned = returnLakeFrogCard(game, spell.casterId, spell.cardId);
+  const returned = returnLakeFrogCard(game, spell.casterId, { cardId: spell.cardId, source: spell.source });
   return {
     targetId: target.id,
     casterId: spell.casterId,
@@ -1869,7 +2024,7 @@ function useMarvo(game, playerId, { characterId, cardIndex, terrainCardId, dieIn
   lockMovement(game);
   spendDie(game, dieIndex);
   const spent = spendUsableCard(game, shaman, source);
-  game.discard.push(spent);
+  addDiscardCard(game, spent.cardId, spent.source);
 
   const hit = [];
   for (const target of targets) {
@@ -1982,10 +2137,9 @@ function findUsableCard(game, playerId, character, cardId, { cardIndex, terrainC
 function spendUsableCard(game, character, source) {
   if (source.source === 'terrain') {
     const [card] = game.terrainCards.splice(source.terrainIndex, 1);
-    return card.cardId;
+    return { cardId: card.cardId, source: normalizeCardSource(card.source) ?? sourceForCardId(card.cardId) };
   }
-  const [cardId] = character.inventory.splice(source.inventoryIndex, 1);
-  return cardId;
+  return removeInventoryCard(character, source.inventoryIndex);
 }
 
 // Крафт базового изделия по чертежу/рецепту (CRAFT_RECIPES, строго по PnP).
@@ -2049,19 +2203,22 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
   if (!materialMatches.length) {
     throw new Error('Не хватает материалов для изделия.');
   }
+  const smithCraftTool = character.role === 'K'
+    ? SMITH_CRAFT_TOOLS.find((cardId) => character.inventory.includes(cardId) || activeTerrainCardsForCharacter(game, character, cardId).length > 0)
+    : null;
   const diceAttempt = (option) => {
     if (!option.dice) return { canAttempt: true, values: [], success: true };
     if (!game.turn.dice) return { canAttempt: false, values: [], success: false };
     if (option.dice.count === 1) {
       if (!isDieIndex(dieIndex) || game.turn.usedDice[dieIndex]) return { canAttempt: false, values: [], success: false };
       const values = [game.turn.dice[dieIndex]];
-      return { canAttempt: true, values, success: values[0] >= option.dice.min };
+      return { canAttempt: true, values, success: smithCraftTool === 'irikon' || smithCraftTool === 'art_dark_forest_020' || values[0] >= option.dice.min };
     }
     if (game.turn.usedDice[0] || game.turn.usedDice[1]) {
       return { canAttempt: false, values: [], success: false };
     }
     const values = [...game.turn.dice];
-    return { canAttempt: true, values, success: values.every((value) => value >= option.dice.min) };
+    return { canAttempt: true, values, success: smithCraftTool === 'irikon' || smithCraftTool === 'art_dark_forest_020' || values.every((value) => value >= option.dice.min) };
   };
   if (materialMatches.some(({ option }) => option.dice)) {
     assertRolled(game);
@@ -2108,12 +2265,15 @@ function craft(game, playerId, { characterId, item = 'club', dieIndex } = {}) {
     .map((i) => character.inventory[i]);
   const removeIdx = [...materialRemoveIdx, character.inventory.indexOf(recipe.via)].sort((a, b) => b - a);
   const discarded = [];
+  const discardedEntries = [];
   for (const i of removeIdx) {
-    discarded.push(...character.inventory.splice(i, 1));
+    const removed = removeInventoryCard(character, i);
+    discarded.push(removed.cardId);
+    discardedEntries.push(removed);
   }
-  game.discard.push(...discarded);
+  addDiscardCards(game, discardedEntries);
   // Каждый новый чертёж/рецепт с новым комплектом материалов даёт ещё один экземпляр.
-  character.inventory.push(recipe.result);
+  addInventoryCard(character, recipe.result, sourceForCardId(recipe.result));
   if (!character.crafted.includes(recipe.result)) {
     character.crafted.push(recipe.result);
   }
@@ -2139,7 +2299,7 @@ function dischargeDot(game, playerId, { characterId, dotIndex = 0, dieIndex } = 
   const success = value >= dot.dischargeMin;
   if (success) {
     dots.splice(dotIndex, 1);
-    game.discard.push(dot.cardId);
+    addDiscardCard(game, dot.cardId, dot.source);
   }
   return {
     dotDischarged: {
@@ -2500,9 +2660,10 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
     // Ночной филин: защищающийся забирает одну карту из инвентаря нападающего.
     let stolen = null;
     if (t.stealCard && attackerInventory.length > 0) {
-      stolen = attackerInventory.shift();
-      if (defender.inventory.length < INVENTORY_LIMIT) defender.inventory.push(stolen);
-      else game.discard.push(stolen); // нет места — карта в сброс
+      const removed = removeInventoryCard(attacker, 0);
+      stolen = removed.cardId;
+      if (defender.inventory.length < INVENTORY_LIMIT) addInventoryCard(defender, stolen, removed.source);
+      else addDiscardCard(game, stolen, removed.source); // нет места — карта в сброс
     }
     if (!stolen && Array.isArray(t.stealFromRoles) && attacker.owner) {
       const source = t.stealFromRoles
@@ -2513,9 +2674,10 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
           && ch.inventory.length > 0))
         .find(Boolean);
       if (source) {
-        stolen = source.inventory.shift();
-        if (defender.inventory.length < INVENTORY_LIMIT) defender.inventory.push(stolen);
-        else game.discard.push(stolen);
+        const removed = removeInventoryCard(source, 0);
+        stolen = removed.cardId;
+        if (defender.inventory.length < INVENTORY_LIMIT) addInventoryCard(defender, stolen, removed.source);
+        else addDiscardCard(game, stolen, removed.source);
       }
     }
     // Порча: при уроне ≥ порога у каждого персонажа нападающего по 1 ингредиенту
@@ -2526,7 +2688,8 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
         if (ch.owner !== attacker.owner) continue;
         const idx = ch.inventory.findIndex((id) => CARD_BY_ID[id]?.type === 'ingredient');
         if (idx !== -1) {
-          game.discard.push(ch.inventory.splice(idx, 1)[0]);
+          const removed = removeInventoryCard(ch, idx);
+          addDiscardCard(game, removed.cardId, removed.source);
           purged += 1;
         }
       }
@@ -2537,6 +2700,7 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
       attacker.dots = attacker.dots ?? [];
       attacker.dots.push({
         cardId: card.cardId,
+        source: card.source,
         damagePerTurn: t.dot,
         dischargeMin: t.dischargeMin ?? 5,
         name: t.name ?? CARD_BY_ID[card.cardId]?.name ?? card.cardId,
@@ -2546,7 +2710,7 @@ function resolveDefenderTraps(game, attacker, defender, intendedDamage = 0) {
     } else if (t.consume) {
       const idx = game.terrainCards.indexOf(card);
       if (idx !== -1) game.terrainCards.splice(idx, 1);
-      game.discard.push(card.cardId);
+      addDiscardCard(game, card.cardId, card.source);
     } else {
       card.faceDown = false; // вскрыта, остаётся на поле
     }
@@ -3079,13 +3243,13 @@ function forwardDwarfRouteDistance(state, fromIndex, cellId) {
 
 function defeatByDwarf(game, target) {
   clearCombat(game, target);
-  const discarded = target.inventory.splice(0);
-  game.discard.push(...discarded);
+  const discardedEntries = removeAllInventoryCards(target);
+  addDiscardCards(game, discardedEntries);
   target.position = null;
   target.beastFight = null;
   target.dots = [];
   checkNeutralEliminationVictory(game, target.owner);
-  return discarded.length;
+  return discardedEntries.length;
 }
 
 function checkNeutralEliminationVictory(game, defeatedOwnerId) {
@@ -3285,7 +3449,7 @@ function applyTurnStartEffects(game, playerId) {
         releaseLakeFrogSpell(game, character);
         character.position = null;
         character.beastFight = null;
-        game.discard.push(...character.inventory.splice(0));
+        addDiscardCards(game, removeAllInventoryCards(character));
         if (!game.characters.some((c) => c.owner === playerId && c.hp > 0)) {
           game.over = true;
           game.winnerId = Object.keys(game.turn.rollsLeft)
@@ -3303,7 +3467,7 @@ function applyTurnStartEffects(game, playerId) {
         character.position = null;
         character.beastFight = null;
         character.dots = [];
-        game.discard.push(...character.inventory.splice(0));
+        addDiscardCards(game, removeAllInventoryCards(character));
         if (!game.characters.some((c) => c.owner === playerId && c.hp > 0)) {
           game.over = true;
           game.winnerId = Object.keys(game.turn.rollsLeft)
@@ -3390,10 +3554,13 @@ function defeatByPlayer(game, target, looter) {
   target.beastFight = null;
   target.position = null;
   const capacity = Math.max(0, INVENTORY_LIMIT - looter.inventory.length);
+  const sources = ensureInventorySources(target);
   const loot = target.inventory.splice(0, capacity);
+  const lootSources = sources.splice(0, loot.length);
   const overflow = target.inventory.splice(0);
-  looter.inventory.push(...loot);
-  game.discard.push(...overflow);
+  const overflowSources = sources.splice(0, overflow.length);
+  addInventoryCards(looter, loot, lootSources);
+  addDiscardCards(game, overflow.map((cardId, index) => ({ cardId, source: overflowSources[index] })));
   if (!game.characters.some((c) => c.owner === target.owner && c.hp > 0)) {
     game.over = true;
     game.winnerId = looter.owner;
@@ -3441,15 +3608,199 @@ function rollDie() {
   return Math.floor(Math.random() * 6) + 1;
 }
 
+export const DECK_CARD_COUNTS = Object.freeze({
+  mixed: Object.freeze({
+    ore_coarse: 14,
+    art_mixed_001: 13,
+    hide_red: 6,
+    raw_hide: 6,
+    boar_forest: 6,
+    gold_nugget: 6,
+    amanita: 6,
+    art_mixed_003: 3,
+  }),
+  forest_trail: Object.freeze({
+    art_forest_003: 6,
+    hide_red: 5,
+    raw_hide: 5,
+    boar_forest: 5,
+    owl_night: 5,
+    bark: 4,
+    art_mixed_001: 4,
+    amanita: 4,
+    art_forest_005: 3,
+    art_forest_007: 3,
+    black_berries: 3,
+    art_forest_011: 3,
+    red_berries: 2,
+    gold_nugget: 2,
+    art_forest_012: 2,
+    amanita_glade: 1,
+  }),
+  lake: Object.freeze({
+    art_lake_001: 3,
+    art_lake_002: 3,
+    art_lake_003: 3,
+    art_lake_004: 3,
+    raw_ruby: 3,
+    art_lake_007: 3,
+    lake_frog: 2,
+    hide_red: 2,
+    art_trophy_001: 2,
+    bear_hide: 2,
+  }),
+  forest: Object.freeze({
+    bark: 4,
+    art_recipes_016: 3,
+    hide_red: 3,
+    raw_hide: 3,
+    wolf: 3,
+    art_dark_forest_002: 3,
+    art_dark_forest_001: 3,
+    shaman_cauldron: 2,
+    art_forest_003: 2,
+    amanita: 2,
+    owl_common: 2,
+    art_forest_011: 2,
+    art_lake_007: 2,
+    art_mixed_003: 2,
+    recipe_sprouted_root: 2,
+    art_mixed_001: 2,
+    black_berries: 2,
+    owl_night: 1,
+  }),
+  dark_forest: Object.freeze({
+    art_forest_011: 7,
+    art_mixed_001: 7,
+    ore_medium: 7,
+    art_dark_forest_002: 6,
+    art_dark_forest_001: 5,
+    art_forest_007: 4,
+    bark: 3,
+    art_forest_003: 2,
+    art_forest_005: 2,
+    hide_red: 2,
+    bear_hide: 2,
+    amanita: 1,
+    red_berries: 1,
+    owl_night: 1,
+    art_trophy_002: 2,
+  }),
+  blueprints: Object.freeze({
+    art_dark_forest_004: 3,
+    art_dark_forest_003: 2,
+    art_dark_forest_005: 2,
+    chainmail_light: 2,
+    art_dark_forest_007: 2,
+    art_dark_forest_008: 2,
+    art_dark_forest_009: 2,
+    shield_dr: 2,
+    art_dark_forest_011: 2,
+    shield_lom: 2,
+    art_dark_forest_013: 2,
+    topormol: 2,
+    art_dark_forest_015: 2,
+    shield_kalan: 2,
+    art_dark_forest_017: 2,
+    sword_sech: 2,
+    art_dark_forest_019: 2,
+    art_dark_forest_020: 2,
+    art_dark_forest_021: 2,
+    task_irikon: 2,
+    axe_sun: 2,
+    irikon: 2,
+    art_dark_forest_026: 2,
+    sword_lorp: 2,
+    return_ring: 2,
+    art_dark_forest_029: 2,
+    art_dark_forest_030: 2,
+    art_dark_forest_031: 2,
+    shield_revenge: 2,
+    art_dark_forest_033: 2,
+    art_dark_forest_034: 2,
+    art_dark_forest_035: 2,
+    helm_shem: 2,
+    art_dark_forest_037: 2,
+    art_dark_forest_038: 2,
+    art_dark_forest_039: 2,
+    art_dark_forest_040: 2,
+    art_dark_forest_041: 2,
+    helm_ttm: 2,
+    art_dark_forest_043: 2,
+    armor_il: 2,
+  }),
+  recipes: Object.freeze({
+    recipe_armor: 2,
+    armor_zhest: 2,
+    ritual_hide: 2,
+    art_recipes_003: 2,
+    art_recipes_004: 2,
+    art_recipes_005: 2,
+    leather_shirt: 2,
+    art_recipes_007: 2,
+    art_recipes_008: 2,
+    art_recipes_009: 2,
+    art_recipes_010: 2,
+    art_recipes_011: 2,
+    art_recipes_012: 2,
+    art_recipes_013: 2,
+    art_recipes_014: 2,
+    recipe_dil_bottle: 2,
+    dil_bottle: 2,
+    art_recipes_017: 2,
+    art_recipes_018: 2,
+    art_recipes_019: 2,
+    art_recipes_020: 2,
+    art_recipes_021: 2,
+    porcha: 2,
+    recipe_obrud: 2,
+    art_recipes_024: 2,
+    art_recipes_025: 2,
+    art_recipes_026: 2,
+  }),
+  sheep: Object.freeze({
+    yarn: 8,
+    sheep_hide_c: 8,
+    sheep_wool: 8,
+    sheep_hide_r: 8,
+    sheep_ram: 8,
+    art_forest_016: 8,
+  }),
+  fairy_glade: Object.freeze({
+    art_mixed_003: 4,
+    art_fairy_glade_001: 2,
+    phoenix_1: 2,
+    art_fairy_glade_005: 2,
+    gold_feather_enemy: 1,
+    gold_feather_own: 1,
+  }),
+  red: Object.freeze({
+    hide_red: 7,
+    bear_hide: 4,
+    raw_hide_red: 3,
+    art_trophy_002: 2,
+    art_trophy_001: 2,
+    boar_red: 2,
+    wolf: 1,
+  }),
+});
+
 // Добор по рубашке клетки. Красная колода и Таинственная опушка обрабатываются
 // отдельными событиями, трофеи не входят в случайный добор.
-const DRAW_DECKS = Object.freeze(['mixed', 'forest', 'dark_forest', 'sheep', 'lake', 'recipes', 'blueprints']);
-const DRAW_DECK_ALIASES = Object.freeze({
-  forest_trail: 'forest',
-});
+const DRAW_DECKS = Object.freeze(['mixed', 'forest_trail', 'forest', 'dark_forest', 'sheep', 'lake', 'recipes', 'blueprints']);
+const DRAW_DECK_ALIASES = Object.freeze({});
 
 function buildDeck(deckName = 'mixed') {
   const deck = [];
+  const counts = DECK_CARD_COUNTS[deckName];
+  if (counts) {
+    for (const [cardId, copies] of Object.entries(counts)) {
+      for (let i = 0; i < copies; i += 1) {
+        deck.push(cardId);
+      }
+    }
+    return shuffle(deck);
+  }
   for (const card of CARD_CATALOG) {
     if (card.deck !== deckName) continue;
     for (let i = 0; i < card.copies; i += 1) {
@@ -3463,31 +3814,12 @@ function buildDecks() {
   return Object.fromEntries(DRAW_DECKS.map((deckName) => [deckName, buildDeck(deckName)]));
 }
 
-// Красная колода: все красные карты кроме Ирикона. Сам Ирикон доступен
-// только через крафт по чертежу, а медведь встречается чаще остальных зверей.
 function buildRedDeck() {
-  const deck = [];
-  for (const card of CARD_CATALOG) {
-    if (card.deck !== 'red' || card.id === 'irikon') continue;
-    const copies = card.id === 'beast_bear' ? Math.max(card.copies, 4) : card.copies;
-    for (let i = 0; i < copies; i += 1) {
-      deck.push(card.id);
-    }
-  }
-  return shuffle(deck);
+  return buildDeck('red');
 }
 
-// Таинственная опушка: все карты fairy_glade с copies > 0. Трофеи с copies:0
-// остаются вне случайной выдачи и появляются только через события/правила.
 function buildFairyDeck() {
-  const deck = [];
-  for (const card of CARD_CATALOG) {
-    if (card.deck !== 'fairy_glade') continue;
-    for (let i = 0; i < card.copies; i += 1) {
-      deck.push(card.id);
-    }
-  }
-  return shuffle(deck);
+  return buildDeck('fairy_glade');
 }
 
 function shuffle(cards) {
