@@ -203,11 +203,25 @@ function routeCommand(connectionId, message) {
       const now = Date.now();
       if (now - (client.lastChatAt ?? 0) < 400) break; // троттлинг от флуда
       client.lastChatAt = now;
+      if (client.role === 'spectator') {
+        const msg = {
+          scope: 'spectator',
+          name: spectatorNameFor(client, message.payload),
+          text,
+          ts: now,
+        };
+        for (const c of clients.values()) {
+          if (c.roomId === client.roomId && c.role === 'spectator') {
+            send(c.socket, 'chat:message', msg);
+          }
+        }
+        break;
+      }
       const player = room.players.find((p) => p.id === client.playerId);
       if (!player) break;
       const msg = { scope: 'room', name: player?.name ?? 'Игрок', text, ts: now };
       for (const c of clients.values()) {
-        if (c.roomId === client.roomId) send(c.socket, 'chat:message', msg);
+        if (c.roomId === client.roomId && c.role === 'player') send(c.socket, 'chat:message', msg);
       }
       break;
     }
@@ -376,10 +390,15 @@ function playerNameFor(client, payload = {}) {
   return client.user?.displayName ?? payload?.playerName;
 }
 
+function spectatorNameFor(client, payload = {}) {
+  const name = String(client.user?.displayName ?? payload?.name ?? '').trim().replace(/\s+/g, ' ');
+  return name ? name.slice(0, 32) : 'Зритель';
+}
+
 function snapshotForClient(room, client) {
   const spectator = client.role === 'spectator' || !client.playerId;
   return store.snapshot(room, spectator ? null : client.playerId, {
-    fogEnabled: spectator ? false : client.fogEnabled,
+    fogEnabled: spectator ? true : client.fogEnabled,
     revealAllInventories: DEBUG_COMMANDS_ENABLED && !spectator,
     spectator,
   });

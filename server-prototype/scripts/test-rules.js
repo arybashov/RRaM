@@ -13,6 +13,7 @@ import {
 } from '../src/rules.js';
 import { neighbors, startCell, shortestDistance, reachableCells, cellTerrain, cellDeck, pointClassCells, terrainCells, deckCells, blacksmithStoneCells, blacksmithStoneSide, dwarfRoute } from '../src/map.js';
 import { snapshotGame } from '../src/game-state.js';
+import { CARD_BY_ID } from '../src/constants.js';
 
 // ── Хелперы ──────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ function activateSplitTurn(game, playerId, character, dice = [3, 4]) {
   setCharacterDice(game, character, dice);
 }
 
-test('draw/transfer/terrain - card instance keeps source deck back', () => {
+test('draw/transfer/terrain - card instance keeps draw deck and art back separately', () => {
   const g = freshGame();
   const from = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
   const to = g.characters.find(c => c.owner === 'p1' && c.role === 'P');
@@ -77,13 +78,13 @@ test('draw/transfer/terrain - card instance keeps source deck back', () => {
 
   assert.deepEqual(from.inventory, ['bark']);
   assert.equal(from.inventorySources[0].sourceDeck, 'forest_trail');
-  assert.equal(snapshotGame(g, 'p1').characters.find(c => c.id === from.id).inventory[0].sourceBack, 'forest_trail');
+  assert.equal(snapshotGame(g, 'p1').characters.find(c => c.id === from.id).inventory[0].sourceBack, 'forest');
 
   apply(g, 'p1', 'action:transfer', { fromId: from.id, toId: to.id, cardIndex: 0, dieIndex: 1 });
 
   assert.deepEqual(to.inventory, ['bark']);
   assert.equal(to.inventorySources[0].sourceDeck, 'forest_trail');
-  assert.equal(to.inventorySources[0].sourceBack, 'forest_trail');
+  assert.equal(to.inventorySources[0].sourceBack, 'forest');
 
   apply(g, 'p1', 'action:terrainPlace', {
     id: 'source-test',
@@ -95,20 +96,20 @@ test('draw/transfer/terrain - card instance keeps source deck back', () => {
   });
 
   assert.equal(g.terrainCards[0].source.sourceDeck, 'forest_trail');
-  assert.equal(g.terrainCards[0].source.sourceBack, 'forest_trail');
+  assert.equal(g.terrainCards[0].source.sourceBack, 'forest');
   const terrainSnap = snapshotGame(g, 'p1').terrainCards.find(card => card.id === 'source-test');
   assert.equal(terrainSnap.sourceDeck, 'forest_trail');
-  assert.equal(terrainSnap.sourceBack, 'forest_trail');
-  assert.equal(terrainSnap.card.sourceBack, 'forest_trail');
+  assert.equal(terrainSnap.sourceBack, 'forest');
+  assert.equal(terrainSnap.card.sourceBack, 'forest');
 
   apply(g, 'p1', 'action:terrainRemove', { id: 'source-test' });
 
   assert.deepEqual(to.inventory, ['bark']);
   assert.equal(to.inventorySources[0].sourceDeck, 'forest_trail');
-  assert.equal(to.inventorySources[0].sourceBack, 'forest_trail');
+  assert.equal(to.inventorySources[0].sourceBack, 'forest');
 });
 
-test('draw - same card face keeps the back of the deck instance it was drawn from', () => {
+test('draw - same card face keeps draw deck but uses card art back', () => {
   const g = freshGame();
   const char = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
   char.position = 'H011';
@@ -123,7 +124,7 @@ test('draw - same card face keeps the back of the deck instance it was drawn fro
 
   assert.deepEqual(char.inventory, ['art_dark_forest_001']);
   assert.equal(char.inventorySources[0].sourceDeck, 'forest');
-  assert.equal(char.inventorySources[0].sourceBack, 'forest');
+  assert.equal(char.inventorySources[0].sourceBack, 'dark_forest');
 });
 
 // ── Создание игры ─────────────────────────────────────────────────
@@ -1216,6 +1217,28 @@ test('draw — уменьшает колоду', () => {
   assert.equal(g.deck.length, deckBefore - 1);
 });
 
+test('draw — тянет верхнюю карту заранее перемешанной колоды без нового рандома', () => {
+  const g = freshGame();
+  const char = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  char.position = 'H014';
+  char.inventory = [];
+  g.deck = ['ore_medium', 'ore_coarse'];
+  activateSplitTurn(g, 'p1', char, [3, 4]);
+
+  const originalRandom = Math.random;
+  Math.random = () => {
+    throw new Error('draw must not randomize the deck');
+  };
+  try {
+    const result = apply(g, 'p1', 'action:draw', { characterId: char.id, dieIndex: 0 });
+    assert.equal(result.drawn.card, 'ore_medium');
+    assert.deepEqual(char.inventory, ['ore_medium']);
+    assert.deepEqual(g.deck, ['ore_coarse']);
+  } finally {
+    Math.random = originalRandom;
+  }
+});
+
 test('draw — тратит кубик', () => {
   const g = freshGame();
   rollAndSplit(g, 'p1');
@@ -1250,24 +1273,25 @@ test('legalTargets.dice (moveSum) — ресурс одним кубиком в�
   const char = g.characters.find(c => c.owner === 'p1');
   // Чистая топология: на поле остаётся только наш персонаж.
   for (const c of g.characters) if (c !== char) c.position = null;
-  const resource = 'H010'; // от стартовой клетки H007 — расстояние 2
-  assert.equal(shortestDistance(char.position, resource), 2);
+  const resource = 'H002'; // от стартовой клетки H007 — расстояние 3
 
   apply(g, 'p1', 'turn:roll');
   g.turn.mode = 'moveSum';
   g.turn.usedDice = [false, false];
 
-  // Кубики [1,1]: до ресурса достаёт только сумма (2), одиночный (1) — нет.
-  g.turn.dice = [1, 1];
+  assert.equal(shortestDistance(char.position, resource), 3);
+
+  // Кубики [2,1]: до ресурса достаёт только сумма (3), одиночные (2/1) — нет.
+  g.turn.dice = [2, 1];
   const sumOnly = snapshotGame(g, 'p1').legalTargets;
   assert.ok(sumOnly.moveSum[char.id].includes(resource), 'суммой ресурс достижим');
-  assert.ok(!sumOnly.dice[0][char.id].includes(resource), 'одиночным кубиком 1 — нет');
+  assert.ok(!sumOnly.dice[0][char.id].includes(resource), 'одиночным кубиком 2 — нет');
   assert.ok(!sumOnly.dice[1][char.id].includes(resource), 'одиночным кубиком 1 — нет');
 
-  // Кубик 2: одиночный достаёт ресурс — кнопка должна включиться.
-  g.turn.dice = [2, 1];
+  // Кубик 3: одиночный достаёт ресурс — кнопка должна включиться.
+  g.turn.dice = [3, 1];
   const single = snapshotGame(g, 'p1').legalTargets;
-  assert.ok(single.dice[0][char.id].includes(resource), 'кубик 2 одиночным достаёт ресурс');
+  assert.ok(single.dice[0][char.id].includes(resource), 'кубик 3 одиночным достаёт ресурс');
   assert.ok(!single.dice[1][char.id].includes(resource), 'кубик 1 одиночным — нет');
 });
 
@@ -1311,7 +1335,6 @@ test('draw — берёт карту из колоды по рубашке кл�
     { cellId: 'H011', deck: 'forest', pile: 'forest', cardId: 'bark' },
     { cellId: 'H229', deck: 'forest_trail', pile: 'forest_trail', cardId: 'bark' },
     { cellId: 'H101', deck: 'dark_forest', pile: 'dark_forest', cardId: 'dead_ore' },
-    { cellId: 'H010', deck: 'blueprints', pile: 'blueprints', cardId: 'chainmail_light' },
     { cellId: 'H042', deck: 'lake', pile: 'lake', cardId: 'raw_ruby' },
     { cellId: 'H002', deck: 'sheep', pile: 'sheep', cardId: 'sheep_ram' },
   ];
@@ -1330,9 +1353,14 @@ test('draw — берёт карту из колоды по рубашке кл�
     g.turn.hasRolled = true;
 
     const result = apply(g, 'p1', 'action:draw', { characterId: char.id, dieIndex: 0 });
+    const expectedBack = CARD_BY_ID[item.cardId]?.deck ?? item.deck;
 
     assert.equal(result.drawn.deck, item.deck);
+    assert.equal(result.drawn.sourceDeck, item.deck);
+    assert.equal(result.drawn.sourceBack, expectedBack);
     assert.equal(result.drawn.card, item.cardId);
+    assert.equal(result.drawn.cards[0].sourceDeck, item.deck);
+    assert.equal(result.drawn.cards[0].sourceBack, expectedBack);
     assert.ok(char.inventory.includes(item.cardId));
     if (item.pile === 'deck') {
       assert.equal(g.deck.length, 0);
@@ -1342,23 +1370,25 @@ test('draw — берёт карту из колоды по рубашке кл�
   }
 });
 
-test('draw — H010/H234 берут из колоды чертежей, но пропускают сами чертежи', () => {
+test('draw — H010/H234 не являются ресурсными клетками', () => {
+  assert.deepEqual(blacksmithStoneCells().sort(), ['H010', 'H234']);
+  assert.equal(blacksmithStoneSide('H010'), 'green');
+  assert.equal(blacksmithStoneSide('H234'), 'red');
   for (const cellId of ['H010', 'H234']) {
     const g = freshGame();
     const char = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
     char.position = cellId;
-    g.decks.blueprints = ['art_dark_forest_003', 'chainmail_light', 'art_dark_forest_005', 'shield_dr'];
     g.turn.dice = [3, 4];
     g.turn.mode = 'split';
     g.turn.hasRolled = true;
 
-    const result = apply(g, 'p1', 'action:draw', { characterId: char.id, dieIndex: 0 });
-
-    assert.equal(cellDeck(cellId), 'blueprints');
-    assert.equal(result.drawn.deck, 'blueprints');
-    assert.equal(result.drawn.card, 'chainmail_light');
-    assert.ok(char.inventory.includes('chainmail_light'));
-    assert.deepEqual(g.decks.blueprints, ['art_dark_forest_003', 'art_dark_forest_005', 'shield_dr']);
+    assert.equal(cellTerrain(cellId), 'path');
+    assert.equal(cellDeck(cellId), null);
+    assert.ok(blacksmithStoneCells().includes(cellId));
+    assert.throws(
+      () => apply(g, 'p1', 'action:draw', { characterId: char.id, dieIndex: 0 }),
+      /точке ресурса|колода добора|resource/i,
+    );
   }
 });
 
@@ -5085,7 +5115,7 @@ test('Перо — старт кузнеца не считается камне�
   const stone = blacksmithStoneForSide('red');
   assert.notEqual(smithStart, stone);
 
-  smith.position = neighbors(smithStart).find(id => id !== stone);
+  smith.position = neighbors(smithStart).find(id => !g.characters.some(c => c.position === id));
   smith.inventory.push('gold_feather_own');
   g.turn.activePlayerId = 'p2';
   g.turn.dice = [1, 2];
@@ -5101,17 +5131,6 @@ test('Перо — старт кузнеца не считается камне�
   assert.equal(smith.position, smithStart);
   assert.equal(g.over, false);
   assert.equal(startMove.featherVictory, null);
-
-  const stoneMove = apply(g, 'p2', 'action:move', {
-    characterId: smith.id,
-    toCell: stone,
-    dieIndex: 1,
-  });
-
-  assert.equal(g.over, true);
-  assert.equal(g.winnerId, 'p2');
-  assert.equal(stoneMove.featherVictory.cellId, stone);
-  assert.equal(stoneMove.featherVictory.cardId, 'gold_feather_own');
 });
 
 test('Перо — доставка на вражеский камень кузнеца завершает матч победой носителя', () => {

@@ -90,13 +90,14 @@ test('spectator can watch an active public room from the lobby', async ({ browse
   await expect(spectator.getByTestId('turn-action')).toBeDisabled();
   await expect(spectator.getByTestId(/^character-/)).toHaveCount(0);
   await expect(spectator.locator('#guidePanel')).toBeHidden();
-  await expect(spectator.locator('#fogLayer')).toHaveCount(0);
-  await expect(spectator.locator('.fog-hidden')).toHaveCount(0);
+  await expect(spectator.locator('#fogLayer')).toHaveCount(1);
+  await expect(spectator.locator('.fog-hidden')).not.toHaveCount(0);
   await expect(spectator.locator('#sheet.spectator-sheet.open')).toHaveCount(1);
   await expect(spectator.locator('#inventory')).toBeHidden();
-  await expect(spectator.locator('#gameChatInput')).toBeHidden();
+  await expect(spectator.locator('#gameChatInput')).toBeVisible();
   await expect(spectator.locator('#localJournal')).toBeVisible();
-  await expect(spectator.locator('#localJournal h2')).toHaveText('События');
+  await expect(spectator.locator('#localJournal h2')).toHaveText('Чат зрителей');
+  await expect(spectator.locator('#log .log-entry')).toHaveCount(0);
 
   await expect.poll(() => spectator.evaluate(() => ({
     spectatorMode,

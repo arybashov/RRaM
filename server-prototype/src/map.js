@@ -55,7 +55,7 @@ export function cellSide(id) {
 
 export function isBlacksmithStoneCell(id) {
   const cell = cellsById.get(id);
-  return Boolean(cell && cell.walkable !== false && cell.terrain === 'resource' && cell.deck === 'blueprints');
+  return Boolean(cell && cell.walkable !== false && cell.pointClass === 'blacksmith_stone');
 }
 
 export function blacksmithStoneCells() {
@@ -65,9 +65,9 @@ export function blacksmithStoneCells() {
 }
 
 export function blacksmithStoneSide(id) {
+  if (!isBlacksmithStoneCell(id)) return null;
   const explicitSide = cellSide(id);
   if (explicitSide) return explicitSide;
-  if (!isBlacksmithStoneCell(id)) return null;
 
   let best = null;
   for (const side of Object.keys(STARTS)) {

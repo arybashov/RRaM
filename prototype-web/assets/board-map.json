@@ -39,7 +39,8 @@
         "battle": "#f44336",
         "teleport": "#a933e8",
         "dwarf_border": "#ffd928",
-        "dwarf_entry": "#2f7dff"
+        "dwarf_entry": "#2f7dff",
+        "blacksmith_stone": "#2196f3"
       },
       "decks": {
         "mixed": "#ffd66b",
@@ -405,9 +406,9 @@
         "H003",
         "H004"
       ],
-      "terrain": "resource",
-      "pointClass": null,
-      "deck": "blueprints",
+      "terrain": "path",
+      "pointClass": "blacksmith_stone",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,
@@ -5149,9 +5150,9 @@
         "H224",
         "H233"
       ],
-      "terrain": "resource",
-      "pointClass": null,
-      "deck": "blueprints",
+      "terrain": "path",
+      "pointClass": "blacksmith_stone",
+      "deck": null,
       "walkable": true,
       "side": null,
       "role": null,

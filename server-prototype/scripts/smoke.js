@@ -150,6 +150,19 @@ spectator.send('turn:roll', {});
 const spectatorErr = await spectator.waitFor('server:error');
 check('spectator game command is rejected', /создать комнату|войти в нее/i.test(spectatorErr.payload.message ?? ''));
 
+const spectatorTwo = new Client('S2');
+await spectatorTwo.connect();
+await spectatorTwo.waitFor('server:connected');
+spectatorTwo.send('room:watch', { roomId });
+await spectatorTwo.waitFor('room:watched');
+await spectatorTwo.waitFor('state:snapshot');
+spectator.send('chat:send', { text: 'смотрим', name: 'Зоя' });
+const spectatorChat = await spectatorTwo.waitFor('chat:message');
+check('spectator chat reaches other spectators only as spectator scope',
+  spectatorChat.payload.scope === 'spectator'
+    && spectatorChat.payload.text === 'смотрим'
+    && spectatorChat.payload.name === 'Зоя');
+
 // --- Чужой ход запрещен ---
 b.send('turn:roll', {});
 const err1 = await b.waitFor('server:error');
@@ -264,6 +277,7 @@ a.close();
 b.close();
 c.close();
 spectator.close();
+spectatorTwo.close();
 
 console.log(failures === 0 ? '\nВСЕ ПРОВЕРКИ ПРОШЛИ' : `\nПРОВАЛЕНО ПРОВЕРОК: ${failures}`);
 process.exit(failures === 0 ? 0 : 1);

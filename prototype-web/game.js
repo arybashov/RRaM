@@ -1214,7 +1214,7 @@ function handleMsg({ type, payload }) {
 
     case 'chat:message':
       // Чат только в игре (room scope) — в журнал
-      if (payload?.scope === 'room') {
+      if (payload?.scope === (isSpectator() ? 'spectator' : 'room')) {
         addLog(`💬 ${escapeHtml(payload.name ?? 'Игрок')}: ${escapeHtml(payload.text ?? '')}`, { type: 'chat' });
         renderLog();
       }
@@ -1476,13 +1476,14 @@ function syncSpectatorUi() {
     sheetHandleEl?.setAttribute('aria-expanded', 'true');
   }
   if (inventoryEl) inventoryEl.hidden = spectator;
-  if (sheetChatEl) sheetChatEl.hidden = spectator;
+  if (sheetChatEl) sheetChatEl.hidden = false;
   if (localJournalEl) {
     localJournalEl.hidden = !(spectator || canUseLocalActionJournal());
     const title = localJournalEl.querySelector('h2');
-    if (title) title.textContent = spectator ? 'События' : 'Журнал';
+    if (title) title.textContent = spectator ? 'Чат зрителей' : 'Журнал';
   }
-  setSheetHandleLabel(spectator ? 'События' : 'Инвентарь');
+  if (logEl) logEl.hidden = false;
+  setSheetHandleLabel(spectator ? 'Чат' : 'Инвентарь');
 }
 
 const getDice     = (characterId = selectedCharId) => {
@@ -3902,7 +3903,8 @@ function renderBoard() {
 
   // Туман войны: чистые круглые окна вокруг своих живых фигур.
   // Сетка и маркеры вне кругов полностью скрыты, дальние цели туман не пробивают.
-  const fogCircles = (!isSpectator() && fogEnabled) ? fogRevealCircles() : null;
+  const spectator = isSpectator();
+  const fogCircles = (spectator || fogEnabled) ? fogRevealCircles({ spectator }) : null;
   renderFog(fogCircles);
   for (const el of boardSvg.querySelectorAll('.cell')) {
     const id = el.getAttribute('data-id');
@@ -6183,11 +6185,13 @@ function fogCellStep() {
   return distances[Math.floor(distances.length / 2)];
 }
 
-function fogRevealCircles() {
-  if (!getGame()) return null;
+function fogRevealCircles({ spectator = false } = {}) {
+  const game = getGame();
+  if (!game) return null;
   const circles = [];
   const radius = fogCellStep() * FOG_RADIUS_HEXES;
-  for (const c of getMyChars()) {
+  const source = spectator ? (game.characters ?? []) : getMyChars();
+  for (const c of source) {
     const p = tokenDisplayPos.get(c.id) ?? characterPosition(c);
     if (!p || c.hp <= 0) continue;
     const center = cellCenter(p);
@@ -6322,7 +6326,8 @@ function planApproach(sel, enemy) {
 
 function renderLog() {
   if (!logEl) return;
-  logEl.innerHTML = eventLog.map(e => {
+  const entries = isSpectator() ? eventLog.filter(e => e?.type === 'chat') : eventLog;
+  logEl.innerHTML = entries.map(e => {
     const cls = e.type ? ` log-${e.type}` : '';
     return `<div class="log-entry${cls}">${e.msg ?? e}</div>`;
   }).join('');
@@ -6676,7 +6681,7 @@ function cellClassName(cell) {
   const classes = ['cell'];
   if (cell?.terrain) classes.push(`terrain-${cell.terrain}`);
   if (cell?.pointClass) classes.push(`point-${cell.pointClass.replaceAll('_', '-')}`);
-  if (cell?.terrain === 'resource' && cell?.deck === 'blueprints') classes.push('blacksmith-stone');
+  if (cell?.pointClass === 'blacksmith_stone') classes.push('blacksmith-stone');
   // «Цветная» клетка — имеет собственный смысловой цвет (event/resource/start/колода/опушка).
   // Подсветка валидной цели для таких НЕ перекрашивает заливку, только усиливает обводку.
   if (cell?.pointClass || cell?.deck || cell?.side || (cell?.terrain && cell.terrain !== 'path')) {
@@ -6949,6 +6954,7 @@ window.addEventListener('resize', fitBoard);
 // ═════════════════════════════════════════════════════════════════
 
 function addLog(text, extra = {}) {
+  if (isSpectator() && extra.type !== 'chat') return;
   // extra: { charId, to } для ходов — нужны для восстановления позиций
   const last = eventLog[0];
   if (last && last.msg === text && (last.type ?? '') === (extra.type ?? '')) return;
@@ -7905,7 +7911,14 @@ function handleActionResult(result) {
 
   if (result.drawn) {
     const d = result.drawn;
-    const card = { id: d.card, name: d.name, type: d.type, desc: d.desc };
+    const card = {
+      id: d.card,
+      name: d.name,
+      type: d.type,
+      desc: d.desc,
+      sourceDeck: d.sourceDeck ?? d.deck ?? null,
+      sourceBack: d.sourceBack ?? d.deck ?? null,
+    };
     if (d.beast) {
       showToast(`🐗 Нападение зверя: ${d.name}!`, 'danger');
       const character = getGame()?.characters.find(c => c.id === d.characterId);
@@ -7916,11 +7929,7 @@ function handleActionResult(result) {
       pushCardTutorial(card);
       return;
     }
-    if (d.profession) {
-      showCardReveal(card);
-    } else {
-      showFoundCard(card);
-    }
+    showCardReveal(card);
     const toolName = d.bonusTool === 'hammer' ? 'Молоток'
       : d.bonusTool === 'sack' ? 'Мешок'
       : null;

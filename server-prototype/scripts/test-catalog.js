@@ -36,6 +36,50 @@ function makePlayers() {
   ];
 }
 
+function hasAdjacentGroup(ids, groupOf) {
+  for (let i = 1; i < ids.length; i += 1) {
+    if (groupOf(ids[i]) === groupOf(ids[i - 1])) return true;
+  }
+  return false;
+}
+
+const SHUFFLE_TEST_GROUP_IDS = Object.freeze({
+  berries: Object.freeze(['black_berries', 'red_berries']),
+  ore: Object.freeze(['ore_medium', 'ore_coarse', 'dead_ore', 'art_mixed_001', 'art_forest_011']),
+  hide: Object.freeze(['hide_red', 'raw_hide', 'raw_hide_red', 'beast_hide', 'boar_hide', 'wolf_hide', 'bear_hide', 'sheep_hide_r', 'sheep_hide_c']),
+  mushroom: Object.freeze(['amanita', 'amanita_color', 'amanita_glade']),
+  bird: Object.freeze(['owl_common', 'owl_night']),
+  nugget: Object.freeze(['gold_nugget', 'art_dark_forest_001', 'art_dark_forest_002']),
+  gem: Object.freeze(['raw_ruby', 'art_lake_001', 'art_lake_002', 'art_lake_003', 'art_lake_004', 'art_fairy_glade_001']),
+  beast: Object.freeze(['boar_forest', 'boar_red', 'wolf', 'beast_bear', 'art_trophy_001', 'art_trophy_002', 'sheep_ram', 'phoenix_1', 'phoenix_2']),
+  wood: Object.freeze(['bark', 'art_forest_005', 'art_forest_007', 'art_forest_012', 'art_forest_016']),
+});
+const SHUFFLE_TEST_GROUPS = Object.freeze(Object.fromEntries(
+  Object.entries(SHUFFLE_TEST_GROUP_IDS).flatMap(([group, ids]) => ids.map((id) => [id, group])),
+));
+
+function shuffleTestGroup(id) {
+  return SHUFFLE_TEST_GROUPS[id] ?? id;
+}
+
+function adjacentGroupCount(ids, groupOf) {
+  let count = 0;
+  for (let i = 1; i < ids.length; i += 1) {
+    if (groupOf(ids[i]) === groupOf(ids[i - 1])) count += 1;
+  }
+  return count;
+}
+
+function unavoidableAdjacentGroupCount(ids, groupOf) {
+  const counts = ids.reduce((acc, id) => {
+    const group = groupOf(id);
+    acc[group] = (acc[group] ?? 0) + 1;
+    return acc;
+  }, {});
+  const maxCount = Math.max(...Object.values(counts));
+  return Math.max(0, maxCount - ((ids.length - maxCount) + 1));
+}
+
 function startsWithRu(name, codePoints) {
   const prefix = String.fromCodePoint(...codePoints);
   return String(name ?? '').toLocaleLowerCase('ru').startsWith(prefix.toLocaleLowerCase('ru'));
@@ -513,5 +557,33 @@ test('long gameplay audit: created games build decks from the JSON separator inv
     assert.equal(game.redDeck.includes('irikon'), false, `run ${run} red deck excludes irikon`);
     assert.equal(game.redDeck.includes('task_irikon'), false, `run ${run} red deck excludes task_irikon`);
     assert.deepEqual(countIds(game.fairyDeck), expectedFairyDeck, `run ${run} fairy event deck`);
+  }
+});
+
+test('created decks are softly spread like a real shuffled deck', () => {
+  const originalRandom = Math.random;
+  Math.random = () => 0.5;
+  try {
+    const game = createGame(makePlayers());
+    const drawDecks = ['mixed', 'forest_trail', 'forest', 'dark_forest', 'lake', 'sheep', 'blueprints'];
+    for (const deck of drawDecks) {
+      assert.equal(
+        hasAdjacentGroup(game.decks[deck], (id) => id),
+        false,
+        `${deck} has exact duplicate cards next to each other`,
+      );
+      assert.ok(
+        adjacentGroupCount(game.decks[deck], shuffleTestGroup)
+          <= unavoidableAdjacentGroupCount(game.decks[deck], shuffleTestGroup) + 1,
+        `${deck} has avoidable semantic card clumps`,
+      );
+    }
+    assert.equal(
+      adjacentGroupCount(game.redDeck, shuffleTestGroup),
+      unavoidableAdjacentGroupCount(game.redDeck, shuffleTestGroup),
+      'red event deck has avoidable semantic card clumps',
+    );
+  } finally {
+    Math.random = originalRandom;
   }
 });

@@ -479,7 +479,15 @@ function drawCardsFromCurrentCell(game, playerId, character) {
 
   const cards = cardIds.map((cardId) => {
     const card = CARD_BY_ID[cardId];
-    return { card: cardId, name: card?.name, type: card?.type, desc: card?.desc };
+    const source = drawnCardSource(cardId, drawDeckName);
+    return {
+      card: cardId,
+      name: card?.name,
+      type: card?.type,
+      desc: card?.desc,
+      sourceDeck: source?.sourceDeck ?? null,
+      sourceBack: source?.sourceBack ?? null,
+    };
   });
   const primaryCard = beastCardId
     ? cards.find((item) => item.card === beastCardId)
@@ -589,7 +597,16 @@ function drawProfession(game, playerId, { characterId, dieIndex } = {}) {
       name: card?.name,
       type: card?.type,
       desc: card?.desc,
-      cards: [{ card: cardId, name: card?.name, type: card?.type, desc: card?.desc }],
+      sourceDeck: deckName,
+      sourceBack: CARD_BY_ID[cardId]?.deck ?? deckName,
+      cards: [{
+        card: cardId,
+        name: card?.name,
+        type: card?.type,
+        desc: card?.desc,
+        sourceDeck: deckName,
+        sourceBack: CARD_BY_ID[cardId]?.deck ?? deckName,
+      }],
       count: 1,
       deck: deckName,
       profession: true, // клиент покажет флип-анимацию вместо обычного «Взята карта»
@@ -1431,7 +1448,7 @@ function cardSource(sourceDeck = null, sourceBack = null) {
 }
 
 function drawnCardSource(cardId, sourceDeck) {
-  return cardSource(sourceDeck, sourceDeck);
+  return cardSource(sourceDeck, CARD_BY_ID[cardId]?.deck ?? sourceDeck);
 }
 
 function sourceForCardId(cardId) {
@@ -3960,10 +3977,61 @@ function buildFairyDeck() {
   return buildDeck('fairy_glade');
 }
 
+const SHUFFLE_ADJACENCY_ALLOW_RATE = 0.08;
+const SHUFFLE_GROUP_IDS = Object.freeze({
+  berries: Object.freeze(['black_berries', 'red_berries']),
+  ore: Object.freeze(['ore_medium', 'ore_coarse', 'dead_ore', 'art_mixed_001', 'art_forest_011']),
+  hide: Object.freeze(['hide_red', 'raw_hide', 'raw_hide_red', 'beast_hide', 'boar_hide', 'wolf_hide', 'bear_hide', 'sheep_hide_r', 'sheep_hide_c']),
+  mushroom: Object.freeze(['amanita', 'amanita_color', 'amanita_glade']),
+  bird: Object.freeze(['owl_common', 'owl_night']),
+  nugget: Object.freeze(['gold_nugget', 'art_dark_forest_001', 'art_dark_forest_002']),
+  gem: Object.freeze(['raw_ruby', 'art_lake_001', 'art_lake_002', 'art_lake_003', 'art_lake_004', 'art_fairy_glade_001']),
+  beast: Object.freeze(['boar_forest', 'boar_red', 'wolf', 'beast_bear', 'art_trophy_001', 'art_trophy_002', 'sheep_ram', 'phoenix_1', 'phoenix_2']),
+  wood: Object.freeze(['bark', 'art_forest_005', 'art_forest_007', 'art_forest_012', 'art_forest_016']),
+});
+const SHUFFLE_GROUPS = Object.freeze(Object.fromEntries(
+  Object.entries(SHUFFLE_GROUP_IDS).flatMap(([group, ids]) => ids.map((id) => [id, group])),
+));
+
+function shuffleGroup(cardId) {
+  return SHUFFLE_GROUPS[cardId] ?? cardId;
+}
+
 function shuffle(cards) {
   for (let i = cards.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [cards[i], cards[j]] = [cards[j], cards[i]];
   }
+  spreadAdjacentShuffleGroups(cards);
+  return cards;
+}
+
+function spreadAdjacentShuffleGroups(cards) {
+  if (cards.length < 3) return cards;
+
+  const remaining = [...cards];
+  const spread = [];
+  while (remaining.length > 0) {
+    const prevGroup = spread.length > 0 ? shuffleGroup(spread[spread.length - 1]) : null;
+    const groups = new Map();
+    for (let index = 0; index < remaining.length; index += 1) {
+      const group = shuffleGroup(remaining[index]);
+      const indexes = groups.get(group) ?? [];
+      indexes.push(index);
+      groups.set(group, indexes);
+    }
+    const grouped = [...groups.entries()].map(([group, indexes]) => ({ group, indexes }));
+    const avoidable = grouped.filter(({ group }) => group !== prevGroup);
+    const candidates = avoidable.length > 0 && Math.random() >= SHUFFLE_ADJACENCY_ALLOW_RATE
+      ? avoidable
+      : grouped;
+    const maxCount = Math.max(...candidates.map(({ indexes }) => indexes.length));
+    const strongest = candidates.filter(({ indexes }) => indexes.length === maxCount);
+    const pickedGroup = strongest[Math.floor(Math.random() * strongest.length)];
+    const pickedIndex = pickedGroup.indexes[Math.floor(Math.random() * pickedGroup.indexes.length)];
+    spread.push(remaining.splice(pickedIndex, 1)[0]);
+  }
+
+  cards.splice(0, cards.length, ...spread);
   return cards;
 }

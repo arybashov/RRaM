@@ -939,10 +939,6 @@ h2::after {
   border-top: 0;
 }
 
-.spectator-sheet .sheet-chat {
-  display: none;
-}
-
 /* ---------- Локальные подсказки и сообщения игры ---------- */
 .guide-panel {
   position: absolute;

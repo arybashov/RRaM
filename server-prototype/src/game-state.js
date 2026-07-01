@@ -510,11 +510,25 @@ function fogVisibleCells(game, forPlayerId) {
   return seen;
 }
 
-export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllInventories = false } = {}) {
+function spectatorFogVisibleCells(game) {
+  const seen = new Set();
+  for (const c of game.characters) {
+    if (c.hp <= 0 || !c.position) continue;
+    seen.add(c.position);
+    for (const t of reachableCells(c.position, FOG_RADIUS, new Set())) {
+      seen.add(t.cellId);
+    }
+  }
+  return seen;
+}
+
+export function snapshotGame(game, forPlayerId, { fogEnabled = true, revealAllInventories = false, spectator = false } = {}) {
   // Туман войны: видно клетки в радиусе FOG_RADIUS от своих живых персонажей;
   // вражеские фишки вне зоны скрываются (position: null). Движение туманом не
   // ограничено — ходить можно на длину кубиков и в неизведанное.
-  const visible = forPlayerId && fogEnabled ? fogVisibleCells(game, forPlayerId) : null;
+  const visible = spectator && fogEnabled
+    ? spectatorFogVisibleCells(game)
+    : (forPlayerId && fogEnabled ? fogVisibleCells(game, forPlayerId) : null);
   const revealTurnDice = !forPlayerId || game.turn.activePlayerId === forPlayerId;
   return {
     over: game.over,
