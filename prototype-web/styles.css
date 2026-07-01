@@ -739,6 +739,19 @@ h2::after {
   perspective: 1400px;
 }
 
+.profdraw-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  max-width: min(94vw, 980px);
+  perspective: 1400px;
+}
+
+.profdraw-stage-multi .profdraw-row {
+  flex-wrap: wrap;
+}
+
 .profdraw-card {
   position: relative;
   /* Точная пропорция арта карт (341×512), чтобы PNG не обрезался. Ширина
@@ -751,6 +764,10 @@ h2::after {
   transform-style: preserve-3d;
   transition: transform 0.42s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.42s ease;
   cursor: pointer;
+}
+
+.profdraw-stage-multi .profdraw-card {
+  width: min(40vw, 260px, calc(74dvh * 341 / 512));
 }
 .profdraw-overlay.is-active .profdraw-card { transform: translateY(0) scale(1); opacity: 1; }
 .profdraw-overlay.is-active .profdraw-card.is-flipped { transform: translateY(0) scale(1) rotateY(180deg); }
@@ -3581,6 +3598,67 @@ h2::after {
   grid-row: 1;
   width: var(--event-card-width);
   min-width: 0;
+}
+
+.event-card-display.has-preview-flip {
+  width: min(var(--event-card-width), calc(70dvh * 341 / 512));
+  perspective: 1400px;
+}
+
+.event-preview-flip-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 341 / 512;
+  transform-style: preserve-3d;
+  transition: transform 0.42s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.event-preview-flip-card.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.event-preview-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.event-preview-flip-back {
+  transform: rotateY(180deg);
+}
+
+.event-preview-flip-back img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.event-card-display.has-preview-flip .event-preview-flip-face .inventory-card-art,
+.event-card-display.has-preview-flip .event-preview-flip-face .generated-card-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+}
+
+.event-preview-card-desc {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(7, 11, 19, 0.92);
+  color: #d9e0ea;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  max-height: 18dvh;
+  overflow: auto;
 }
 
 .event-card-display .card {

@@ -28,3 +28,16 @@
 - Beast card placement must avoid character figures and current selected character move cells, but stay visually beside the figure.
 - Current board beast-card bounds are intentionally smaller than visual art bounds to avoid overreacting to empty transparent margins.
 
+## 2026-07-01 encyclopedia card preview
+
+- Encyclopedia card click must open the standard card menu (`eventOverlay` / `GameCard.preview`), not a separate custom zoom overlay.
+- Cards must not flip directly inside the encyclopedia list.
+- The standard card menu for encyclopedia previews must allow a visual 3D flip animation from card face to art back and back to face up.
+- Do not enable upside-down rotation for encyclopedia preview cards unless explicitly requested.
+- Do not touch deck source data, shuffle/deck order logic, or resource-cell draw rules for encyclopedia preview fixes.
+
+## 2026-07-01 multi-card draw reveal
+
+- When a draw result contains several cards (`result.drawn.cards`), the draw reveal must show all drawn cards side by side, not only `result.drawn.card`.
+- Each revealed card must be clickable independently; the reveal closes only after all shown cards have been opened.
+- This applies to Hammer/Sack bonus draws and any other multi-card resource draw.
