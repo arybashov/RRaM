@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createStore } from './game-state.js';
 import { ClientCommand, ServerEvent, GAME_COMMANDS } from './protocol.js';
 import { runBotTurn } from './bot.js';
-import { DECK_CARD_COUNTS } from './rules.js';
+import { CARD_GAME_DECK_IDS, DECK_CARD_COUNTS } from './rules.js';
 import { registerAdmin } from './admin.js';
 import { registerAuth, getAuthUserFromRequest } from './auth.js';
 import { createAuthStore } from './auth-store.js';
@@ -21,6 +21,13 @@ const WEB_ROOT = resolve(process.env.WEB_ROOT ?? resolve(__dirname, '../../proto
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 const DEBUG_COMMANDS_ENABLED = process.env.DEBUG_COMMANDS === '1'
   || (process.env.NODE_ENV !== 'production' && LOCAL_HOSTS.has(HOST));
+
+function cardCatalogForClient() {
+  return [...CARD_CATALOG, ...BASE_CARD_CATALOG].map((card) => ({
+    ...card,
+    gameDeckIds: CARD_GAME_DECK_IDS[card.id] ?? [],
+  }));
+}
 
 // trustProxy: за nginx реальный IP клиента приходит в X-Forwarded-For (req.ip).
 const app = Fastify({ logger: true, trustProxy: true });
@@ -69,7 +76,7 @@ app.get('/ws', { websocket: true }, (socket, req) => {
     debugCommands: DEBUG_COMMANDS_ENABLED,
     localActionJournal: DEBUG_COMMANDS_ENABLED,
     authUser,
-    cardCatalog: [...CARD_CATALOG, ...BASE_CARD_CATALOG],
+    cardCatalog: cardCatalogForClient(),
     deckCardCounts: DECK_CARD_COUNTS,
     craftRecipes: CRAFT_RECIPES,
   });

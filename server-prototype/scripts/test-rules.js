@@ -82,6 +82,7 @@ test('draw/transfer/terrain - card instance keeps source deck back', () => {
   apply(g, 'p1', 'action:transfer', { fromId: from.id, toId: to.id, cardIndex: 0, dieIndex: 1 });
 
   assert.deepEqual(to.inventory, ['bark']);
+  assert.equal(to.inventorySources[0].sourceDeck, 'forest_trail');
   assert.equal(to.inventorySources[0].sourceBack, 'forest_trail');
 
   apply(g, 'p1', 'action:terrainPlace', {
@@ -93,15 +94,36 @@ test('draw/transfer/terrain - card instance keeps source deck back', () => {
     faceDown: true,
   });
 
+  assert.equal(g.terrainCards[0].source.sourceDeck, 'forest_trail');
   assert.equal(g.terrainCards[0].source.sourceBack, 'forest_trail');
   const terrainSnap = snapshotGame(g, 'p1').terrainCards.find(card => card.id === 'source-test');
+  assert.equal(terrainSnap.sourceDeck, 'forest_trail');
   assert.equal(terrainSnap.sourceBack, 'forest_trail');
   assert.equal(terrainSnap.card.sourceBack, 'forest_trail');
 
   apply(g, 'p1', 'action:terrainRemove', { id: 'source-test' });
 
   assert.deepEqual(to.inventory, ['bark']);
+  assert.equal(to.inventorySources[0].sourceDeck, 'forest_trail');
   assert.equal(to.inventorySources[0].sourceBack, 'forest_trail');
+});
+
+test('draw - same card face keeps the back of the deck instance it was drawn from', () => {
+  const g = freshGame();
+  const char = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
+  char.position = 'H011';
+  char.inventory = [];
+  char.inventorySources = [];
+  g.decks.forest = ['art_dark_forest_001'];
+  g.turn.dice = [3, 4];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  apply(g, 'p1', 'action:draw', { characterId: char.id, dieIndex: 0 });
+
+  assert.deepEqual(char.inventory, ['art_dark_forest_001']);
+  assert.equal(char.inventorySources[0].sourceDeck, 'forest');
+  assert.equal(char.inventorySources[0].sourceBack, 'forest');
 });
 
 // ── Создание игры ─────────────────────────────────────────────────
@@ -1263,7 +1285,7 @@ test('draw — нельзя добрать не на ресурсной клет
 
 test('draw — работает на каждой клетке добора карты', () => {
   const drawCells = [...new Set([
-    ...terrainCells('resource').filter(cellId => cellDeck(cellId) !== 'recipes'),
+    ...terrainCells('resource').filter(cellId => cellDeck(cellId) && cellDeck(cellId) !== 'recipes'),
     ...deckCells().filter(cellId => !['fairy_glade', 'recipes'].includes(cellDeck(cellId))),
   ])];
   assert.ok(drawCells.length > 0);
@@ -1353,6 +1375,70 @@ test('drawProfession — кузнец по кнопке берет настоя�
   assert.equal(result.drawn.deck, 'blueprints');
   assert.equal(result.drawn.card, 'art_dark_forest_003');
   assert.ok(blacksmith.inventory.includes('art_dark_forest_003'));
+});
+
+test('drawProfession — кузнец по кнопке пропускает изделия в колоде чертежей', () => {
+  const g = freshGame();
+  const blacksmith = g.characters.find(c => c.owner === 'p1' && c.role === 'K');
+  g.decks.blueprints = ['chainmail_light', 'art_dark_forest_003', 'shield_dr'];
+  g.turn.dice = [3, 4];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:drawProfession', { characterId: blacksmith.id, dieIndex: 0 });
+
+  assert.equal(result.drawn.deck, 'blueprints');
+  assert.equal(result.drawn.card, 'art_dark_forest_003');
+  assert.ok(blacksmith.inventory.includes('art_dark_forest_003'));
+  assert.deepEqual(g.decks.blueprints, ['chainmail_light', 'shield_dr']);
+});
+
+test('drawProfession — шаман по кнопке берет карту из рецептов', () => {
+  const g = freshGame();
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  g.decks.recipes = ['recipe_armor'];
+  g.turn.dice = [3, 4];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:drawProfession', { characterId: shaman.id, dieIndex: 0 });
+
+  assert.equal(result.drawn.deck, 'recipes');
+  assert.equal(result.drawn.card, 'recipe_armor');
+  assert.ok(shaman.inventory.includes('recipe_armor'));
+  assert.equal(shaman.inventorySources.at(-1).sourceDeck, 'recipes');
+});
+
+test('drawProfession — шаман по кнопке пропускает готовые предметы в колоде рецептов', () => {
+  const g = freshGame();
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  g.decks.recipes = ['armor_zhest', 'recipe_armor', 'dil_bottle'];
+  g.turn.dice = [3, 4];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:drawProfession', { characterId: shaman.id, dieIndex: 0 });
+
+  assert.equal(result.drawn.deck, 'recipes');
+  assert.equal(result.drawn.card, 'recipe_armor');
+  assert.ok(shaman.inventory.includes('recipe_armor'));
+  assert.deepEqual(g.decks.recipes, ['armor_zhest', 'dil_bottle']);
+});
+
+test('drawProfession — шаман по кнопке может взять шкуру ритуалов из рецептов', () => {
+  const g = freshGame();
+  const shaman = g.characters.find(c => c.owner === 'p1' && c.role === 'S');
+  g.decks.recipes = ['armor_zhest', 'ritual_hide', 'recipe_armor'];
+  g.turn.dice = [3, 4];
+  g.turn.mode = 'split';
+  g.turn.hasRolled = true;
+
+  const result = apply(g, 'p1', 'action:drawProfession', { characterId: shaman.id, dieIndex: 0 });
+
+  assert.equal(result.drawn.deck, 'recipes');
+  assert.equal(result.drawn.card, 'ritual_hide');
+  assert.ok(shaman.inventory.includes('ritual_hide'));
+  assert.deepEqual(g.decks.recipes, ['armor_zhest', 'recipe_armor']);
 });
 
 test('draw — карта зверя из обычной колоды начинает схватку и не попадает в инвентарь', () => {

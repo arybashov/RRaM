@@ -8,7 +8,7 @@ import {
   CRAFT_RECIPES,
   WEAPON_CARDS,
 } from '../src/constants.js';
-import { createGame } from '../src/rules.js';
+import { CARD_GAME_DECK_IDS, DECK_CARD_COUNTS, createGame, gameDeckIdsForCard } from '../src/rules.js';
 
 const allCards = [...BASE_CARD_CATALOG, ...CARD_CATALOG];
 
@@ -84,6 +84,25 @@ test('draw deck card counts are stable', () => {
       trophy: { unique: 3, copies: 0 },
     },
   );
+});
+
+test('game deck ids are independent from visual card backs', () => {
+  for (const [deckId, cards] of Object.entries(DECK_CARD_COUNTS)) {
+    for (const cardId of Object.keys(cards)) {
+      assert.ok(
+        gameDeckIdsForCard(cardId).includes(deckId),
+        `${cardId} must be bound to gameplay deck ${deckId}`,
+      );
+    }
+  }
+
+  assert.deepEqual(
+    gameDeckIdsForCard('hide_red'),
+    ['mixed', 'forest_trail', 'lake', 'forest', 'dark_forest', 'red'],
+  );
+  assert.deepEqual(gameDeckIdsForCard('bear_hide'), ['lake', 'dark_forest', 'red']);
+  assert.deepEqual(CARD_GAME_DECK_IDS.recipe_dil_bottle, ['recipes']);
+  assert.deepEqual(gameDeckIdsForCard('player_green'), []);
 });
 
 test('recipes and blueprints are classified by their visible titles', () => {
