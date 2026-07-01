@@ -322,21 +322,25 @@ export const CRAFT_RECIPES = Object.freeze({
   art_recipes_010: {
     role: 'S', via: 'art_recipes_009', result: 'art_recipes_010',
     materials: [['shaman_carpet'], ['bark', 'art_forest_005'], GEM_CARDS],
+    keepMaterials: ['shaman_carpet'],
     dice: { count: 1, min: 6 },
   },
   art_recipes_012: {
     role: 'S', via: 'art_recipes_011', result: 'art_recipes_012',
     materials: [['shaman_carpet'], ['bark', 'art_forest_005']],
+    keepMaterials: ['shaman_carpet'],
     dice: { count: 2, min: 3 },
   },
   art_recipes_014: {
     role: 'S', via: 'art_recipes_013', result: 'art_recipes_014',
     materials: [['shaman_carpet'], ['bark', 'art_forest_005'], ['art_forest_003']],
+    keepMaterials: ['shaman_carpet'],
     dice: { count: 2, min: 2 },
   },
   art_recipes_016: {
     role: 'S', via: 'art_recipes_015', result: 'art_recipes_016',
     materials: [['shaman_carpet'], ['art_lake_007']],
+    keepMaterials: ['shaman_carpet'],
     dice: { count: 2, min: 2 },
   },
   dil_bottle: {
@@ -363,7 +367,7 @@ export const CRAFT_RECIPES = Object.freeze({
     dice: { count: 2, min: 3 },
   },
   art_recipes_024: {
-    via: 'recipe_obrud', result: 'art_recipes_024',
+    via: 'art_recipes_023', result: 'art_recipes_024',
     options: [
       { role: 'S', materials: [['amanita_glade'], ['art_mixed_003']], dice: { count: 2, min: 2 } },
       { role: 'S', materials: [['amanita_glade'], ['art_mixed_003']], dice: { count: 1, min: 5 } },
@@ -675,6 +679,7 @@ export const CARD_CATALOG = Object.freeze([
   { id: "art_recipes_019", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на обычный посох" },
   { id: "art_recipes_020", deck: "recipes", type: "weapon", copies: 0, name: "Обычный посох" },
   { id: "art_recipes_021", deck: "recipes", type: "weapon", copies: 0, name: "Посох тэрниа" },
+  { id: "art_recipes_023", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на обряд" },
   { id: "art_recipes_024", deck: "recipes", type: "special", copies: 0, name: "Обряд трех" },
   { id: "art_recipes_025", deck: "recipes", type: "recipe", copies: 1, name: "Рецепт на заклятие хозяин" },
   { id: "art_recipes_026", deck: "recipes", type: "special", copies: 0, name: "Заклятие хозяин" },

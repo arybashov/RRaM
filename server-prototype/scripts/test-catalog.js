@@ -97,10 +97,10 @@ function startsWithBlueprint(name) {
 test('card catalog totals are stable', () => {
   assert.equal(BASE_CARD_CATALOG.length, 11);
   assert.equal(copies(BASE_CARD_CATALOG), 11);
-  assert.equal(CARD_CATALOG.length, 125);
-  assert.equal(copies(CARD_CATALOG), 122);
-  assert.equal(allCards.length, 136);
-  assert.equal(copies(allCards), 133);
+  assert.equal(CARD_CATALOG.length, 126);
+  assert.equal(copies(CARD_CATALOG), 123);
+  assert.equal(allCards.length, 137);
+  assert.equal(copies(allCards), 134);
 });
 
 test('card ids are unique across base and draw catalogs', () => {
@@ -122,7 +122,7 @@ test('draw deck card counts are stable', () => {
       forest: { unique: 19, copies: 26 },
       lake: { unique: 7, copies: 7 },
       mixed: { unique: 4, copies: 20 },
-      recipes: { unique: 28, copies: 16 },
+      recipes: { unique: 29, copies: 17 },
       red: { unique: 7, copies: 8 },
       sheep: { unique: 4, copies: 7 },
       trophy: { unique: 3, copies: 0 },
@@ -153,8 +153,8 @@ test('recipes and blueprints are classified by their visible titles', () => {
   const recipeTitleCards = allCards.filter((card) => startsWithRecipe(card.name));
   const blueprintTitleCards = allCards.filter((card) => startsWithBlueprint(card.name));
 
-  assert.equal(recipeTitleCards.length, 16);
-  assert.equal(copies(recipeTitleCards), 18);
+  assert.equal(recipeTitleCards.length, 17);
+  assert.equal(copies(recipeTitleCards), 19);
   assert.ok(recipeTitleCards.every((card) => card.type === 'recipe'));
   assert.ok(recipeTitleCards.filter((card) => CARD_CATALOG.includes(card)).every((card) => ['forest', 'recipes'].includes(card.deck)));
 
@@ -340,6 +340,7 @@ test('long catalog audit: every card is in the expected gameplay deck', () => {
       recipe_dil_bottle: 1,
       art_recipes_017: 1,
       art_recipes_019: 1,
+      art_recipes_023: 1,
       art_recipes_025: 1,
       recipe_armor: 2,
       recipe_obrud: 2,
@@ -473,6 +474,7 @@ test('long gameplay audit: created games build decks from the JSON separator inv
       art_recipes_019: 2,
       art_recipes_020: 2,
       art_recipes_021: 2,
+      art_recipes_023: 2,
       art_recipes_024: 2,
       art_recipes_025: 2,
       art_recipes_026: 2,
@@ -481,7 +483,6 @@ test('long gameplay audit: created games build decks from the JSON separator inv
       porcha: 2,
       recipe_armor: 2,
       recipe_dil_bottle: 2,
-      recipe_obrud: 2,
       ritual_hide: 2,
     },
     blueprints: {

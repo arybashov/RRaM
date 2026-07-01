@@ -12,6 +12,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8081", "--bind", "127.0.0.1", "-d", "prototype-web"],
       "port": 8081
+    },
+    {
+      "name": "rram-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server-prototype/src/index.js"],
+      "port": 8787
     }
   ]
 }

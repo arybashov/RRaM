@@ -3889,7 +3889,7 @@ export const DECK_CARD_COUNTS = Object.freeze({
     art_recipes_020: 2,
     art_recipes_021: 2,
     porcha: 2,
-    recipe_obrud: 2,
+    art_recipes_023: 2,
     art_recipes_024: 2,
     art_recipes_025: 2,
     art_recipes_026: 2,
@@ -4029,9 +4029,15 @@ function spreadAdjacentShuffleGroups(cards) {
     const candidates = avoidable.length > 0 && Math.random() >= SHUFFLE_ADJACENCY_ALLOW_RATE
       ? avoidable
       : grouped;
-    const maxCount = Math.max(...candidates.map(({ indexes }) => indexes.length));
-    const strongest = candidates.filter(({ indexes }) => indexes.length === maxCount);
-    const pickedGroup = strongest[Math.floor(Math.random() * strongest.length)];
+    // Взвешенный случайный выбор (вес = размер группы), а не всегда самая большая —
+    // иначе доминирующая группа ложится строго через одну карту («руда,X,руда,X…»).
+    const totalWeight = candidates.reduce((sum, { indexes }) => sum + indexes.length, 0);
+    let roll = Math.random() * totalWeight;
+    let pickedGroup = candidates[candidates.length - 1];
+    for (const candidate of candidates) {
+      roll -= candidate.indexes.length;
+      if (roll < 0) { pickedGroup = candidate; break; }
+    }
     const pickedIndex = pickedGroup.indexes[Math.floor(Math.random() * pickedGroup.indexes.length)];
     spread.push(remaining.splice(pickedIndex, 1)[0]);
   }
