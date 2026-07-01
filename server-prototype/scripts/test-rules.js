@@ -13,7 +13,6 @@ import {
 } from '../src/rules.js';
 import { neighbors, startCell, shortestDistance, reachableCells, cellTerrain, cellDeck, pointClassCells, terrainCells, deckCells, blacksmithStoneCells, blacksmithStoneSide, dwarfRoute } from '../src/map.js';
 import { snapshotGame } from '../src/game-state.js';
-import { CARD_BY_ID } from '../src/constants.js';
 
 // ── Хелперы ──────────────────────────────────────────────────────
 
@@ -58,7 +57,7 @@ function activateSplitTurn(game, playerId, character, dice = [3, 4]) {
   setCharacterDice(game, character, dice);
 }
 
-test('draw/transfer/terrain - card instance keeps draw deck and art back separately', () => {
+test('draw/transfer/terrain - card instance keeps draw deck back from its source deck', () => {
   const g = freshGame();
   const from = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
   const to = g.characters.find(c => c.owner === 'p1' && c.role === 'P');
@@ -78,13 +77,13 @@ test('draw/transfer/terrain - card instance keeps draw deck and art back separat
 
   assert.deepEqual(from.inventory, ['bark']);
   assert.equal(from.inventorySources[0].sourceDeck, 'forest_trail');
-  assert.equal(snapshotGame(g, 'p1').characters.find(c => c.id === from.id).inventory[0].sourceBack, 'forest');
+  assert.equal(snapshotGame(g, 'p1').characters.find(c => c.id === from.id).inventory[0].sourceBack, 'forest_trail');
 
   apply(g, 'p1', 'action:transfer', { fromId: from.id, toId: to.id, cardIndex: 0, dieIndex: 1 });
 
   assert.deepEqual(to.inventory, ['bark']);
   assert.equal(to.inventorySources[0].sourceDeck, 'forest_trail');
-  assert.equal(to.inventorySources[0].sourceBack, 'forest');
+  assert.equal(to.inventorySources[0].sourceBack, 'forest_trail');
 
   apply(g, 'p1', 'action:terrainPlace', {
     id: 'source-test',
@@ -96,20 +95,20 @@ test('draw/transfer/terrain - card instance keeps draw deck and art back separat
   });
 
   assert.equal(g.terrainCards[0].source.sourceDeck, 'forest_trail');
-  assert.equal(g.terrainCards[0].source.sourceBack, 'forest');
+  assert.equal(g.terrainCards[0].source.sourceBack, 'forest_trail');
   const terrainSnap = snapshotGame(g, 'p1').terrainCards.find(card => card.id === 'source-test');
   assert.equal(terrainSnap.sourceDeck, 'forest_trail');
-  assert.equal(terrainSnap.sourceBack, 'forest');
-  assert.equal(terrainSnap.card.sourceBack, 'forest');
+  assert.equal(terrainSnap.sourceBack, 'forest_trail');
+  assert.equal(terrainSnap.card.sourceBack, 'forest_trail');
 
   apply(g, 'p1', 'action:terrainRemove', { id: 'source-test' });
 
   assert.deepEqual(to.inventory, ['bark']);
   assert.equal(to.inventorySources[0].sourceDeck, 'forest_trail');
-  assert.equal(to.inventorySources[0].sourceBack, 'forest');
+  assert.equal(to.inventorySources[0].sourceBack, 'forest_trail');
 });
 
-test('draw - same card face keeps draw deck but uses card art back', () => {
+test('draw - same card face keeps draw deck back from the deck instance', () => {
   const g = freshGame();
   const char = g.characters.find(c => c.owner === 'p1' && c.role === 'V');
   char.position = 'H011';
@@ -124,7 +123,7 @@ test('draw - same card face keeps draw deck but uses card art back', () => {
 
   assert.deepEqual(char.inventory, ['art_dark_forest_001']);
   assert.equal(char.inventorySources[0].sourceDeck, 'forest');
-  assert.equal(char.inventorySources[0].sourceBack, 'dark_forest');
+  assert.equal(char.inventorySources[0].sourceBack, 'forest');
 });
 
 // ── Создание игры ─────────────────────────────────────────────────
@@ -1353,7 +1352,7 @@ test('draw — берёт карту из колоды по рубашке кл�
     g.turn.hasRolled = true;
 
     const result = apply(g, 'p1', 'action:draw', { characterId: char.id, dieIndex: 0 });
-    const expectedBack = CARD_BY_ID[item.cardId]?.deck ?? item.deck;
+    const expectedBack = item.deck;
 
     assert.equal(result.drawn.deck, item.deck);
     assert.equal(result.drawn.sourceDeck, item.deck);

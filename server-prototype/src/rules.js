@@ -1448,13 +1448,13 @@ function cardSource(sourceDeck = null, sourceBack = null) {
 }
 
 function drawnCardSource(cardId, sourceDeck) {
-  return cardSource(sourceDeck, CARD_BY_ID[cardId]?.deck ?? sourceDeck);
+  return cardSource(sourceDeck, sourceDeck);
 }
 
 function sourceForCardId(cardId) {
   const gameDeckIds = gameDeckIdsForCard(cardId);
   const sourceDeck = gameDeckIds.length === 1 ? gameDeckIds[0] : null;
-  const sourceBack = CARD_BY_ID[cardId]?.deck ?? sourceDeck;
+  const sourceBack = sourceDeck ?? CARD_BY_ID[cardId]?.deck ?? null;
   return cardSource(sourceDeck, sourceBack);
 }
 

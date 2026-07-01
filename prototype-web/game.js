@@ -771,7 +771,7 @@ const HEARTBEAT_MS = 3000;  // ping каждые 3с (keepalive + живой з�
 const STALE_MS = 28000;     // нет ни одного сообщения от сервера дольше → сокет мёртв
 
 const NAME_KEY = 'rram_player_name';
-const APP_VERSION = '20260701-10'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
+const APP_VERSION = '20260701-16'; // = BUILD_VERSION (сервер) и ?v= в index.html; бампать через scripts/bump-version.mjs
 const ROLLS_PER_GAME = 10;
 const ROLL_TURN_ICON = './assets/ui/action-icons/roll-end-turn-v6.png';
 const END_TURN_ICON = './assets/ui/action-icons/end-turn-v1.png';
@@ -5838,20 +5838,104 @@ function rectsOverlap(a, b) {
     && a.y + a.h > b.y;
 }
 
-function placeBeastCard(ctr, w, h, occupiedCenters, placedRects) {
+function rectsOverlapPadded(a, b, padding = 0) {
+  return a.x < b.x + b.w + padding
+    && a.x + a.w > b.x - padding
+    && a.y < b.y + b.h + padding
+    && a.y + a.h > b.y - padding;
+}
+
+function shrinkRect(rect, factor = 0.7) {
+  const w = rect.w * factor;
+  const h = rect.h * factor;
+  return {
+    x: rect.x + (rect.w - w) / 2,
+    y: rect.y + (rect.h - h) / 2,
+    w,
+    h,
+  };
+}
+
+function characterTokenRect(ctr) {
+  const figureWidth = HEX_R * 2.0;
+  const figureHeight = HEX_R * 2.9;
+  return {
+    x: ctr.cx - figureWidth / 2,
+    y: ctr.cy - figureHeight * 0.68,
+    w: figureWidth,
+    h: figureHeight,
+  };
+}
+
+function hexCellAvoidRect(cellId) {
+  const ctr = cellCenter(cellId);
+  if (!ctr) return null;
+  const w = HEX_R * 0.9;
+  const h = HEX_R * 0.78;
+  return {
+    x: ctr.cx - w / 2,
+    y: ctr.cy - h / 2,
+    w,
+    h,
+  };
+}
+
+function placeBeastCard(ctr, w, h, occupiedRects, placedRects) {
   const margin = HEX_R * 0.7;
   const labelSpace = HEX_R * 0.8;
   const gap = HEX_R * 1.1;
   const maxX = Math.max(margin, VBW - margin - w);
   const maxY = Math.max(margin, VBH - margin - h - labelSpace);
-  const candidates = [
-    { x: ctr.cx - w - gap, y: ctr.cy - h / 2 },
-    { x: ctr.cx + gap, y: ctr.cy - h / 2 },
-    { x: ctr.cx - w / 2, y: ctr.cy - h - gap },
-    { x: ctr.cx - w / 2, y: ctr.cy + gap },
-  ];
+  const tokenRect = characterTokenRect(ctr);
+  const fightCenter = {
+    x: tokenRect.x + tokenRect.w / 2,
+    y: tokenRect.y + tokenRect.h / 2,
+  };
+  const middleY = tokenRect.y + tokenRect.h / 2 - h / 2;
+  const middleX = tokenRect.x + tokenRect.w / 2 - w / 2;
+  const candidates = [];
+  for (const yOffset of [0, -h * 0.22, h * 0.22, -h * 0.45, h * 0.45, -h * 0.7, h * 0.7]) {
+    candidates.push(
+      { x: tokenRect.x - w - gap, y: middleY + yOffset, side: true },
+      { x: tokenRect.x + tokenRect.w + gap, y: middleY + yOffset, side: true },
+    );
+  }
+  candidates.push(
+    { x: tokenRect.x - w - gap * 1.75, y: middleY, side: true },
+    { x: tokenRect.x + tokenRect.w + gap * 1.75, y: middleY, side: true },
+    { x: tokenRect.x - w - gap, y: tokenRect.y - h - gap * 0.25, side: true },
+    { x: tokenRect.x + tokenRect.w + gap, y: tokenRect.y - h - gap * 0.25, side: true },
+    { x: tokenRect.x - w - gap, y: tokenRect.y + tokenRect.h + gap * 0.25, side: true },
+    { x: tokenRect.x + tokenRect.w + gap, y: tokenRect.y + tokenRect.h + gap * 0.25, side: true },
+    { x: middleX, y: tokenRect.y - h - gap, side: false },
+    { x: middleX, y: tokenRect.y + tokenRect.h + gap, side: false },
+  );
+  const ringAngles = [0, 180, -30, 30, -60, 60, -120, 120, -90, 90, -150, 150];
+  const baseDx = (tokenRect.w + w) / 2 + gap;
+  const baseDy = (tokenRect.h + h) / 2 + gap;
+  for (const scale of [1.05, 1.25, 1.5, 1.85, 2.25]) {
+    for (const deg of ringAngles) {
+      const rad = (Math.PI / 180) * deg;
+      candidates.push({
+        x: fightCenter.x + Math.cos(rad) * baseDx * scale - w / 2,
+        y: fightCenter.y + Math.sin(rad) * baseDy * scale - h / 2,
+        side: Math.abs(Math.cos(rad)) >= 0.7,
+      });
+    }
+  }
+  const fallbackStart = candidates.length;
+  candidates.push(
+    { x: margin, y: margin, side: false },
+    { x: maxX, y: margin, side: false },
+    { x: margin, y: maxY, side: false },
+    { x: maxX, y: maxY, side: false },
+    { x: VBW / 2 - w / 2, y: margin, side: false },
+    { x: VBW / 2 - w / 2, y: maxY, side: false },
+    { x: margin, y: VBH / 2 - h / 2, side: true },
+    { x: maxX, y: VBH / 2 - h / 2, side: true },
+  );
 
-  return candidates
+  const scored = candidates
     .map((candidate, index) => {
       const rect = {
         x: Math.max(margin, Math.min(maxX, candidate.x)),
@@ -5859,16 +5943,17 @@ function placeBeastCard(ctr, w, h, occupiedCenters, placedRects) {
         w,
         h,
       };
-      let score = Math.hypot(rect.x - candidate.x, rect.y - candidate.y) + index * 0.01;
-      const tokenPadding = HEX_R * 1.45;
-      for (const center of occupiedCenters) {
-        if (
-          center.cx >= rect.x - tokenPadding
-          && center.cx <= rect.x + rect.w + tokenPadding
-          && center.cy >= rect.y - tokenPadding
-          && center.cy <= rect.y + rect.h + tokenPadding
-        ) {
-          score += 10000;
+      const collisionRect = shrinkRect(rect, 0.7);
+      const cardCenter = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+      let score = Math.hypot(cardCenter.x - fightCenter.x, cardCenter.y - fightCenter.y)
+        + Math.hypot(rect.x - candidate.x, rect.y - candidate.y) * 4
+        + Math.abs(cardCenter.y - fightCenter.y) * 0.8
+        + index * 0.01;
+      if (!candidate.side) score += 1500;
+      if (index >= fallbackStart) score += 5000;
+      for (const occupied of occupiedRects) {
+        if (rectsOverlapPadded(collisionRect, occupied, HEX_R * 0.18)) {
+          score += 100000;
         }
       }
       for (const placed of placedRects) {
@@ -5876,7 +5961,12 @@ function placeBeastCard(ctr, w, h, occupiedCenters, placedRects) {
       }
       return { rect, score };
     })
-    .sort((a, b) => a.score - b.score)[0].rect;
+    .sort((a, b) => a.score - b.score);
+
+  return scored.find(({ rect }) =>
+    !occupiedRects.some(occupied => rectsOverlapPadded(shrinkRect(rect, 0.7), occupied, HEX_R * 0.1))
+    && !placedRects.some(placed => rectsOverlap(rect, placed))
+  )?.rect ?? scored[0].rect;
 }
 
 function centerInsideRect(center, rect, padding = 0) {
@@ -5953,9 +6043,17 @@ function renderCombatBoardElements(fogCircles) {
   const g = getGame();
   if (!g) return;
 
-  const occupiedCenters = g.characters
+  const occupiedRects = g.characters
     .map(char => cellCenter(tokenDisplayPos.get(char.id) ?? characterPosition(char)))
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(characterTokenRect);
+  const selected = getSelChar();
+  if (selected) {
+    for (const cellId of validTargets(selected)) {
+      const rect = hexCellAvoidRect(cellId);
+      if (rect) occupiedRects.push(rect);
+    }
+  }
   const placedBeastRects = [];
 
   // Карта зверя: для каждого своего персонажа в beastFight — карта над хексом
@@ -5965,9 +6063,9 @@ function renderCombatBoardElements(fogCircles) {
     const pos = bf.cellId ?? characterPosition(char);
     const ctr = cellCenter(pos);
     if (!ctr) continue;
-    const w = HEX_R * 3.5; // в размер карт на террейне
+    const w = HEX_R * 1.8; // компактная карта зверя на поле
     const h = w * (512 / 341);
-    const rect = placeBeastCard(ctr, w, h, occupiedCenters, placedBeastRects);
+    const rect = placeBeastCard(ctr, w, h, occupiedRects, placedBeastRects);
     const { x, y } = rect;
     placedBeastRects.push(rect);
     beastCardRects.set(char.id, rect);
@@ -6012,9 +6110,9 @@ function renderCombatBoardElements(fogCircles) {
     const txt = document.createElementNS(svgNS, 'text');
     txt.setAttribute('class', 'beast-card-hp');
     txt.setAttribute('x', (x + w / 2).toFixed(2));
-    txt.setAttribute('y', (y + h - HEX_R * 0.55).toFixed(2));
+    txt.setAttribute('y', (y + h - HEX_R * 0.28).toFixed(2));
     txt.style.textAnchor = 'middle';
-    txt.style.fontSize = `${HEX_R * 0.68}px`;
+    txt.style.fontSize = `${HEX_R * 0.48}px`;
     txt.style.pointerEvents = 'none';
     txt.textContent = `HP ${bf.hp}/${bf.maxHp}`;
     gEl.appendChild(txt);
