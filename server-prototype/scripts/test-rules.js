@@ -2928,7 +2928,12 @@ test('красная клетка — красная находка попада
     assert.equal(result.redEvent.cardId, 'task_irikon');
     assert.equal(result.redEvent.beast, false);
     assert.equal(result.redEvent.acquired, true);
+    assert.equal(result.redEvent.sourceDeck, 'red');
+    assert.equal(result.redEvent.sourceBack, 'red');
     assert.ok(char.inventory.includes('task_irikon'));
+    const cardIndex = char.inventory.indexOf('task_irikon');
+    assert.equal(char.inventorySources[cardIndex].sourceDeck, 'red');
+    assert.equal(char.inventorySources[cardIndex].sourceBack, 'red');
     assert.deepEqual(g.redDeck, ['wolf']);
   } finally {
     Math.random = originalRandom;
@@ -4963,6 +4968,8 @@ test('Таинственная опушка — Жаба ворчун попад
   assert.equal(result.redEvent.type, 'special');
   assert.equal(result.redEvent.beast, false);
   assert.equal(result.redEvent.acquired, true);
+  assert.equal(result.redEvent.sourceDeck, 'fairy_glade');
+  assert.equal(result.redEvent.sourceBack, 'fairy_glade');
   assert.ok(char.inventory.includes('art_fairy_glade_005'));
 });
 

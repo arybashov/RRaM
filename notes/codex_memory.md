@@ -41,3 +41,9 @@
 - When a draw result contains several cards (`result.drawn.cards`), the draw reveal must show all drawn cards side by side, not only `result.drawn.card`.
 - Each revealed card must be clickable independently; the reveal closes only after all shown cards have been opened.
 - This applies to Hammer/Sack bonus draws and any other multi-card resource draw.
+
+## 2026-07-01 red event reveal
+
+- Red event card results must preserve `sourceDeck/sourceBack` in `result.redEvent`, just like normal resource draws.
+- A non-beast red event find must use `showCardReveal` first, not `showFoundCard`, so the player sees the linked card back before opening the face.
+- Do not change deck composition, shuffle order, or source identity when touching this display path.
