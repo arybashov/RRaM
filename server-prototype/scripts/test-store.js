@@ -128,6 +128,62 @@ test('store does not expose completed games for watching', () => {
   );
 });
 
+test('admin rooms are newest first and omit completed games', () => {
+  const store = createStore({ roomPersistence: memoryPersistence() });
+  const { room: waitingRoom } = store.createRoom({
+    playerName: 'Waiting',
+    connectionId: 'conn-waiting',
+  });
+  waitingRoom.createdAt = 1000;
+
+  const { room: activeRoom } = store.createRoom({
+    playerName: 'Active A',
+    connectionId: 'conn-active-a',
+  });
+  store.joinRoom({
+    code: activeRoom.code,
+    playerName: 'Active B',
+    connectionId: 'conn-active-b',
+  });
+  activeRoom.createdAt = 2000;
+  activeRoom.startedAt = 3000;
+
+  const { room: freshRoom } = store.createRoom({
+    playerName: 'Fresh A',
+    connectionId: 'conn-fresh-a',
+  });
+  store.joinRoom({
+    code: freshRoom.code,
+    playerName: 'Fresh B',
+    connectionId: 'conn-fresh-b',
+  });
+  freshRoom.createdAt = 4000;
+  freshRoom.startedAt = 5000;
+
+  const { room: completedRoom } = store.createRoom({
+    playerName: 'Done A',
+    connectionId: 'conn-done-a',
+  });
+  store.joinRoom({
+    code: completedRoom.code,
+    playerName: 'Done B',
+    connectionId: 'conn-done-b',
+  });
+  completedRoom.createdAt = 6000;
+  completedRoom.startedAt = 7000;
+  completedRoom.game.over = true;
+
+  const rooms = store.adminRooms();
+  assert.deepEqual(rooms.map((room) => room.code), [
+    freshRoom.code,
+    activeRoom.code,
+    waitingRoom.code,
+  ]);
+  assert.equal(rooms.some((room) => room.code === completedRoom.code), false);
+  assert.equal(rooms[0].startedAt, 5000);
+  assert.equal(rooms[2].startedAt, null);
+});
+
 test('store persistence records PvP game events for training', () => {
   const persistence = memoryPersistence();
   const store = createStore({ roomPersistence: persistence });

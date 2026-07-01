@@ -146,17 +146,18 @@ function buildData({ store, clients, lobbySubscribers, version }) {
     });
   }
   clientList.sort((a, b) => b.connectedSec - a.connectedSec);
+  const rooms = store.adminRooms();
   return {
     now,
     serverVersion: version,
     uptimeSec: Math.round(process.uptime()),
     counts: {
       clients: clients.size,
-      rooms: store.adminRooms().length,
+      rooms: rooms.length,
       lobbyWatchers: lobbySubscribers.size,
     },
     clients: clientList,
-    rooms: store.adminRooms(),
+    rooms,
   };
 }
 
@@ -296,11 +297,12 @@ const ADMIN_HTML = `<!doctype html>
     <th>id</th><th>IP</th><th>девайс</th><th>пинг</th><th>версия</th><th>где</th><th>комната</th><th>игрок</th><th>онлайн</th><th>idle</th>
   </tr></thead><tbody></tbody></table></section>
   <section><h2>Комнаты / партии</h2><table id="rooms"><thead><tr>
-    <th>код</th><th>тип</th><th>статус</th><th>игроки</th><th>партия</th><th>действие</th>
+    <th>код</th><th>старт</th><th>тип</th><th>статус</th><th>игроки</th><th>партия</th><th>действие</th>
   </tr></thead><tbody></tbody></table></section>
 </main>
 <script>
 const fmtDur = s => s>=3600 ? Math.floor(s/3600)+'ч '+Math.floor(s%3600/60)+'м' : s>=60 ? Math.floor(s/60)+'м '+(s%60)+'с' : s+'с';
+const fmtDateTime = ms => ms ? new Date(ms).toLocaleString() : '—';
 function idleCls(s){ return s>30 ? 'bad' : s>10 ? 'warn' : 'ok'; }
 function pingCls(ms){ return ms==null ? 'muted' : ms<150 ? 'ok' : ms<600 ? 'warn' : 'bad'; }
 
@@ -366,8 +368,8 @@ async function tick(){
     const watch = r.status === 'active' && r.type === 'public' && r.game && !r.game.over
       ? '<a class=watch-link target="_blank" rel="noopener" href="/?watch='+encodeURIComponent(r.code)+'">Смотреть</a>'
       : '<span class=muted>—</span>';
-    return '<tr><td><b>'+r.code+'</b></td><td><span class=pill>'+r.type+'</span></td><td>'+r.status+'</td><td>'+players+'</td><td>'+game+'</td><td>'+watch+'</td></tr>';
-  }).join('') || '<tr><td colspan=6 class=muted>нет комнат</td></tr>';
+    return '<tr><td><b>'+r.code+'</b></td><td>'+fmtDateTime(r.startedAt || r.createdAt)+'</td><td><span class=pill>'+r.type+'</span></td><td>'+r.status+'</td><td>'+players+'</td><td>'+game+'</td><td>'+watch+'</td></tr>';
+  }).join('') || '<tr><td colspan=7 class=muted>нет комнат</td></tr>';
 
   // Точка в историю графика: ваша задержка, макс. пинг клиентов, число клиентов.
   const rtts = d.clients.map(c=>c.rtt).filter(v=>typeof v==='number');

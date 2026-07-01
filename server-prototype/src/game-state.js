@@ -23,6 +23,7 @@ export function createStore({ roomPersistence = null } = {}) {
       vsBot: false,
       public: vsBot ? false : isPublic === true,
       createdAt: now,
+      startedAt: null,
       updatedAt: now,
     };
 
@@ -43,6 +44,7 @@ export function createStore({ roomPersistence = null } = {}) {
       room.vsBot = true;
       room.status = 'active';
       room.game = rules.createGame(room.players);
+      room.startedAt = now;
     }
 
     rooms.set(room.id, room);
@@ -98,6 +100,7 @@ export function createStore({ roomPersistence = null } = {}) {
     if (room.players.length === PLAYER_LIMIT) {
       room.status = 'active';
       room.game = rules.createGame(room.players);
+      room.startedAt = Date.now();
       startedPvp = shouldRecordPvpRoom(room);
     }
 
@@ -276,10 +279,17 @@ export function createStore({ roomPersistence = null } = {}) {
   function adminRooms() {
     const out = [];
     for (const room of rooms.values()) {
+      if (room.game?.over) continue;
+      const createdAt = Number(room.createdAt ?? Date.now());
+      const startedAt = room.game
+        ? Number(room.startedAt ?? room.createdAt ?? Date.now())
+        : null;
       out.push({
         code: room.code,
         status: room.status,
         type: room.vsBot ? 'vsBot' : (room.public ? 'public' : 'private'),
+        createdAt,
+        startedAt,
         players: room.players.map((p) => ({
           name: p.name,
           side: p.side ?? null,
@@ -302,6 +312,7 @@ export function createStore({ roomPersistence = null } = {}) {
         } : null,
       });
     }
+    out.sort((a, b) => (b.startedAt ?? b.createdAt ?? 0) - (a.startedAt ?? a.createdAt ?? 0));
     return out;
   }
 
@@ -426,6 +437,7 @@ function normalizePersistedRoom(room) {
     public: room.public === true,
     game: status === 'active' ? room.game : null,
     createdAt: Number(room.createdAt ?? Date.now()),
+    startedAt: room.startedAt == null ? null : Number(room.startedAt),
     updatedAt: Number(room.updatedAt ?? room.createdAt ?? Date.now()),
   };
 }
